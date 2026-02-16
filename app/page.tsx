@@ -2,7 +2,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { useState, useEffect } from 'react';
-import { MagnifyingGlassIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { MagnifyingGlassIcon, XMarkIcon, CheckBadgeIcon } from '@heroicons/react/24/outline';
 import Image from 'next/image';
 
 // Initialize Supabase Client
@@ -33,13 +33,38 @@ type Candidate = {
   work_history?: WorkHistory[];
   email?: string;
   phone?: string;
+  status?: string;
 };
+
+// Vetting Options
+const ENGLISH_LEVELS = ['Weak', 'Acceptable', 'Good', 'Very Good', 'Excellent'];
+const WORK_MODES = ['Work from home', 'Hybrid', 'OnSite'];
+const BENEFITS_LIST = [
+  'Social Insurance & Taxation',
+  'Health Insurance',
+  'Life Insurance',
+  'Laptop Allowance',
+  'Transportation Allowance'
+];
 
 export default function Dashboard() {
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
+  const [vettingCandidate, setVettingCandidate] = useState<Candidate | null>(null);
+
+  // Vetting Form State
+  const [vettingData, setVettingData] = useState({
+    english_proficiency: 'Good',
+    notice_period: '',
+    current_salary: '',
+    expected_salary: '',
+    work_presence: 'Hybrid',
+    benefits: [] as string[],
+    notes: ''
+  });
+  const [submittingVetting, setSubmittingVetting] = useState(false);
 
   useEffect(() => {
     fetchCandidates();
@@ -56,6 +81,63 @@ export default function Dashboard() {
     else setCandidates(data || []);
     setLoading(false);
   }
+
+  async function submitVetting(e: React.FormEvent) {
+    e.preventDefault();
+    if (!vettingCandidate) return;
+
+    setSubmittingVetting(true);
+    
+    // 1. Insert Vetting Record
+    const { error: vetError } = await supabase.from('vettings').insert({
+      candidate_id: vettingCandidate.id,
+      english_proficiency: vettingData.english_proficiency,
+      notice_period: vettingData.notice_period,
+      current_salary: parseFloat(vettingData.current_salary) || 0,
+      expected_salary: parseFloat(vettingData.expected_salary) || 0,
+      work_presence: vettingData.work_presence,
+      benefits: vettingData.benefits,
+      notes: vettingData.notes
+    });
+
+    if (vetError) {
+      alert('Error saving vetting: ' + vetError.message);
+      setSubmittingVetting(false);
+      return;
+    }
+
+    // 2. Update Candidate Status (Optimistic Update)
+    const { error: statusError } = await supabase
+      .from('candidates')
+      .update({ status: 'Vetted' })
+      .eq('id', vettingCandidate.id);
+
+    if (statusError) console.error('Error updating status:', statusError);
+
+    // Refresh & Close
+    await fetchCandidates();
+    setVettingCandidate(null);
+    setSubmittingVetting(false);
+    // Reset Form
+    setVettingData({
+        english_proficiency: 'Good',
+        notice_period: '',
+        current_salary: '',
+        expected_salary: '',
+        work_presence: 'Hybrid',
+        benefits: [],
+        notes: ''
+    });
+  }
+
+  const toggleBenefit = (benefit: string) => {
+    setVettingData(prev => ({
+      ...prev,
+      benefits: prev.benefits.includes(benefit) 
+        ? prev.benefits.filter(b => b !== benefit)
+        : [...prev.benefits, benefit]
+    }));
+  };
 
   // Filter Logic
   const filteredCandidates = candidates.filter(c => {
@@ -78,23 +160,14 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
-      {/* Header: Black + Centered Title */}
+      {/* Header */}
       <header className="bg-black text-white shadow-lg sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center">
           <div className="flex items-center gap-3">
-            {/* LNKD Logo */}
             <div className="bg-white p-1 rounded-sm">
-              <Image 
-                src="/logo.jpg" 
-                alt="LNKD Logo" 
-                width={80} 
-                height={40} 
-                className="object-contain h-8 w-auto" 
-              />
+              <Image src="/logo.jpg" alt="LNKD Logo" width={80} height={40} className="object-contain h-8 w-auto" />
             </div>
-            {/* Vertical Separator */}
             <div className="h-6 w-px bg-zinc-700 mx-1"></div>
-            {/* Title Centered Vertically */}
             <h1 className="text-xl font-semibold tracking-wide hidden sm:block">Talent Scout</h1>
           </div>
           <div className="flex items-center gap-4">
@@ -133,6 +206,7 @@ export default function Dashboard() {
                 key={candidate.id} 
                 candidate={candidate} 
                 onViewDetails={() => setSelectedCandidate(candidate)} 
+                onVetCandidate={() => setVettingCandidate(candidate)}
               />
             ))}
             {filteredCandidates.length === 0 && (
@@ -146,108 +220,136 @@ export default function Dashboard() {
 
       {/* Details Modal */}
       {selectedCandidate && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => setSelectedCandidate(null)}>
+        <CandidateDetailsModal 
+           candidate={selectedCandidate} 
+           onClose={() => setSelectedCandidate(null)} 
+        />
+      )}
+
+      {/* Vetting Modal */}
+      {vettingCandidate && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => setVettingCandidate(null)}>
           <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="sticky top-0 bg-white border-b border-slate-100 p-6 flex justify-between items-center z-10">
               <div>
-                <h2 className="text-2xl font-bold text-slate-900">{selectedCandidate.full_name}</h2>
-                <p className="text-slate-500">{selectedCandidate.title}</p>
+                <h2 className="text-xl font-bold text-slate-900">Vet Candidate: {vettingCandidate.full_name}</h2>
+                <p className="text-sm text-slate-500">{vettingCandidate.title}</p>
               </div>
-              <button onClick={() => setSelectedCandidate(null)} className="p-2 hover:bg-slate-100 rounded-full transition">
+              <button onClick={() => setVettingCandidate(null)} className="p-2 hover:bg-slate-100 rounded-full transition">
                 <XMarkIcon className="h-6 w-6 text-slate-500" />
               </button>
             </div>
             
-            <div className="p-6 space-y-6">
+            <form onSubmit={submitVetting} className="p-6 space-y-6">
               
-              {/* Key Stats */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                 <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
-                    <div className="text-xs text-slate-500 uppercase font-bold tracking-wider mb-1">Score</div>
-                    <div className="text-xl font-bold text-slate-900">{selectedCandidate.match_score}%</div>
-                 </div>
-                 <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
-                    <div className="text-xs text-slate-500 uppercase font-bold tracking-wider mb-1">Exp</div>
-                    <div className="text-xl font-bold text-slate-900">{selectedCandidate.years_experience_total} Yrs</div>
-                 </div>
-                 <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
-                    <div className="text-xs text-slate-500 uppercase font-bold tracking-wider mb-1">Location</div>
-                    <div className="text-lg font-bold text-slate-900 truncate" title={selectedCandidate.location}>{selectedCandidate.location}</div>
-                 </div>
-                 <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
-                    <div className="text-xs text-slate-500 uppercase font-bold tracking-wider mb-1">Source</div>
-                    <div className="text-lg font-bold text-slate-900 capitalize">{selectedCandidate.source}</div>
-                 </div>
-              </div>
-
-              {/* Match Reason */}
-              <div>
-                <h3 className="font-bold text-slate-900 mb-2">Why they match</h3>
-                <p className="text-slate-600 bg-blue-50/50 p-4 rounded-lg border border-blue-100">
-                  {selectedCandidate.match_reason}
-                </p>
-              </div>
-
-              {/* LNKD Notes */}
-              {selectedCandidate.lnkd_notes && (
+              {/* Row 1: English & Work Presence */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                    <h3 className="font-bold text-slate-900 mb-2">LNKD Analysis</h3>
-                    <p className="text-slate-600 italic">
-                    "{selectedCandidate.lnkd_notes}"
-                    </p>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">English Proficiency</label>
+                    <select 
+                        className="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-black outline-none"
+                        value={vettingData.english_proficiency}
+                        onChange={e => setVettingData({...vettingData, english_proficiency: e.target.value})}
+                    >
+                        {ENGLISH_LEVELS.map(l => <option key={l} value={l}>{l}</option>)}
+                    </select>
                 </div>
-              )}
-
-              {/* Tech Stack */}
-              <div>
-                <h3 className="font-bold text-slate-900 mb-2">Tech Stack</h3>
-                <div className="flex flex-wrap gap-2">
-                    {selectedCandidate.technologies?.map((t, i) => (
-                        <span key={i} className="bg-slate-100 px-3 py-1 rounded-full text-sm border border-slate-200">
-                            {t.name} <span className="text-slate-400 text-xs ml-1">({t.years}y)</span>
-                        </span>
-                    ))}
-                    {selectedCandidate.tools?.map((t, i) => (
-                        <span key={i} className="bg-white px-3 py-1 rounded-full text-sm border border-slate-200 shadow-sm">
-                            {t.name} <span className="text-slate-400 text-xs ml-1">({t.years}y)</span>
-                        </span>
-                    ))}
-                </div>
-              </div>
-
-              {/* Work History */}
-              {selectedCandidate.work_history && selectedCandidate.work_history.length > 0 && (
                 <div>
-                    <h3 className="font-bold text-slate-900 mb-2">Work History</h3>
-                    <div className="space-y-3">
-                        {selectedCandidate.work_history.map((job, i) => (
-                            <div key={i} className="flex justify-between items-center border-b border-slate-100 pb-2 last:border-0">
-                                <div>
-                                    <div className="font-semibold text-slate-800">{job.company}</div>
-                                    <div className="text-sm text-slate-500">{job.title}</div>
-                                </div>
-                                <div className="text-sm font-medium text-slate-400">{job.years} Years</div>
-                            </div>
-                        ))}
-                    </div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Work Presence</label>
+                    <select 
+                        className="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-black outline-none"
+                        value={vettingData.work_presence}
+                        onChange={e => setVettingData({...vettingData, work_presence: e.target.value})}
+                    >
+                        {WORK_MODES.map(m => <option key={m} value={m}>{m}</option>)}
+                    </select>
                 </div>
-              )}
-
-              {/* Links */}
-              <div className="flex gap-4 pt-4">
-                 {selectedCandidate.linkedin_url && (
-                    <a href={selectedCandidate.linkedin_url} target="_blank" className="flex-1 bg-[#0077b5] text-white text-center py-2.5 rounded-lg font-semibold hover:bg-[#006097] transition">
-                        LinkedIn Profile
-                    </a>
-                 )}
-                 {selectedCandidate.portfolio_url && (
-                    <a href={selectedCandidate.portfolio_url} target="_blank" className="flex-1 bg-black text-white text-center py-2.5 rounded-lg font-semibold hover:bg-zinc-800 transition">
-                        Portfolio / Behance
-                    </a>
-                 )}
               </div>
 
-            </div>
+              {/* Row 2: Salaries */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Current Salary (EGP)</label>
+                    <input 
+                        type="number" 
+                        className="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-black outline-none"
+                        value={vettingData.current_salary}
+                        onChange={e => setVettingData({...vettingData, current_salary: e.target.value})}
+                        placeholder="e.g. 25000"
+                    />
+                </div>
+                <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Expected Salary (EGP)</label>
+                    <input 
+                        type="number" 
+                        className="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-black outline-none"
+                        value={vettingData.expected_salary}
+                        onChange={e => setVettingData({...vettingData, expected_salary: e.target.value})}
+                        placeholder="e.g. 35000"
+                    />
+                </div>
+              </div>
+
+              {/* Row 3: Notice Period */}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Notice Period</label>
+                <input 
+                    type="text" 
+                    className="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-black outline-none"
+                    value={vettingData.notice_period}
+                    onChange={e => setVettingData({...vettingData, notice_period: e.target.value})}
+                    placeholder="e.g. 1 Month, Immediate"
+                />
+              </div>
+
+              {/* Row 4: Benefits (Multi-select) */}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Benefits Required</label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    {BENEFITS_LIST.map(benefit => (
+                        <label key={benefit} className="flex items-center gap-2 cursor-pointer p-2 border border-slate-200 rounded-md hover:bg-slate-50 transition">
+                            <input 
+                                type="checkbox" 
+                                checked={vettingData.benefits.includes(benefit)}
+                                onChange={() => toggleBenefit(benefit)}
+                                className="h-4 w-4 text-black focus:ring-black border-gray-300 rounded"
+                            />
+                            <span className="text-sm text-slate-700">{benefit}</span>
+                        </label>
+                    ))}
+                </div>
+              </div>
+
+              {/* Row 5: Notes */}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Interview Notes</label>
+                <textarea 
+                    className="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-black outline-none min-h-[100px]"
+                    value={vettingData.notes}
+                    onChange={e => setVettingData({...vettingData, notes: e.target.value})}
+                    placeholder="Candidate demeanor, key strengths, red flags..."
+                ></textarea>
+              </div>
+
+              {/* Actions */}
+              <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+                <button 
+                    type="button" 
+                    onClick={() => setVettingCandidate(null)}
+                    className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-md transition"
+                >
+                    Cancel
+                </button>
+                <button 
+                    type="submit" 
+                    disabled={submittingVetting}
+                    className="px-6 py-2 bg-black text-white font-semibold rounded-md hover:bg-zinc-800 transition disabled:opacity-50 flex items-center gap-2"
+                >
+                    {submittingVetting ? 'Saving...' : 'Complete Vetting'}
+                </button>
+              </div>
+
+            </form>
           </div>
         </div>
       )}
@@ -255,13 +357,22 @@ export default function Dashboard() {
   );
 }
 
-function CandidateCard({ candidate, onViewDetails }: { candidate: Candidate; onViewDetails: () => void }) {
+// Sub-Components
+function CandidateCard({ candidate, onViewDetails, onVetCandidate }: { candidate: Candidate; onViewDetails: () => void; onVetCandidate: () => void }) {
   const scoreColor = candidate.match_score >= 90 ? 'bg-green-100 text-green-700 border-green-200' :
                      candidate.match_score >= 80 ? 'bg-yellow-100 text-yellow-700 border-yellow-200' :
                      'bg-red-100 text-red-700 border-red-200';
 
+  const isVetted = candidate.status === 'Vetted';
+
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden hover:shadow-md transition group flex flex-col h-full hover:border-black/20">
+    <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden hover:shadow-md transition group flex flex-col h-full hover:border-black/20 relative">
+      {isVetted && (
+          <div className="absolute top-3 right-3 bg-blue-100 text-blue-700 text-xs font-bold px-2 py-1 rounded-full border border-blue-200 flex items-center gap-1 z-10">
+              <CheckBadgeIcon className="h-3 w-3" /> Vetted
+          </div>
+      )}
+      
       <div className="p-6 flex-grow">
         <div className="flex justify-between items-start mb-4">
           <div className="flex gap-4">
@@ -276,9 +387,11 @@ function CandidateCard({ candidate, onViewDetails }: { candidate: Candidate; onV
               </p>
             </div>
           </div>
-          <span className={`text-xs font-bold px-2 py-1 rounded-full border ${scoreColor} shrink-0`}>
-            {candidate.match_score}%
-          </span>
+          {!isVetted && (
+              <span className={`text-xs font-bold px-2 py-1 rounded-full border ${scoreColor} shrink-0`}>
+                {candidate.match_score}%
+              </span>
+          )}
         </div>
         
         <div className="mb-4 space-y-3">
@@ -295,26 +408,124 @@ function CandidateCard({ candidate, onViewDetails }: { candidate: Candidate; onV
         </div>
       </div>
 
-      <div className="px-6 py-4 border-t border-slate-100 grid grid-cols-2 gap-3 bg-slate-50/50 mt-auto">
-        {/* Candidate Details Button */}
+      <div className="px-6 py-4 border-t border-slate-100 flex gap-3 bg-slate-50/50 mt-auto">
         <button 
           onClick={onViewDetails}
-          className="bg-white border border-slate-200 text-slate-700 text-sm font-semibold py-2 rounded-md hover:bg-slate-50 hover:border-slate-300 transition text-center shadow-sm"
+          className="flex-1 bg-white border border-slate-200 text-slate-700 text-sm font-semibold py-2 rounded-md hover:bg-slate-50 hover:border-slate-300 transition text-center shadow-sm"
         >
-          View Details
+          Details
         </button>
         
-        {/* Profile Link */}
-        <a 
-          href={candidate.linkedin_url || candidate.portfolio_url || '#'} 
-          target="_blank" 
-          rel="noopener noreferrer"
-          className="bg-black text-white text-sm font-semibold py-2 rounded-md hover:bg-zinc-800 transition text-center flex items-center justify-center gap-1 shadow-sm"
+        <button 
+          onClick={onVetCandidate}
+          className={`flex-1 text-sm font-semibold py-2 rounded-md transition text-center shadow-sm ${isVetted ? 'bg-green-600 text-white hover:bg-green-700' : 'bg-black text-white hover:bg-zinc-800'}`}
         >
-          Profile <span className="text-xs">↗</span>
-        </a>
+          {isVetted ? 'Edit Vetting' : 'Vet Candidate'}
+        </button>
       </div>
       <div className="h-1 bg-black w-full transform origin-left scale-x-0 group-hover:scale-x-100 transition-transform duration-300"></div>
     </div>
   );
+}
+
+function CandidateDetailsModal({ candidate, onClose }: { candidate: Candidate; onClose: () => void }) {
+    return (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={onClose}>
+          <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="sticky top-0 bg-white border-b border-slate-100 p-6 flex justify-between items-center z-10">
+              <div>
+                <h2 className="text-2xl font-bold text-slate-900">{candidate.full_name}</h2>
+                <p className="text-slate-500">{candidate.title}</p>
+              </div>
+              <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full transition">
+                <XMarkIcon className="h-6 w-6 text-slate-500" />
+              </button>
+            </div>
+            
+            <div className="p-6 space-y-6">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                 <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
+                    <div className="text-xs text-slate-500 uppercase font-bold tracking-wider mb-1">Score</div>
+                    <div className="text-xl font-bold text-slate-900">{candidate.match_score}%</div>
+                 </div>
+                 <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
+                    <div className="text-xs text-slate-500 uppercase font-bold tracking-wider mb-1">Exp</div>
+                    <div className="text-xl font-bold text-slate-900">{candidate.years_experience_total} Yrs</div>
+                 </div>
+                 <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
+                    <div className="text-xs text-slate-500 uppercase font-bold tracking-wider mb-1">Location</div>
+                    <div className="text-lg font-bold text-slate-900 truncate" title={candidate.location}>{candidate.location}</div>
+                 </div>
+                 <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
+                    <div className="text-xs text-slate-500 uppercase font-bold tracking-wider mb-1">Source</div>
+                    <div className="text-lg font-bold text-slate-900 capitalize">{candidate.source}</div>
+                 </div>
+              </div>
+
+              <div>
+                <h3 className="font-bold text-slate-900 mb-2">Why they match</h3>
+                <p className="text-slate-600 bg-blue-50/50 p-4 rounded-lg border border-blue-100">
+                  {candidate.match_reason}
+                </p>
+              </div>
+
+              {candidate.lnkd_notes && (
+                <div>
+                    <h3 className="font-bold text-slate-900 mb-2">LNKD Analysis</h3>
+                    <p className="text-slate-600 italic">
+                    "{candidate.lnkd_notes}"
+                    </p>
+                </div>
+              )}
+
+              <div>
+                <h3 className="font-bold text-slate-900 mb-2">Tech Stack</h3>
+                <div className="flex flex-wrap gap-2">
+                    {candidate.technologies?.map((t, i) => (
+                        <span key={i} className="bg-slate-100 px-3 py-1 rounded-full text-sm border border-slate-200">
+                            {t.name} <span className="text-slate-400 text-xs ml-1">({t.years}y)</span>
+                        </span>
+                    ))}
+                    {candidate.tools?.map((t, i) => (
+                        <span key={i} className="bg-white px-3 py-1 rounded-full text-sm border border-slate-200 shadow-sm">
+                            {t.name} <span className="text-slate-400 text-xs ml-1">({t.years}y)</span>
+                        </span>
+                    ))}
+                </div>
+              </div>
+
+              {candidate.work_history && candidate.work_history.length > 0 && (
+                <div>
+                    <h3 className="font-bold text-slate-900 mb-2">Work History</h3>
+                    <div className="space-y-3">
+                        {candidate.work_history.map((job, i) => (
+                            <div key={i} className="flex justify-between items-center border-b border-slate-100 pb-2 last:border-0">
+                                <div>
+                                    <div className="font-semibold text-slate-800">{job.company}</div>
+                                    <div className="text-sm text-slate-500">{job.title}</div>
+                                </div>
+                                <div className="text-sm font-medium text-slate-400">{job.years} Years</div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+              )}
+
+              <div className="flex gap-4 pt-4">
+                 {candidate.linkedin_url && (
+                    <a href={candidate.linkedin_url} target="_blank" className="flex-1 bg-[#0077b5] text-white text-center py-2.5 rounded-lg font-semibold hover:bg-[#006097] transition">
+                        LinkedIn Profile
+                    </a>
+                 )}
+                 {candidate.portfolio_url && (
+                    <a href={candidate.portfolio_url} target="_blank" className="flex-1 bg-black text-white text-center py-2.5 rounded-lg font-semibold hover:bg-zinc-800 transition">
+                        Portfolio / Behance
+                    </a>
+                 )}
+              </div>
+
+            </div>
+          </div>
+        </div>
+    );
 }
