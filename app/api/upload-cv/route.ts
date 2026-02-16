@@ -57,8 +57,9 @@ export async function POST(req: NextRequest) {
     const phoneMatch = pdfText.match(/(\+?\d[\d -]{8,15}\d)/);
     
     // Attempt Name extraction: First non-empty line
-    const lines = pdfText.split('
-').filter(line => line.trim().length > 0);
+    // FIX: Use regex for split to avoid newline string literal issues
+    const lines = pdfText.split(/?
+/).filter(line => line.trim().length > 0);
     const potentialName = lines.length > 0 ? lines[0].substring(0, 100).trim() : file.name.replace('.pdf', '');
 
     // 4. Insert into 'unvetted' table
