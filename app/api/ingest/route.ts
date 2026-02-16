@@ -1,11 +1,12 @@
+
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-// Initialize Supabase Client
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+// Initialize Supabase Client with fail-safe for build time
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-key';
+
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 export async function POST(req: NextRequest) {
     try {
@@ -32,7 +33,6 @@ export async function POST(req: NextRequest) {
             .getPublicUrl(filePath);
 
         // 2. Parse PDF (Simulated for now - replace with actual parser call)
-        // Ideally call an external API or use a library like pdf-parse
         const parsedData = {
             full_name: file.name.replace('.pdf', ''),
             email: 'parsed@example.com',
@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
                 resume_url: publicUrl,
                 match_reason: parsedData.summary,
                 source: 'PDF Upload',
-                match_score: 50, // Default score for manually uploaded
+                match_score: 50,
                 years_experience_total: 0
             })
             .select()
