@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",
+    "@napi-rs/canvas": "^0.1.92",
     "@supabase/supabase-js": "^2.95.3",
     "formidable": "^3.5.4",
     "next": "16.1.6",
