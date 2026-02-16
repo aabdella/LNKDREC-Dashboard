@@ -3,6 +3,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { useState, useEffect } from 'react';
 import { MagnifyingGlassIcon, XMarkIcon, CheckBadgeIcon, BriefcaseIcon } from '@heroicons/react/24/outline';
+import Image from 'next/image';
 
 // Initialize Supabase Client
 const supabase = createClient(
@@ -14,7 +15,7 @@ const supabase = createClient(
 type Tool = { name: string; years: number };
 type Technology = { name: string; years: number };
 type WorkHistory = { company: string; title: string; years: number };
-type Job = { id: string; title: string; client_id: string; clients?: { name: string } };
+type Job = { id: string; title: string; client_id: string; clients: any }; // Using 'any' to bypass Supabase join array/object complexity
 
 type Candidate = {
   id: string;
@@ -93,7 +94,14 @@ export default function Dashboard() {
 
   async function fetchJobs() {
     const { data } = await supabase.from('jobs').select('id, title, client_id, clients(name)').eq('status', 'Open');
-    if (data) setJobs(data);
+    if (data) {
+        // Normalize clients to a single object if it comes as an array
+        const formattedJobs = data.map((j: any) => ({
+            ...j,
+            clients: Array.isArray(j.clients) ? j.clients[0] : j.clients
+        }));
+        setJobs(formattedJobs);
+    }
   }
 
   async function submitVetting(e: React.FormEvent) {
