@@ -15,7 +15,7 @@ const supabase = createClient(
 type Tool = { name: string; years: number };
 type Technology = { name: string; years: number };
 type WorkHistory = { company: string; title: string; years: number };
-type Job = { id: string; title: string; client_id: string; clients?: { name: string } };
+type Job = { id: string; title: string; client_id: string; clients: any };
 
 type Candidate = {
   id: string;
@@ -71,7 +71,7 @@ export default function Dashboard() {
     notes: ''
   });
   const [submittingVetting, setSubmittingVetting] = useState(false);
-  const [loadingVetting, setLoadingVetting] = useState(false); // New loading state for fetch
+  const [loadingVetting, setLoadingVetting] = useState(false);
 
   // Assignment Form State
   const [selectedJobId, setSelectedJobId] = useState('');
@@ -96,16 +96,22 @@ export default function Dashboard() {
 
   async function fetchJobs() {
     const { data } = await supabase.from('jobs').select('id, title, client_id, clients(name)').eq('status', 'Open');
-    if (data) setJobs(data);
+    if (data) {
+        const formattedJobs = data.map((j: any) => ({
+            ...j,
+            clients: Array.isArray(j.clients) ? j.clients[0] : j.clients
+        }));
+        setJobs(formattedJobs);
+    }
   }
 
-  // New: Open Vetting Modal & Fetch Data
+  // Open Vetting Modal & Fetch Data (Robust against duplicates)
   async function openVettingModal(candidate: Candidate) {
       setVettingCandidate(candidate);
       setLoadingVetting(true);
       
-      // Reset form defaults first
-      setVettingData({
+      // Default State
+      const defaultState = {
         id: '',
         english_proficiency: 'Good',
         notice_period: '',
@@ -114,27 +120,32 @@ export default function Dashboard() {
         work_presence: 'Hybrid',
         benefits: [],
         notes: ''
-      });
+      };
+      setVettingData(defaultState);
 
-      // Fetch existing vetting if candidate is already vetted
       if (candidate.status === 'Vetted') {
+          // Fetch logic: use .limit(1) to avoid .single() crash on duplicates
           const { data, error } = await supabase
             .from('vettings')
             .select('*')
             .eq('candidate_id', candidate.id)
-            .single();
+            .order('vetted_at', { ascending: false }) // Get latest if multiple
+            .limit(1);
           
-          if (data && !error) {
+          if (data && data.length > 0) {
+              const record = data[0];
               setVettingData({
-                  id: data.id,
-                  english_proficiency: data.english_proficiency || 'Good',
-                  notice_period: data.notice_period || '',
-                  current_salary: data.current_salary?.toString() || '',
-                  expected_salary: data.expected_salary?.toString() || '',
-                  work_presence: data.work_presence || 'Hybrid',
-                  benefits: data.benefits || [],
-                  notes: data.notes || ''
+                  id: record.id,
+                  english_proficiency: record.english_proficiency || 'Good',
+                  notice_period: record.notice_period || '',
+                  current_salary: record.current_salary?.toString() || '',
+                  expected_salary: record.expected_salary?.toString() || '',
+                  work_presence: record.work_presence || 'Hybrid',
+                  benefits: record.benefits || [],
+                  notes: record.notes || ''
               });
+          } else if (error) {
+              console.error('Error fetching vetting:', error);
           }
       }
       setLoadingVetting(false);
@@ -180,7 +191,7 @@ export default function Dashboard() {
       return;
     }
 
-    // 2. Update Candidate Status (Ensure it's marked Vetted)
+    // 2. Update Candidate Status
     if (vettingCandidate.status !== 'Vetted') {
         await supabase
         .from('candidates')
@@ -274,7 +285,7 @@ export default function Dashboard() {
                 key={candidate.id} 
                 candidate={candidate} 
                 onViewDetails={() => setSelectedCandidate(candidate)} 
-                onVetCandidate={() => openVettingModal(candidate)} // Use new handler
+                onVetCandidate={() => openVettingModal(candidate)}
                 onAssignCandidate={() => setAssigningCandidate(candidate)}
               />
             ))}
