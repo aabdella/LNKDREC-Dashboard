@@ -1,10 +1,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-
-// Use require for pdf-parse to avoid ESM default export issues in Turbopack
-// The lib exports the function directly via module.exports
-const pdf = require('pdf-parse');
+import PDFParser from 'pdf2json';
 
 // Initialize Supabase Client with fail-safe for build time
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
@@ -46,21 +43,34 @@ export async function POST(req: NextRequest) {
       .from('candidates_resumes')
       .getPublicUrl(filePath);
 
-    // 2. Parse PDF Text
-    let pdfText = '';
-    try {
-        const data = await pdf(buffer);
-        pdfText = data.text;
-    } catch (parseError) {
-        console.error('PDF Parse Warning:', parseError);
-    }
+    // 2. Parse PDF Text with pdf2json (Pure JS, no native deps)
+    const pdfText = await new Promise<string>((resolve, reject) => {
+        const pdfParser = new (PDFParser as any)(null, 1); // 1 = text only mode
+
+        pdfParser.on("pdfParser_dataError", (errData: any) => reject(errData.parserError));
+        pdfParser.on("pdfParser_dataReady", (pdfData: any) => {
+             // Extract text from raw parsed data
+             // pdf2json returns a complex object, we need to extract 'T' (text) fields
+             try {
+                // Simplified extraction: map pages -> texts -> decodeURIComponent
+                const rawText = pdfParser.getRawTextContent();
+                resolve(rawText);
+             } catch (e) {
+                // Fallback if getRawTextContent isn't available or fails
+                resolve(""); 
+             }
+        });
+
+        // Load buffer
+        pdfParser.parseBuffer(buffer);
+    });
 
     // 3. Extract Basic Data (Name, Email, Phone)
     const emailMatch = pdfText.match(/([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+)/);
     const phoneMatch = pdfText.match(/(\+?\d[\d -]{8,15}\d)/);
     
     // Attempt Name extraction: First non-empty line
-    // FIX: Use String.fromCharCode(10) to safely split on newline without escape issues
+    // Use String.fromCharCode(10) to safely split on newline without escape issues
     const lines = pdfText.split(String.fromCharCode(10)).map(l => l.trim()).filter(l => l.length > 0);
     const potentialName = lines.length > 0 ? lines[0].substring(0, 100) : file.name.replace('.pdf', '');
 

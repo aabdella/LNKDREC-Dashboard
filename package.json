@@ -10,11 +10,10 @@
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",
-    "@napi-rs/canvas": "^0.1.92",
     "@supabase/supabase-js": "^2.95.3",
     "formidable": "^3.5.4",
     "next": "16.1.6",
-    "pdf-parse": "^2.4.5",
+    "pdf2json": "^4.0.2",
     "react": "19.2.3",
     "react-dom": "19.2.3"
   },
