@@ -1,7 +1,9 @@
-
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import pdf from 'pdf-parse';
+
+// Use require for pdf-parse to avoid ESM default export issues in Turbopack
+// The lib exports the function directly via module.exports
+const pdf = require('pdf-parse');
 
 // Use Service Role Key for elevated permissions (Storage upload, unvetted table access)
 const supabase = createClient(
