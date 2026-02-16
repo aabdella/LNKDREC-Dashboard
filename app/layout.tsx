@@ -37,7 +37,7 @@ export default function RootLayout({
                     <nav className="hidden md:flex gap-6 ml-4 text-sm font-medium text-zinc-400">
                         <Link href="/" className="hover:text-white transition py-2 border-b-2 border-transparent hover:border-white">Candidates</Link>
                         <Link href="/jobs" className="hover:text-white transition py-2 border-b-2 border-transparent hover:border-white">Companies/Jobs</Link>
-                        <Link href="/add-candidate" className="hover:text-white transition py-2 border-b-2 border-transparent hover:border-white text-green-400">Add Candidate</Link>
+                        <Link href="/add-candidate" className="hover:text-white transition py-2 border-b-2 border-transparent hover:border-white">Add Candidate</Link>
                     </nav>
                 </div>
                 
@@ -50,7 +50,7 @@ export default function RootLayout({
               <nav className="md:hidden mt-3 pt-3 border-t border-zinc-800 flex gap-4 text-sm font-medium text-zinc-400 overflow-x-auto">
                 <Link href="/" className="hover:text-white transition whitespace-nowrap">Candidates</Link>
                 <Link href="/jobs" className="hover:text-white transition whitespace-nowrap">Companies/Jobs</Link>
-                <Link href="/add-candidate" className="hover:text-white transition whitespace-nowrap text-green-400">Add Candidate</Link>
+                <Link href="/add-candidate" className="hover:text-white transition whitespace-nowrap">Add Candidate</Link>
               </nav>
             </div>
           </header>
