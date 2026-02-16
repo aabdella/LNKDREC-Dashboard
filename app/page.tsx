@@ -15,7 +15,7 @@ const supabase = createClient(
 type Tool = { name: string; years: number };
 type Technology = { name: string; years: number };
 type WorkHistory = { company: string; title: string; years: number };
-type Job = { id: string; title: string; client_id: string; clients: any }; // Using 'any' to bypass Supabase join array/object complexity
+type Job = { id: string; title: string; client_id: string; clients?: { name: string } };
 
 type Candidate = {
   id: string;
@@ -61,6 +61,7 @@ export default function Dashboard() {
 
   // Vetting Form State
   const [vettingData, setVettingData] = useState({
+    id: '', // Vetting Record ID (for updates)
     english_proficiency: 'Good',
     notice_period: '',
     current_salary: '',
@@ -70,6 +71,7 @@ export default function Dashboard() {
     notes: ''
   });
   const [submittingVetting, setSubmittingVetting] = useState(false);
+  const [loadingVetting, setLoadingVetting] = useState(false); // New loading state for fetch
 
   // Assignment Form State
   const [selectedJobId, setSelectedJobId] = useState('');
@@ -94,14 +96,48 @@ export default function Dashboard() {
 
   async function fetchJobs() {
     const { data } = await supabase.from('jobs').select('id, title, client_id, clients(name)').eq('status', 'Open');
-    if (data) {
-        // Normalize clients to a single object if it comes as an array
-        const formattedJobs = data.map((j: any) => ({
-            ...j,
-            clients: Array.isArray(j.clients) ? j.clients[0] : j.clients
-        }));
-        setJobs(formattedJobs);
-    }
+    if (data) setJobs(data);
+  }
+
+  // New: Open Vetting Modal & Fetch Data
+  async function openVettingModal(candidate: Candidate) {
+      setVettingCandidate(candidate);
+      setLoadingVetting(true);
+      
+      // Reset form defaults first
+      setVettingData({
+        id: '',
+        english_proficiency: 'Good',
+        notice_period: '',
+        current_salary: '',
+        expected_salary: '',
+        work_presence: 'Hybrid',
+        benefits: [],
+        notes: ''
+      });
+
+      // Fetch existing vetting if candidate is already vetted
+      if (candidate.status === 'Vetted') {
+          const { data, error } = await supabase
+            .from('vettings')
+            .select('*')
+            .eq('candidate_id', candidate.id)
+            .single();
+          
+          if (data && !error) {
+              setVettingData({
+                  id: data.id,
+                  english_proficiency: data.english_proficiency || 'Good',
+                  notice_period: data.notice_period || '',
+                  current_salary: data.current_salary?.toString() || '',
+                  expected_salary: data.expected_salary?.toString() || '',
+                  work_presence: data.work_presence || 'Hybrid',
+                  benefits: data.benefits || [],
+                  notes: data.notes || ''
+              });
+          }
+      }
+      setLoadingVetting(false);
   }
 
   async function submitVetting(e: React.FormEvent) {
@@ -110,8 +146,7 @@ export default function Dashboard() {
 
     setSubmittingVetting(true);
     
-    // 1. Insert Vetting Record
-    const { error: vetError } = await supabase.from('vettings').insert({
+    const payload = {
       candidate_id: vettingCandidate.id,
       english_proficiency: vettingData.english_proficiency,
       notice_period: vettingData.notice_period,
@@ -120,36 +155,43 @@ export default function Dashboard() {
       work_presence: vettingData.work_presence,
       benefits: vettingData.benefits,
       notes: vettingData.notes
-    });
+    };
 
-    if (vetError) {
-      alert('Error saving vetting: ' + vetError.message);
+    let error;
+    
+    if (vettingData.id) {
+        // UPDATE existing record
+        const { error: updateError } = await supabase
+            .from('vettings')
+            .update(payload)
+            .eq('id', vettingData.id);
+        error = updateError;
+    } else {
+        // INSERT new record
+        const { error: insertError } = await supabase
+            .from('vettings')
+            .insert(payload);
+        error = insertError;
+    }
+
+    if (error) {
+      alert('Error saving vetting: ' + error.message);
       setSubmittingVetting(false);
       return;
     }
 
-    // 2. Update Candidate Status (Optimistic Update)
-    const { error: statusError } = await supabase
-      .from('candidates')
-      .update({ status: 'Vetted' })
-      .eq('id', vettingCandidate.id);
-
-    if (statusError) console.error('Error updating status:', statusError);
+    // 2. Update Candidate Status (Ensure it's marked Vetted)
+    if (vettingCandidate.status !== 'Vetted') {
+        await supabase
+        .from('candidates')
+        .update({ status: 'Vetted' })
+        .eq('id', vettingCandidate.id);
+    }
 
     // Refresh & Close
     await fetchCandidates();
     setVettingCandidate(null);
     setSubmittingVetting(false);
-    // Reset Form
-    setVettingData({
-        english_proficiency: 'Good',
-        notice_period: '',
-        current_salary: '',
-        expected_salary: '',
-        work_presence: 'Hybrid',
-        benefits: [],
-        notes: ''
-    });
   }
 
   async function submitAssignment(e: React.FormEvent) {
@@ -232,7 +274,7 @@ export default function Dashboard() {
                 key={candidate.id} 
                 candidate={candidate} 
                 onViewDetails={() => setSelectedCandidate(candidate)} 
-                onVetCandidate={() => setVettingCandidate(candidate)}
+                onVetCandidate={() => openVettingModal(candidate)} // Use new handler
                 onAssignCandidate={() => setAssigningCandidate(candidate)}
               />
             ))}
@@ -258,7 +300,9 @@ export default function Dashboard() {
           <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="sticky top-0 bg-white border-b border-slate-100 p-6 flex justify-between items-center z-10">
               <div>
-                <h2 className="text-xl font-bold text-slate-900">Vet Candidate: {vettingCandidate.full_name}</h2>
+                <h2 className="text-xl font-bold text-slate-900">
+                    {vettingCandidate.status === 'Vetted' ? 'Edit Vetting' : 'Vet Candidate'}: {vettingCandidate.full_name}
+                </h2>
                 <p className="text-sm text-slate-500">{vettingCandidate.title}</p>
               </div>
               <button onClick={() => setVettingCandidate(null)} className="p-2 hover:bg-slate-100 rounded-full transition">
@@ -266,116 +310,120 @@ export default function Dashboard() {
               </button>
             </div>
             
-            <form onSubmit={submitVetting} className="p-6 space-y-6">
-              
-              {/* Row 1: English & Work Presence */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">English Proficiency</label>
-                    <select 
-                        className="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-black outline-none"
-                        value={vettingData.english_proficiency}
-                        onChange={e => setVettingData({...vettingData, english_proficiency: e.target.value})}
-                    >
-                        {ENGLISH_LEVELS.map(l => <option key={l} value={l}>{l}</option>)}
-                    </select>
+            {loadingVetting ? (
+                <div className="p-12 text-center text-slate-400">Loading vetting details...</div>
+            ) : (
+                <form onSubmit={submitVetting} className="p-6 space-y-6">
+                
+                {/* Row 1: English & Work Presence */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">English Proficiency</label>
+                        <select 
+                            className="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-black outline-none"
+                            value={vettingData.english_proficiency}
+                            onChange={e => setVettingData({...vettingData, english_proficiency: e.target.value})}
+                        >
+                            {ENGLISH_LEVELS.map(l => <option key={l} value={l}>{l}</option>)}
+                        </select>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Work Presence</label>
+                        <select 
+                            className="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-black outline-none"
+                            value={vettingData.work_presence}
+                            onChange={e => setVettingData({...vettingData, work_presence: e.target.value})}
+                        >
+                            {WORK_MODES.map(m => <option key={m} value={m}>{m}</option>)}
+                        </select>
+                    </div>
                 </div>
-                <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Work Presence</label>
-                    <select 
-                        className="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-black outline-none"
-                        value={vettingData.work_presence}
-                        onChange={e => setVettingData({...vettingData, work_presence: e.target.value})}
-                    >
-                        {WORK_MODES.map(m => <option key={m} value={m}>{m}</option>)}
-                    </select>
-                </div>
-              </div>
 
-              {/* Row 2: Salaries */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Row 2: Salaries */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Current Salary (EGP)</label>
+                        <input 
+                            type="number" 
+                            className="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-black outline-none"
+                            value={vettingData.current_salary}
+                            onChange={e => setVettingData({...vettingData, current_salary: e.target.value})}
+                            placeholder="e.g. 25000"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Expected Salary (EGP)</label>
+                        <input 
+                            type="number" 
+                            className="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-black outline-none"
+                            value={vettingData.expected_salary}
+                            onChange={e => setVettingData({...vettingData, expected_salary: e.target.value})}
+                            placeholder="e.g. 35000"
+                        />
+                    </div>
+                </div>
+
+                {/* Row 3: Notice Period */}
                 <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Current Salary (EGP)</label>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Notice Period</label>
                     <input 
-                        type="number" 
+                        type="text" 
                         className="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-black outline-none"
-                        value={vettingData.current_salary}
-                        onChange={e => setVettingData({...vettingData, current_salary: e.target.value})}
-                        placeholder="e.g. 25000"
+                        value={vettingData.notice_period}
+                        onChange={e => setVettingData({...vettingData, notice_period: e.target.value})}
+                        placeholder="e.g. 1 Month, Immediate"
                     />
                 </div>
+
+                {/* Row 4: Benefits (Multi-select) */}
                 <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Expected Salary (EGP)</label>
-                    <input 
-                        type="number" 
-                        className="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-black outline-none"
-                        value={vettingData.expected_salary}
-                        onChange={e => setVettingData({...vettingData, expected_salary: e.target.value})}
-                        placeholder="e.g. 35000"
-                    />
+                    <label className="block text-sm font-medium text-slate-700 mb-2">Benefits Required</label>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                        {BENEFITS_LIST.map(benefit => (
+                            <label key={benefit} className="flex items-center gap-2 cursor-pointer p-2 border border-slate-200 rounded-md hover:bg-slate-50 transition">
+                                <input 
+                                    type="checkbox" 
+                                    checked={vettingData.benefits.includes(benefit)}
+                                    onChange={() => toggleBenefit(benefit)}
+                                    className="h-4 w-4 text-black focus:ring-black border-gray-300 rounded"
+                                />
+                                <span className="text-sm text-slate-700">{benefit}</span>
+                            </label>
+                        ))}
+                    </div>
                 </div>
-              </div>
 
-              {/* Row 3: Notice Period */}
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Notice Period</label>
-                <input 
-                    type="text" 
-                    className="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-black outline-none"
-                    value={vettingData.notice_period}
-                    onChange={e => setVettingData({...vettingData, notice_period: e.target.value})}
-                    placeholder="e.g. 1 Month, Immediate"
-                />
-              </div>
-
-              {/* Row 4: Benefits (Multi-select) */}
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Benefits Required</label>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                    {BENEFITS_LIST.map(benefit => (
-                        <label key={benefit} className="flex items-center gap-2 cursor-pointer p-2 border border-slate-200 rounded-md hover:bg-slate-50 transition">
-                            <input 
-                                type="checkbox" 
-                                checked={vettingData.benefits.includes(benefit)}
-                                onChange={() => toggleBenefit(benefit)}
-                                className="h-4 w-4 text-black focus:ring-black border-gray-300 rounded"
-                            />
-                            <span className="text-sm text-slate-700">{benefit}</span>
-                        </label>
-                    ))}
+                {/* Row 5: Notes */}
+                <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Interview Notes</label>
+                    <textarea 
+                        className="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-black outline-none min-h-[100px]"
+                        value={vettingData.notes}
+                        onChange={e => setVettingData({...vettingData, notes: e.target.value})}
+                        placeholder="Candidate demeanor, key strengths, red flags..."
+                    ></textarea>
                 </div>
-              </div>
 
-              {/* Row 5: Notes */}
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Interview Notes</label>
-                <textarea 
-                    className="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-black outline-none min-h-[100px]"
-                    value={vettingData.notes}
-                    onChange={e => setVettingData({...vettingData, notes: e.target.value})}
-                    placeholder="Candidate demeanor, key strengths, red flags..."
-                ></textarea>
-              </div>
+                {/* Actions */}
+                <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+                    <button 
+                        type="button" 
+                        onClick={() => setVettingCandidate(null)}
+                        className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-md transition"
+                    >
+                        Cancel
+                    </button>
+                    <button 
+                        type="submit" 
+                        disabled={submittingVetting}
+                        className="px-6 py-2 bg-black text-white font-semibold rounded-md hover:bg-zinc-800 transition disabled:opacity-50 flex items-center gap-2"
+                    >
+                        {submittingVetting ? 'Saving...' : 'Complete Vetting'}
+                    </button>
+                </div>
 
-              {/* Actions */}
-              <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-                <button 
-                    type="button" 
-                    onClick={() => setVettingCandidate(null)}
-                    className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-md transition"
-                >
-                    Cancel
-                </button>
-                <button 
-                    type="submit" 
-                    disabled={submittingVetting}
-                    className="px-6 py-2 bg-black text-white font-semibold rounded-md hover:bg-zinc-800 transition disabled:opacity-50 flex items-center gap-2"
-                >
-                    {submittingVetting ? 'Saving...' : 'Complete Vetting'}
-                </button>
-              </div>
-
-            </form>
+                </form>
+            )}
           </div>
         </div>
       )}
