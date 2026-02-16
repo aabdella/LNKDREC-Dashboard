@@ -2,8 +2,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { useState, useEffect } from 'react';
-import { MagnifyingGlassIcon, XMarkIcon, CheckBadgeIcon } from '@heroicons/react/24/outline';
-import Image from 'next/image';
+import { MagnifyingGlassIcon, XMarkIcon, CheckBadgeIcon, BriefcaseIcon } from '@heroicons/react/24/outline';
 
 // Initialize Supabase Client
 const supabase = createClient(
@@ -15,6 +14,7 @@ const supabase = createClient(
 type Tool = { name: string; years: number };
 type Technology = { name: string; years: number };
 type WorkHistory = { company: string; title: string; years: number };
+type Job = { id: string; title: string; client_id: string; clients?: { name: string } };
 
 type Candidate = {
   id: string;
@@ -49,10 +49,14 @@ const BENEFITS_LIST = [
 
 export default function Dashboard() {
   const [candidates, setCandidates] = useState<Candidate[]>([]);
+  const [jobs, setJobs] = useState<Job[]>([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
+  
+  // Modal States
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
   const [vettingCandidate, setVettingCandidate] = useState<Candidate | null>(null);
+  const [assigningCandidate, setAssigningCandidate] = useState<Candidate | null>(null);
 
   // Vetting Form State
   const [vettingData, setVettingData] = useState({
@@ -66,8 +70,13 @@ export default function Dashboard() {
   });
   const [submittingVetting, setSubmittingVetting] = useState(false);
 
+  // Assignment Form State
+  const [selectedJobId, setSelectedJobId] = useState('');
+  const [submittingAssignment, setSubmittingAssignment] = useState(false);
+
   useEffect(() => {
     fetchCandidates();
+    fetchJobs();
   }, []);
 
   async function fetchCandidates() {
@@ -77,9 +86,14 @@ export default function Dashboard() {
       .select('*')
       .order('match_score', { ascending: false });
 
-    if (error) console.error('Error fetching:', error);
+    if (error) console.error('Error fetching candidates:', error);
     else setCandidates(data || []);
     setLoading(false);
+  }
+
+  async function fetchJobs() {
+    const { data } = await supabase.from('jobs').select('id, title, client_id, clients(name)').eq('status', 'Open');
+    if (data) setJobs(data);
   }
 
   async function submitVetting(e: React.FormEvent) {
@@ -130,6 +144,28 @@ export default function Dashboard() {
     });
   }
 
+  async function submitAssignment(e: React.FormEvent) {
+      e.preventDefault();
+      if (!assigningCandidate || !selectedJobId) return;
+      setSubmittingAssignment(true);
+
+      const { error } = await supabase.from('applications').insert({
+          candidate_id: assigningCandidate.id,
+          job_id: selectedJobId,
+          status: 'Assigned'
+      });
+
+      if (error) {
+          if (error.code === '23505') alert('This candidate is already assigned to this job.');
+          else alert('Error assigning candidate: ' + error.message);
+      } else {
+          alert(`Successfully assigned ${assigningCandidate.full_name} to the job!`);
+          setAssigningCandidate(null);
+          setSelectedJobId('');
+      }
+      setSubmittingAssignment(false);
+  }
+
   const toggleBenefit = (benefit: string) => {
     setVettingData(prev => ({
       ...prev,
@@ -159,25 +195,7 @@ export default function Dashboard() {
   });
 
   return (
-    <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
-      {/* Header */}
-      <header className="bg-black text-white shadow-lg sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center">
-          <div className="flex items-center gap-3">
-            <div className="bg-white p-1 rounded-sm">
-              <Image src="/logo.jpg" alt="LNKD Logo" width={80} height={40} className="object-contain h-8 w-auto" />
-            </div>
-            <div className="h-6 w-px bg-zinc-700 mx-1"></div>
-            <h1 className="text-xl font-semibold tracking-wide hidden sm:block">Talent Scout</h1>
-          </div>
-          <div className="flex items-center gap-4">
-             <span className="text-sm text-zinc-400">Logged in as Admin</span>
-          </div>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 py-8">
+    <div className="max-w-7xl mx-auto px-4 py-8">
         
         {/* Search Bar */}
         <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-200 mb-8 flex flex-col md:flex-row gap-4 items-center justify-between">
@@ -207,6 +225,7 @@ export default function Dashboard() {
                 candidate={candidate} 
                 onViewDetails={() => setSelectedCandidate(candidate)} 
                 onVetCandidate={() => setVettingCandidate(candidate)}
+                onAssignCandidate={() => setAssigningCandidate(candidate)}
               />
             ))}
             {filteredCandidates.length === 0 && (
@@ -216,7 +235,6 @@ export default function Dashboard() {
             )}
           </div>
         )}
-      </main>
 
       {/* Details Modal */}
       {selectedCandidate && (
@@ -353,12 +371,62 @@ export default function Dashboard() {
           </div>
         </div>
       )}
+
+      {/* Assignment Modal */}
+      {assigningCandidate && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => setAssigningCandidate(null)}>
+              <div className="bg-white p-6 rounded-xl shadow-2xl max-w-md w-full" onClick={e => e.stopPropagation()}>
+                  <h2 className="text-xl font-bold mb-4">Assign {assigningCandidate.full_name}</h2>
+                  <p className="text-slate-500 text-sm mb-6">Select a job position to assign this candidate to.</p>
+                  
+                  <form onSubmit={submitAssignment}>
+                      <div className="mb-6">
+                          <label className="block text-sm font-medium mb-2">Select Job</label>
+                          <select 
+                              className="w-full border border-slate-300 rounded-md p-3 focus:ring-2 focus:ring-black outline-none bg-white"
+                              value={selectedJobId}
+                              onChange={e => setSelectedJobId(e.target.value)}
+                              required
+                          >
+                              <option value="">-- Choose an Open Job --</option>
+                              {jobs.map(job => (
+                                  <option key={job.id} value={job.id}>
+                                      {job.clients?.name} - {job.title}
+                                  </option>
+                              ))}
+                          </select>
+                      </div>
+                      
+                      <div className="flex justify-end gap-3">
+                          <button type="button" onClick={() => setAssigningCandidate(null)} className="text-slate-600">Cancel</button>
+                          <button 
+                              type="submit" 
+                              disabled={submittingAssignment}
+                              className="bg-black text-white px-4 py-2 rounded flex items-center gap-2 disabled:opacity-50"
+                          >
+                              {submittingAssignment ? 'Assigning...' : 'Confirm Assignment'}
+                          </button>
+                      </div>
+                  </form>
+              </div>
+          </div>
+      )}
     </div>
   );
 }
 
 // Sub-Components
-function CandidateCard({ candidate, onViewDetails, onVetCandidate }: { candidate: Candidate; onViewDetails: () => void; onVetCandidate: () => void }) {
+function CandidateCard({ 
+    candidate, 
+    onViewDetails, 
+    onVetCandidate, 
+    onAssignCandidate 
+}: { 
+    candidate: Candidate; 
+    onViewDetails: () => void; 
+    onVetCandidate: () => void; 
+    onAssignCandidate: () => void;
+}) {
   const scoreColor = candidate.match_score >= 90 ? 'bg-green-100 text-green-700 border-green-200' :
                      candidate.match_score >= 80 ? 'bg-yellow-100 text-yellow-700 border-yellow-200' :
                      'bg-red-100 text-red-700 border-red-200';
@@ -408,20 +476,29 @@ function CandidateCard({ candidate, onViewDetails, onVetCandidate }: { candidate
         </div>
       </div>
 
-      <div className="px-6 py-4 border-t border-slate-100 flex gap-3 bg-slate-50/50 mt-auto">
+      <div className="px-6 py-4 border-t border-slate-100 flex gap-2 bg-slate-50/50 mt-auto">
         <button 
           onClick={onViewDetails}
-          className="flex-1 bg-white border border-slate-200 text-slate-700 text-sm font-semibold py-2 rounded-md hover:bg-slate-50 hover:border-slate-300 transition text-center shadow-sm"
+          className="flex-1 bg-white border border-slate-200 text-slate-700 text-xs font-semibold py-2 rounded hover:bg-slate-50 transition"
         >
           Details
         </button>
         
         <button 
           onClick={onVetCandidate}
-          className={`flex-1 text-sm font-semibold py-2 rounded-md transition text-center shadow-sm ${isVetted ? 'bg-green-600 text-white hover:bg-green-700' : 'bg-black text-white hover:bg-zinc-800'}`}
+          className={`flex-1 text-xs font-semibold py-2 rounded transition ${isVetted ? 'bg-green-600 text-white hover:bg-green-700' : 'bg-black text-white hover:bg-zinc-800'}`}
         >
-          {isVetted ? 'Edit Vetting' : 'Vet Candidate'}
+          {isVetted ? 'Edit Vetting' : 'Vet'}
         </button>
+
+        {isVetted && (
+            <button 
+                onClick={onAssignCandidate}
+                className="flex-1 bg-blue-600 text-white text-xs font-semibold py-2 rounded hover:bg-blue-700 transition flex items-center justify-center gap-1"
+            >
+                <BriefcaseIcon className="h-3 w-3" /> Assign
+            </button>
+        )}
       </div>
       <div className="h-1 bg-black w-full transform origin-left scale-x-0 group-hover:scale-x-100 transition-transform duration-300"></div>
     </div>
