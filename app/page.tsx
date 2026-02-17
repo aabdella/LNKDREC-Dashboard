@@ -223,9 +223,13 @@ export default function Dashboard() {
           if (error.code === '23505') alert('This candidate is already assigned to this job.');
           else alert('Error assigning candidate: ' + error.message);
       } else {
+          // Update candidate status to Assigned
+          await supabase.from('candidates').update({ status: 'Assigned' }).eq('id', assigningCandidate.id);
+          
           alert(`Successfully assigned ${assigningCandidate.full_name} to the job!`);
           setAssigningCandidate(null);
           setSelectedJobId('');
+          fetchCandidates();
       }
       setSubmittingAssignment(false);
   }
@@ -506,12 +510,18 @@ function CandidateCard({
                      'bg-red-100 text-red-700 border-red-200';
 
   const isVetted = candidate.status === 'Vetted';
+  const isAssigned = candidate.status === 'Assigned';
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden hover:shadow-md transition group flex flex-col h-full hover:border-black/20 relative">
-      {isVetted && (
+      {isVetted && !isAssigned && (
           <div className="absolute top-3 right-3 bg-blue-100 text-blue-700 text-xs font-bold px-2 py-1 rounded-full border border-blue-200 flex items-center gap-1 z-10">
               <CheckBadgeIcon className="h-3 w-3" /> Vetted
+          </div>
+      )}
+      {isAssigned && (
+          <div className="absolute top-3 right-3 bg-green-100 text-green-700 text-xs font-bold px-2 py-1 rounded-full border border-green-200 flex items-center gap-1 z-10">
+              <BriefcaseIcon className="h-3 w-3" /> Assigned
           </div>
       )}
       
@@ -562,15 +572,28 @@ function CandidateCard({
           onClick={onVetCandidate}
           className={`flex-1 text-xs font-semibold py-2 rounded transition ${isVetted ? 'bg-green-600 text-white hover:bg-green-700' : 'bg-black text-white hover:bg-zinc-800'}`}
         >
-          {isVetted ? 'Edit Vetting' : 'Vet'}
+          {isVetted || isAssigned ? 'Edit Vetting' : 'Vet'}
         </button>
 
-        {isVetted && (
+        {(isVetted || isAssigned) && (
             <button 
                 onClick={onAssignCandidate}
-                className="flex-1 bg-blue-600 text-white text-xs font-semibold py-2 rounded hover:bg-blue-700 transition flex items-center justify-center gap-1"
+                disabled={isAssigned}
+                className={`flex-1 text-white text-xs font-semibold py-2 rounded transition flex items-center justify-center gap-1 ${
+                    isAssigned 
+                        ? 'bg-red-600 cursor-not-allowed opacity-80' 
+                        : 'bg-blue-600 hover:bg-blue-700'
+                }`}
             >
-                <BriefcaseIcon className="h-3 w-3" /> Assign
+                {isAssigned ? (
+                    <>
+                        <CheckBadgeIcon className="h-3 w-3" /> Assigned
+                    </>
+                ) : (
+                    <>
+                        <BriefcaseIcon className="h-3 w-3" /> Assign
+                    </>
+                )}
             </button>
         )}
       </div>
