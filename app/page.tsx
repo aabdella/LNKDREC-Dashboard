@@ -1,16 +1,10 @@
 'use client';
 
-import { createClient } from '@supabase/supabase-js';
+import { supabase } from '@/lib/supabaseClient';
 import { useState, useEffect } from 'react';
 import { MagnifyingGlassIcon, XMarkIcon, CheckBadgeIcon, BriefcaseIcon, EnvelopeIcon, PhoneIcon, PencilSquareIcon } from '@heroicons/react/24/outline';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-
-// Initialize Supabase Client
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
 
 // Types
 type Tool = { name: string; years: number };
@@ -248,20 +242,26 @@ export default function Dashboard() {
   // Filter Logic
   const filteredCandidates = candidates.filter(c => {
     const q = search.toLowerCase();
-    const checkArray = (arr: any[], key: string) => arr?.some(item => item[key]?.toLowerCase().includes(q));
+    
+    // Safety check function: safely handles null/undefined arrays and items
+    const checkArray = (arr: any[], key: string) => 
+      arr?.some(item => item && item[key] && item[key].toLowerCase().includes(q));
+
+    // Safe string check
+    const checkString = (val?: string) => val && val.toLowerCase().includes(q);
 
     return (
-      c.full_name.toLowerCase().includes(q) ||
-      c.title?.toLowerCase().includes(q) ||
-      c.location?.toLowerCase().includes(q) ||
-      c.match_reason?.toLowerCase().includes(q) ||
-      c.source?.toLowerCase().includes(q) ||
-      c.lnkd_notes?.toLowerCase().includes(q) ||
-      (c.resume_text && c.resume_text.toLowerCase().includes(q)) ||
+      checkString(c.full_name) ||
+      checkString(c.title) ||
+      checkString(c.location) ||
+      checkString(c.match_reason) ||
+      checkString(c.source) ||
+      checkString(c.lnkd_notes) ||
+      checkString(c.resume_text) ||
       (c.years_experience && c.years_experience.toString().includes(q)) ||
       checkArray(c.tools || [], 'name') ||
       checkArray(c.technologies || [], 'name') ||
-      (c.skills && c.skills.some(s => s.toLowerCase().includes(q))) ||
+      (c.skills && c.skills.some(s => s && s.toLowerCase().includes(q))) ||
       checkArray(c.work_history || [], 'company') ||
       checkArray(c.work_history || [], 'title')
     );
