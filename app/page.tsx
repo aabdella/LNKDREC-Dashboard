@@ -514,16 +514,6 @@ function CandidateCard({
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden hover:shadow-md transition group flex flex-col h-full hover:border-black/20 relative">
-      {isVetted && !isAssigned && (
-          <div className="absolute top-3 right-3 bg-blue-100 text-blue-700 text-xs font-bold px-2 py-1 rounded-full border border-blue-200 flex items-center gap-1 z-10">
-              <CheckBadgeIcon className="h-3 w-3" /> Vetted
-          </div>
-      )}
-      {isAssigned && (
-          <div className="absolute top-3 right-3 bg-green-100 text-green-700 text-xs font-bold px-2 py-1 rounded-full border border-green-200 flex items-center gap-1 z-10">
-              <BriefcaseIcon className="h-3 w-3" /> Assigned
-          </div>
-      )}
       
       <div className="p-6 flex-grow">
         <div className="flex justify-between items-start mb-4">
@@ -539,7 +529,15 @@ function CandidateCard({
               </p>
             </div>
           </div>
-          {!isVetted && (
+          {isAssigned ? (
+            <span className="text-xs font-bold px-2 py-1 rounded-full border bg-green-100 text-green-700 border-green-200 shrink-0 flex items-center gap-1">
+                <BriefcaseIcon className="h-3 w-3" /> Matched
+            </span>
+          ) : isVetted ? (
+              <span className="text-xs font-bold px-2 py-1 rounded-full border bg-blue-100 text-blue-700 border-blue-200 shrink-0 flex items-center gap-1">
+                  <CheckBadgeIcon className="h-3 w-3" /> Vetted
+              </span>
+          ) : (
               <span className={`text-xs font-bold px-2 py-1 rounded-full border ${scoreColor} shrink-0`}>
                 {candidate.match_score}%
               </span>
