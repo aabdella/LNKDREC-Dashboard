@@ -2,7 +2,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { useState, useEffect } from 'react';
-import { MagnifyingGlassIcon, XMarkIcon, CheckBadgeIcon, BriefcaseIcon } from '@heroicons/react/24/outline';
+import { MagnifyingGlassIcon, XMarkIcon, CheckBadgeIcon, BriefcaseIcon, EnvelopeIcon, PhoneIcon } from '@heroicons/react/24/outline';
 import Image from 'next/image';
 
 // Initialize Supabase Client
@@ -580,6 +580,18 @@ function CandidateDetailsModal({ candidate, onClose }: { candidate: Candidate; o
               <div>
                 <h2 className="text-2xl font-bold text-slate-900">{candidate.full_name}</h2>
                 <p className="text-slate-500">{candidate.title}</p>
+                <div className="flex flex-col gap-1 mt-2 text-sm text-slate-500">
+                    {candidate.email && (
+                        <a href={`mailto:${candidate.email}`} className="flex items-center gap-2 hover:text-black transition">
+                            <EnvelopeIcon className="h-4 w-4" /> {candidate.email}
+                        </a>
+                    )}
+                    {candidate.phone && (
+                        <a href={`tel:${candidate.phone}`} className="flex items-center gap-2 hover:text-black transition">
+                            <PhoneIcon className="h-4 w-4" /> {candidate.phone}
+                        </a>
+                    )}
+                </div>
               </div>
               <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full transition">
                 <XMarkIcon className="h-6 w-6 text-slate-500" />
