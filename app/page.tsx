@@ -32,12 +32,14 @@ type Candidate = {
   linkedin_url?: string;
   tools?: Tool[];
   technologies?: Technology[];
+  skills?: string[];
   work_history?: WorkHistory[];
   email?: string;
   phone?: string;
   status?: string;
   resume_url?: string;
   resume_text?: string;
+  years_experience?: number;
 };
 
 // Vetting Options
@@ -256,8 +258,10 @@ export default function Dashboard() {
       c.source?.toLowerCase().includes(q) ||
       c.lnkd_notes?.toLowerCase().includes(q) ||
       (c.resume_text && c.resume_text.toLowerCase().includes(q)) ||
+      (c.years_experience && c.years_experience.toString().includes(q)) ||
       checkArray(c.tools || [], 'name') ||
       checkArray(c.technologies || [], 'name') ||
+      (c.skills && c.skills.some(s => s.toLowerCase().includes(q))) ||
       checkArray(c.work_history || [], 'company') ||
       checkArray(c.work_history || [], 'title')
     );
@@ -547,9 +551,9 @@ function CandidateCard({
         
         <div className="mb-4 space-y-3">
           <div className="flex flex-wrap gap-2 text-xs text-slate-700">
-             <span className="bg-slate-100 px-2 py-1 rounded border border-slate-200 font-medium">{candidate.years_experience_total}+ Years</span>
-             {candidate.technologies?.slice(0, 2).map((t, i) => (
-               <span key={i} className="bg-slate-50 px-2 py-1 rounded border border-slate-100 text-slate-600">{t.name}</span>
+             <span className="bg-slate-100 px-2 py-1 rounded border border-slate-200 font-medium">{candidate.years_experience_total || candidate.years_experience || 0}+ Years</span>
+             {(candidate.technologies?.length ? candidate.technologies.slice(0, 2) : candidate.skills?.slice(0,2))?.map((t: any, i: number) => (
+               <span key={i} className="bg-slate-50 px-2 py-1 rounded border border-slate-100 text-slate-600">{typeof t === 'string' ? t : t.name}</span>
              ))}
           </div>
           
@@ -613,7 +617,8 @@ function CandidateDetailsModal({ candidate, onClose, onUpdate }: { candidate: Ca
         // Sanitize numeric fields
         const payload = {
             ...formData,
-            years_experience_total: Number(formData.years_experience_total) || 0,
+            years_experience: Number(formData.years_experience) || 0,
+            years_experience_total: Number(formData.years_experience) || Number(formData.years_experience_total) || 0, // Sync both for consistency
             match_score: Number(formData.match_score) || 0
         };
 
@@ -723,8 +728,8 @@ function CandidateDetailsModal({ candidate, onClose, onUpdate }: { candidate: Ca
                             <input 
                                 type="number" 
                                 className="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-black outline-none"
-                                value={formData.years_experience_total}
-                                onChange={e => handleChange('years_experience_total', e.target.value)}
+                                value={formData.years_experience_total || formData.years_experience || 0}
+                                onChange={e => handleChange('years_experience', e.target.value)}
                             />
                         </div>
                         {/* LinkedIn */}
@@ -784,7 +789,7 @@ function CandidateDetailsModal({ candidate, onClose, onUpdate }: { candidate: Ca
                     </div>
                     <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
                         <div className="text-xs text-slate-500 uppercase font-bold tracking-wider mb-1">Exp</div>
-                        <div className="text-xl font-bold text-slate-900">{candidate.years_experience_total} Yrs</div>
+                        <div className="text-xl font-bold text-slate-900">{candidate.years_experience_total || candidate.years_experience || 0} Yrs</div>
                     </div>
                     <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
                         <div className="text-xs text-slate-500 uppercase font-bold tracking-wider mb-1">Location</div>
@@ -813,16 +818,24 @@ function CandidateDetailsModal({ candidate, onClose, onUpdate }: { candidate: Ca
                 )}
 
                 <div>
-                    <h3 className="font-bold text-slate-900 mb-2">Tech Stack</h3>
+                    <h3 className="font-bold text-slate-900 mb-2">Tech Stack / Skills</h3>
                     <div className="flex flex-wrap gap-2">
+                        {/* 1. Technologies (Parsed from Resume) */}
                         {candidate.technologies?.map((t, i) => (
                             <span key={i} className="bg-slate-100 px-3 py-1 rounded-full text-sm border border-slate-200">
                                 {t.name} <span className="text-slate-400 text-xs ml-1">({t.years}y)</span>
                             </span>
                         ))}
+                        {/* 2. Tools (Parsed from Resume) */}
                         {candidate.tools?.map((t, i) => (
                             <span key={i} className="bg-white px-3 py-1 rounded-full text-sm border border-slate-200 shadow-sm">
                                 {t.name} <span className="text-slate-400 text-xs ml-1">({t.years}y)</span>
+                            </span>
+                        ))}
+                        {/* 3. Skills (Sourced from LNKD/Manual) */}
+                        {!candidate.technologies?.length && !candidate.tools?.length && candidate.skills?.map((s, i) => (
+                            <span key={i} className="bg-blue-50 px-3 py-1 rounded-full text-sm border border-blue-100 text-blue-800">
+                                {s}
                             </span>
                         ))}
                     </div>
