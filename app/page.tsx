@@ -255,6 +255,7 @@ export default function Dashboard() {
       c.match_reason?.toLowerCase().includes(q) ||
       c.source?.toLowerCase().includes(q) ||
       c.lnkd_notes?.toLowerCase().includes(q) ||
+      (c.resume_text && c.resume_text.toLowerCase().includes(q)) ||
       checkArray(c.tools || [], 'name') ||
       checkArray(c.technologies || [], 'name') ||
       checkArray(c.work_history || [], 'company') ||
