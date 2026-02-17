@@ -27,7 +27,7 @@ type Candidate = {
   tools?: Tool[];
   technologies?: Technology[];
   skills?: string[];
-  work_history?: WorkHistory[];
+  work_history?: WorkHistory[] | string; // Correct type union
   email?: string;
   phone?: string;
   status?: string;
@@ -245,7 +245,7 @@ export default function Dashboard() {
     
     // Safety check function: safely handles null/undefined arrays and items
     const checkArray = (arr: any[], key: string) => 
-      arr?.some(item => item && item[key] && item[key].toLowerCase().includes(q));
+      Array.isArray(arr) && arr.some(item => item && item[key] && item[key].toLowerCase().includes(q));
 
     // Safe string check
     const checkString = (val?: string) => val && val.toLowerCase().includes(q);
@@ -262,8 +262,8 @@ export default function Dashboard() {
       checkArray(c.tools || [], 'name') ||
       checkArray(c.technologies || [], 'name') ||
       (c.skills && c.skills.some(s => s && s.toLowerCase().includes(q))) ||
-      checkArray(c.work_history || [], 'company') ||
-      checkArray(c.work_history || [], 'title')
+      (Array.isArray(c.work_history) ? checkArray(c.work_history, 'company') : checkString(c.work_history as string)) ||
+      (Array.isArray(c.work_history) ? checkArray(c.work_history, 'title') : false)
     );
   });
 
@@ -841,19 +841,25 @@ function CandidateDetailsModal({ candidate, onClose, onUpdate }: { candidate: Ca
                     </div>
                 </div>
 
-                {candidate.work_history && candidate.work_history.length > 0 && (
+                {candidate.work_history && (
                     <div>
                         <h3 className="font-bold text-slate-900 mb-2">Work History</h3>
                         <div className="space-y-3">
-                            {candidate.work_history.map((job, i) => (
-                                <div key={i} className="flex justify-between items-center border-b border-slate-100 pb-2 last:border-0">
-                                    <div>
-                                        <div className="font-semibold text-slate-800">{job.company}</div>
-                                        <div className="text-sm text-slate-500">{job.title}</div>
+                            {Array.isArray(candidate.work_history) ? (
+                                candidate.work_history.map((job, i) => (
+                                    <div key={i} className="flex justify-between items-center border-b border-slate-100 pb-2 last:border-0">
+                                        <div>
+                                            <div className="font-semibold text-slate-800">{job.company}</div>
+                                            <div className="text-sm text-slate-500">{job.title}</div>
+                                        </div>
+                                        <div className="text-sm font-medium text-slate-400">{job.years} Years</div>
                                     </div>
-                                    <div className="text-sm font-medium text-slate-400">{job.years} Years</div>
+                                ))
+                            ) : (
+                                <div className="text-slate-600 bg-slate-50 p-3 rounded-md border border-slate-100">
+                                    {String(candidate.work_history)}
                                 </div>
-                            ))}
+                            )}
                         </div>
                     </div>
                 )}
