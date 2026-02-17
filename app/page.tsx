@@ -2,8 +2,9 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { useState, useEffect } from 'react';
-import { MagnifyingGlassIcon, XMarkIcon, CheckBadgeIcon, BriefcaseIcon, EnvelopeIcon, PhoneIcon } from '@heroicons/react/24/outline';
+import { MagnifyingGlassIcon, XMarkIcon, CheckBadgeIcon, BriefcaseIcon, EnvelopeIcon, PhoneIcon, PencilSquareIcon } from '@heroicons/react/24/outline';
 import Image from 'next/image';
+import { useRouter } from 'next/navigation';
 
 // Initialize Supabase Client
 const supabase = createClient(
@@ -35,6 +36,8 @@ type Candidate = {
   email?: string;
   phone?: string;
   status?: string;
+  resume_url?: string;
+  resume_text?: string;
 };
 
 // Vetting Options
@@ -302,6 +305,10 @@ export default function Dashboard() {
         <CandidateDetailsModal 
            candidate={selectedCandidate} 
            onClose={() => setSelectedCandidate(null)} 
+           onUpdate={() => {
+               fetchCandidates();
+               setSelectedCandidate(null);
+           }}
         />
       )}
 
@@ -572,115 +579,271 @@ function CandidateCard({
   );
 }
 
-function CandidateDetailsModal({ candidate, onClose }: { candidate: Candidate; onClose: () => void }) {
+function CandidateDetailsModal({ candidate, onClose, onUpdate }: { candidate: Candidate; onClose: () => void; onUpdate: () => void }) {
+    const [isEditing, setIsEditing] = useState(false);
+    const [formData, setFormData] = useState(candidate);
+    const [saving, setSaving] = useState(false);
+
+    const handleSave = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setSaving(true);
+        
+        // Sanitize numeric fields
+        const payload = {
+            ...formData,
+            years_experience_total: Number(formData.years_experience_total) || 0,
+            match_score: Number(formData.match_score) || 0
+        };
+
+        const { error } = await supabase.from('candidates').update(payload).eq('id', candidate.id);
+        
+        if (!error) {
+            setIsEditing(false);
+            onUpdate(); // Refresh parent list
+        } else {
+            alert('Error updating candidate: ' + error.message);
+        }
+        setSaving(false);
+    };
+
+    const handleChange = (field: string, value: any) => {
+        setFormData(prev => ({ ...prev, [field]: value }));
+    };
+
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={onClose}>
           <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="sticky top-0 bg-white border-b border-slate-100 p-6 flex justify-between items-center z-10">
               <div>
-                <h2 className="text-2xl font-bold text-slate-900">{candidate.full_name}</h2>
-                <p className="text-slate-500">{candidate.title}</p>
-                <div className="flex flex-col gap-1 mt-2 text-sm text-slate-500">
-                    {candidate.email && (
-                        <a href={`mailto:${candidate.email}`} className="flex items-center gap-2 hover:text-black transition">
-                            <EnvelopeIcon className="h-4 w-4" /> {candidate.email}
-                        </a>
-                    )}
-                    {candidate.phone && (
-                        <a href={`tel:${candidate.phone}`} className="flex items-center gap-2 hover:text-black transition">
-                            <PhoneIcon className="h-4 w-4" /> {candidate.phone}
-                        </a>
-                    )}
-                </div>
+                {!isEditing ? (
+                    <>
+                        <h2 className="text-2xl font-bold text-slate-900">{candidate.full_name}</h2>
+                        <p className="text-slate-500">{candidate.title}</p>
+                        <div className="flex flex-col gap-1 mt-2 text-sm text-slate-500">
+                            {candidate.email && (
+                                <a href={`mailto:${candidate.email}`} className="flex items-center gap-2 hover:text-black transition">
+                                    <EnvelopeIcon className="h-4 w-4" /> {candidate.email}
+                                </a>
+                            )}
+                            {candidate.phone && (
+                                <a href={`tel:${candidate.phone}`} className="flex items-center gap-2 hover:text-black transition">
+                                    <PhoneIcon className="h-4 w-4" /> {candidate.phone}
+                                </a>
+                            )}
+                        </div>
+                    </>
+                ) : (
+                    <h2 className="text-xl font-bold text-slate-900">Edit Profile</h2>
+                )}
               </div>
               <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full transition">
                 <XMarkIcon className="h-6 w-6 text-slate-500" />
               </button>
             </div>
             
-            <div className="p-6 space-y-6">
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                 <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
-                    <div className="text-xs text-slate-500 uppercase font-bold tracking-wider mb-1">Score</div>
-                    <div className="text-xl font-bold text-slate-900">{candidate.match_score}%</div>
-                 </div>
-                 <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
-                    <div className="text-xs text-slate-500 uppercase font-bold tracking-wider mb-1">Exp</div>
-                    <div className="text-xl font-bold text-slate-900">{candidate.years_experience_total} Yrs</div>
-                 </div>
-                 <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
-                    <div className="text-xs text-slate-500 uppercase font-bold tracking-wider mb-1">Location</div>
-                    <div className="text-lg font-bold text-slate-900 truncate" title={candidate.location}>{candidate.location}</div>
-                 </div>
-                 <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
-                    <div className="text-xs text-slate-500 uppercase font-bold tracking-wider mb-1">Source</div>
-                    <div className="text-lg font-bold text-slate-900 capitalize">{candidate.source}</div>
-                 </div>
-              </div>
+            {isEditing ? (
+                <form onSubmit={handleSave} className="p-6 space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {/* Full Name */}
+                        <div className="col-span-full md:col-span-1">
+                            <label className="block text-sm font-medium text-slate-700 mb-1">Full Name</label>
+                            <input 
+                                type="text" 
+                                required
+                                className="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-black outline-none"
+                                value={formData.full_name}
+                                onChange={e => handleChange('full_name', e.target.value)}
+                            />
+                        </div>
+                        {/* Title */}
+                        <div className="col-span-full md:col-span-1">
+                            <label className="block text-sm font-medium text-slate-700 mb-1">Job Title</label>
+                            <input 
+                                type="text" 
+                                className="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-black outline-none"
+                                value={formData.title}
+                                onChange={e => handleChange('title', e.target.value)}
+                            />
+                        </div>
+                        {/* Email */}
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
+                            <input 
+                                type="email" 
+                                className="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-black outline-none"
+                                value={formData.email || ''}
+                                onChange={e => handleChange('email', e.target.value)}
+                            />
+                        </div>
+                        {/* Phone */}
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-1">Phone</label>
+                            <input 
+                                type="text" 
+                                className="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-black outline-none"
+                                value={formData.phone || ''}
+                                onChange={e => handleChange('phone', e.target.value)}
+                            />
+                        </div>
+                        {/* Location */}
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-1">Location</label>
+                            <input 
+                                type="text" 
+                                className="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-black outline-none"
+                                value={formData.location}
+                                onChange={e => handleChange('location', e.target.value)}
+                            />
+                        </div>
+                        {/* Years Exp */}
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-1">Years of Experience</label>
+                            <input 
+                                type="number" 
+                                className="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-black outline-none"
+                                value={formData.years_experience_total}
+                                onChange={e => handleChange('years_experience_total', e.target.value)}
+                            />
+                        </div>
+                        {/* LinkedIn */}
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-1">LinkedIn URL</label>
+                            <input 
+                                type="url" 
+                                className="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-black outline-none"
+                                value={formData.linkedin_url || ''}
+                                onChange={e => handleChange('linkedin_url', e.target.value)}
+                            />
+                        </div>
+                        {/* Portfolio */}
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-1">Portfolio URL</label>
+                            <input 
+                                type="url" 
+                                className="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-black outline-none"
+                                value={formData.portfolio_url || ''}
+                                onChange={e => handleChange('portfolio_url', e.target.value)}
+                            />
+                        </div>
+                    </div>
 
-              <div>
-                <h3 className="font-bold text-slate-900 mb-2">Why they match</h3>
-                <p className="text-slate-600 bg-blue-50/50 p-4 rounded-lg border border-blue-100">
-                  {candidate.match_reason}
-                </p>
-              </div>
+                    <div className="mb-6">
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Summary / Notes</label>
+                        <textarea 
+                            className="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-black outline-none min-h-[100px]"
+                            value={formData.match_reason}
+                            onChange={e => handleChange('match_reason', e.target.value)}
+                        ></textarea>
+                    </div>
 
-              {candidate.lnkd_notes && (
+                    <div className="flex justify-end gap-3 pt-6 border-t border-slate-100">
+                        <button 
+                            type="button"
+                            onClick={() => setIsEditing(false)} 
+                            className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-md transition"
+                        >
+                            Cancel
+                        </button>
+                        <button 
+                            type="submit" 
+                            disabled={saving}
+                            className="px-6 py-2 bg-black text-white font-semibold rounded-md hover:bg-zinc-800 transition disabled:opacity-50"
+                        >
+                            {saving ? 'Saving...' : 'Save Changes'}
+                        </button>
+                    </div>
+                </form>
+            ) : (
+                <div className="p-6 space-y-6">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                    <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
+                        <div className="text-xs text-slate-500 uppercase font-bold tracking-wider mb-1">Score</div>
+                        <div className="text-xl font-bold text-slate-900">{candidate.match_score}%</div>
+                    </div>
+                    <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
+                        <div className="text-xs text-slate-500 uppercase font-bold tracking-wider mb-1">Exp</div>
+                        <div className="text-xl font-bold text-slate-900">{candidate.years_experience_total} Yrs</div>
+                    </div>
+                    <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
+                        <div className="text-xs text-slate-500 uppercase font-bold tracking-wider mb-1">Location</div>
+                        <div className="text-lg font-bold text-slate-900 truncate" title={candidate.location}>{candidate.location}</div>
+                    </div>
+                    <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
+                        <div className="text-xs text-slate-500 uppercase font-bold tracking-wider mb-1">Source</div>
+                        <div className="text-lg font-bold text-slate-900 capitalize">{candidate.source}</div>
+                    </div>
+                </div>
+
                 <div>
-                    <h3 className="font-bold text-slate-900 mb-2">LNKD Analysis</h3>
-                    <p className="text-slate-600 italic">
-                    "{candidate.lnkd_notes}"
+                    <h3 className="font-bold text-slate-900 mb-2">Why they match</h3>
+                    <p className="text-slate-600 bg-blue-50/50 p-4 rounded-lg border border-blue-100">
+                    {candidate.match_reason}
                     </p>
                 </div>
-              )}
 
-              <div>
-                <h3 className="font-bold text-slate-900 mb-2">Tech Stack</h3>
-                <div className="flex flex-wrap gap-2">
-                    {candidate.technologies?.map((t, i) => (
-                        <span key={i} className="bg-slate-100 px-3 py-1 rounded-full text-sm border border-slate-200">
-                            {t.name} <span className="text-slate-400 text-xs ml-1">({t.years}y)</span>
-                        </span>
-                    ))}
-                    {candidate.tools?.map((t, i) => (
-                        <span key={i} className="bg-white px-3 py-1 rounded-full text-sm border border-slate-200 shadow-sm">
-                            {t.name} <span className="text-slate-400 text-xs ml-1">({t.years}y)</span>
-                        </span>
-                    ))}
-                </div>
-              </div>
+                {candidate.lnkd_notes && (
+                    <div>
+                        <h3 className="font-bold text-slate-900 mb-2">LNKD Analysis</h3>
+                        <p className="text-slate-600 italic">
+                        "{candidate.lnkd_notes}"
+                        </p>
+                    </div>
+                )}
 
-              {candidate.work_history && candidate.work_history.length > 0 && (
                 <div>
-                    <h3 className="font-bold text-slate-900 mb-2">Work History</h3>
-                    <div className="space-y-3">
-                        {candidate.work_history.map((job, i) => (
-                            <div key={i} className="flex justify-between items-center border-b border-slate-100 pb-2 last:border-0">
-                                <div>
-                                    <div className="font-semibold text-slate-800">{job.company}</div>
-                                    <div className="text-sm text-slate-500">{job.title}</div>
-                                </div>
-                                <div className="text-sm font-medium text-slate-400">{job.years} Years</div>
-                            </div>
+                    <h3 className="font-bold text-slate-900 mb-2">Tech Stack</h3>
+                    <div className="flex flex-wrap gap-2">
+                        {candidate.technologies?.map((t, i) => (
+                            <span key={i} className="bg-slate-100 px-3 py-1 rounded-full text-sm border border-slate-200">
+                                {t.name} <span className="text-slate-400 text-xs ml-1">({t.years}y)</span>
+                            </span>
+                        ))}
+                        {candidate.tools?.map((t, i) => (
+                            <span key={i} className="bg-white px-3 py-1 rounded-full text-sm border border-slate-200 shadow-sm">
+                                {t.name} <span className="text-slate-400 text-xs ml-1">({t.years}y)</span>
+                            </span>
                         ))}
                     </div>
                 </div>
-              )}
 
-              <div className="flex gap-4 pt-4">
-                 {candidate.linkedin_url && (
-                    <a href={candidate.linkedin_url} target="_blank" className="flex-1 bg-[#0077b5] text-white text-center py-2.5 rounded-lg font-semibold hover:bg-[#006097] transition">
-                        LinkedIn Profile
-                    </a>
-                 )}
-                 {candidate.portfolio_url && (
-                    <a href={candidate.portfolio_url} target="_blank" className="flex-1 bg-black text-white text-center py-2.5 rounded-lg font-semibold hover:bg-zinc-800 transition">
-                        Portfolio / Behance
-                    </a>
-                 )}
-              </div>
+                {candidate.work_history && candidate.work_history.length > 0 && (
+                    <div>
+                        <h3 className="font-bold text-slate-900 mb-2">Work History</h3>
+                        <div className="space-y-3">
+                            {candidate.work_history.map((job, i) => (
+                                <div key={i} className="flex justify-between items-center border-b border-slate-100 pb-2 last:border-0">
+                                    <div>
+                                        <div className="font-semibold text-slate-800">{job.company}</div>
+                                        <div className="text-sm text-slate-500">{job.title}</div>
+                                    </div>
+                                    <div className="text-sm font-medium text-slate-400">{job.years} Years</div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
 
-            </div>
+                <div className="flex gap-4 pt-4">
+                    {candidate.linkedin_url && (
+                        <a href={candidate.linkedin_url} target="_blank" className="flex-1 bg-[#0077b5] text-white text-center py-2.5 rounded-lg font-semibold hover:bg-[#006097] transition">
+                            LinkedIn Profile
+                        </a>
+                    )}
+                    {candidate.portfolio_url && (
+                        <a href={candidate.portfolio_url} target="_blank" className="flex-1 bg-black text-white text-center py-2.5 rounded-lg font-semibold hover:bg-zinc-800 transition">
+                            Portfolio / Behance
+                        </a>
+                    )}
+                    <button 
+                        onClick={() => setIsEditing(true)}
+                        className="flex-1 bg-white border border-slate-300 text-slate-700 text-center py-2.5 rounded-lg font-semibold hover:bg-slate-50 transition flex items-center justify-center gap-2"
+                    >
+                        <PencilSquareIcon className="h-5 w-5" /> Edit Profile
+                    </button>
+                </div>
+
+                </div>
+            )}
           </div>
         </div>
     );
