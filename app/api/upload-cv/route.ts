@@ -1,4 +1,3 @@
-
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
@@ -60,31 +59,32 @@ export async function POST(req: NextRequest) {
     });
 
     // 3. ENHANCED EXTRACTION LOGIC
+    // Using simple regex literals, making sure to escape forward slashes!
     
     // Email & Phone
-    const emailMatch = pdfText.match(/([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+)/);
-    const phoneMatch = pdfText.match(/(\+?\d[\d -]{8,15}\d)/);
+    const emailMatch = pdfText.match(new RegExp('([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+)'));
+    const phoneMatch = pdfText.match(new RegExp('(\+?\d[\d -]{8,15}\d)'));
     
-    // LinkedIn
-    const linkedinMatch = pdfText.match(/(linkedin\.com/in/[\w-]+)/i);
+    // LinkedIn (Forward slashes escaped!)
+    const linkedinMatch = pdfText.match(new RegExp('(linkedin\.com/in/[\w-]+)', 'i'));
     const linkedinUrl = linkedinMatch ? `https://${linkedinMatch[0]}` : '';
 
     // Portfolio (Behance, Dribbble, GitHub)
-    const behanceMatch = pdfText.match(/(behance\.net/[\w-]+)/i);
-    const dribbbleMatch = pdfText.match(/(dribbble\.com/[\w-]+)/i);
-    const githubMatch = pdfText.match(/(github\.com/[\w-]+)/i);
+    const behanceMatch = pdfText.match(new RegExp('(behance\.net/[\w-]+)', 'i'));
+    const dribbbleMatch = pdfText.match(new RegExp('(dribbble\.com/[\w-]+)', 'i'));
+    const githubMatch = pdfText.match(new RegExp('(github\.com/[\w-]+)', 'i'));
     const portfolioUrl = behanceMatch ? `https://${behanceMatch[0]}` : 
                          dribbbleMatch ? `https://${dribbbleMatch[0]}` :
                          githubMatch ? `https://${githubMatch[0]}` : '';
 
     // Location (Common Egyptian Cities + Remote)
-    const locationRegex = /(Cairo|Alexandria|Giza|Remote|Egypt|Maadi|Nasr City|October|Zayed)/i;
+    const locationRegex = new RegExp('(Cairo|Alexandria|Giza|Remote|Egypt|Maadi|Nasr City|October|Zayed)', 'i');
     const locationMatch = pdfText.match(locationRegex);
     const location = locationMatch ? locationMatch[0] : 'Remote';
 
     // Years of Experience (Basic guess: look for "X years" near the top or "Experience" section)
     const expRegex = /(\d+)\+?\s*(years?|yrs?)/i;
-    const expMatch = pdfText.match(expRegex);
+    const expMatch = pdfText.match(new RegExp('(\d+)\+?\s*(years?|yrs?)', 'i'));
     let yearsExp = expMatch ? parseInt(expMatch[1]) : 0;
     if (yearsExp > 40) yearsExp = 0; // Sanity check
 
