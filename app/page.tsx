@@ -64,6 +64,12 @@ export default function Dashboard() {
   const [vettingCandidate, setVettingCandidate] = useState<Candidate | null>(null);
   const [assigningCandidate, setAssigningCandidate] = useState<Candidate | null>(null);
 
+  // Interaction States
+  const [interactions, setInteractions] = useState<any[]>([]);
+  const [loadingInteractions, setLoadingInteractions] = useState(false);
+  const [newInteraction, setNewInteraction] = useState({ type: 'LinkedIn Message', content: '' });
+  const [submittingInteraction, setSubmittingInteraction] = useState(false);
+
   // Vetting Form State
   const [vettingData, setVettingData] = useState({
     id: '', // Vetting Record ID (for updates)
@@ -108,6 +114,40 @@ export default function Dashboard() {
         }));
         setJobs(formattedJobs);
     }
+  }
+
+  async function fetchInteractions(candidateId: string) {
+    setLoadingInteractions(true);
+    const { data, error } = await supabase
+      .from('candidate_interactions')
+      .select('*')
+      .eq('candidate_id', candidateId)
+      .order('created_at', { ascending: false });
+
+    if (error) console.error('Error fetching interactions:', error);
+    else setInteractions(data || []);
+    setLoadingInteractions(false);
+  }
+
+  async function submitInteraction(candidateId: string) {
+    if (!newInteraction.content.trim()) return;
+    setSubmittingInteraction(true);
+
+    const { error } = await supabase
+      .from('candidate_interactions')
+      .insert({
+        candidate_id: candidateId,
+        type: newInteraction.type,
+        content: newInteraction.content
+      });
+
+    if (error) {
+      alert('Error saving interaction: ' + error.message);
+    } else {
+      setNewInteraction({ ...newInteraction, content: '' });
+      fetchInteractions(candidateId);
+    }
+    setSubmittingInteraction(false);
   }
 
   // Open Vetting Modal & Fetch Data (Robust against duplicates)
@@ -319,7 +359,17 @@ export default function Dashboard() {
       {selectedCandidate && (
         <CandidateDetailsModal 
            candidate={selectedCandidate} 
-           onClose={() => setSelectedCandidate(null)} 
+           interactions={interactions}
+           loadingInteractions={loadingInteractions}
+           onFetchInteractions={() => fetchInteractions(selectedCandidate.id)}
+           newInteraction={newInteraction}
+           setNewInteraction={setNewInteraction}
+           submittingInteraction={submittingInteraction}
+           onSubmitInteraction={() => submitInteraction(selectedCandidate.id)}
+           onClose={() => {
+             setSelectedCandidate(null);
+             setInteractions([]);
+           }} 
            onUpdate={() => {
                fetchCandidates();
                setSelectedCandidate(null);
@@ -523,14 +573,14 @@ function CandidateCard({
   // Max score: 100
   // Weights:
   // - Name & Title: 20 (Essential)
-  // - Email/Phone: 20 (Contactable)
-  // - Resume Text: 20 (Content)
+  // - Email: 20 (Primary Contact)
+  // - Phone: 20 (Secondary Contact)
   // - Skills/Tools: 20 (Searchable)
   // - LinkedIn/Portfolio: 20 (Verifiable)
   let healthScore = 0;
   if (candidate.full_name && candidate.title) healthScore += 20;
-  if (candidate.email || candidate.phone) healthScore += 20;
-  if (candidate.resume_text && candidate.resume_text.length > 50) healthScore += 20;
+  if (candidate.email) healthScore += 20;
+  if (candidate.phone) healthScore += 20;
   if ((candidate.skills && candidate.skills.length > 0) || (candidate.tools && candidate.tools.length > 0) || (candidate.technologies && candidate.technologies.length > 0)) healthScore += 20;
   if (candidate.linkedin_url || candidate.portfolio_url) healthScore += 20;
 
@@ -631,8 +681,37 @@ function CandidateCard({
   );
 }
 
-function CandidateDetailsModal({ candidate, onClose, onUpdate }: { candidate: Candidate; onClose: () => void; onUpdate: () => void }) {
+function CandidateDetailsModal({ 
+    candidate, 
+    onClose, 
+    onUpdate,
+    interactions,
+    loadingInteractions,
+    onFetchInteractions,
+    newInteraction,
+    setNewInteraction,
+    submittingInteraction,
+    onSubmitInteraction
+}: { 
+    candidate: Candidate; 
+    onClose: () => void; 
+    onUpdate: () => void;
+    interactions: any[];
+    loadingInteractions: boolean;
+    onFetchInteractions: () => void;
+    newInteraction: { type: string; content: string };
+    setNewInteraction: (val: any) => void;
+    submittingInteraction: boolean;
+    onSubmitInteraction: () => void;
+}) {
     const [isEditing, setIsEditing] = useState(false);
+
+    useEffect(() => {
+        if (candidate && !isEditing) {
+            onFetchInteractions();
+        }
+    }, [candidate, isEditing]);
+
     const [formData, setFormData] = useState<Candidate>({
         ...candidate,
         work_history: Array.isArray(candidate.work_history) ? candidate.work_history : [],
@@ -1072,6 +1151,75 @@ function CandidateDetailsModal({ candidate, onClose, onUpdate }: { candidate: Ca
                         </div>
                     </div>
                 )}
+
+                {/* Interactions Section */}
+                <div className="pt-6 border-t border-slate-100">
+                    <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
+                        💬 Interaction Timeline
+                    </h3>
+                    
+                    {/* Log New Interaction */}
+                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 mb-6">
+                        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-3">
+                            <select 
+                                className="sm:col-span-1 border border-slate-300 rounded-md p-2 text-sm outline-none focus:ring-1 focus:ring-black"
+                                value={newInteraction.type}
+                                onChange={e => setNewInteraction({...newInteraction, type: e.target.value})}
+                            >
+                                <option>LinkedIn Message</option>
+                                <option>Email</option>
+                                <option>Initial Call</option>
+                                <option>Technical Interview</option>
+                                <option>Offer Sent</option>
+                                <option>Feedback</option>
+                            </select>
+                            <textarea 
+                                className="sm:col-span-3 border border-slate-300 rounded-md p-2 text-sm outline-none focus:ring-1 focus:ring-black min-h-[40px]"
+                                placeholder="Add notes about this interaction..."
+                                value={newInteraction.content}
+                                onChange={e => setNewInteraction({...newInteraction, content: e.target.value})}
+                            />
+                        </div>
+                        <div className="flex justify-end">
+                            <button 
+                                onClick={onSubmitInteraction}
+                                disabled={submittingInteraction || !newInteraction.content.trim()}
+                                className="bg-black text-white px-4 py-1.5 rounded text-sm font-bold hover:bg-zinc-800 transition disabled:opacity-50"
+                            >
+                                {submittingInteraction ? 'Saving...' : 'Log Interaction'}
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Interaction List */}
+                    <div className="space-y-4">
+                        {loadingInteractions ? (
+                            <div className="text-center py-4 text-slate-400 text-sm animate-pulse">Loading history...</div>
+                        ) : interactions.length > 0 ? (
+                            interactions.map((it) => (
+                                <div key={it.id} className="flex gap-4 relative">
+                                    <div className="w-px bg-slate-200 absolute left-2.5 top-8 bottom-0"></div>
+                                    <div className="h-5 w-5 rounded-full bg-slate-200 shrink-0 mt-1.5 flex items-center justify-center text-[10px] z-10">
+                                        {it.type.includes('Call') ? '📞' : it.type.includes('Email') ? '📧' : '💬'}
+                                    </div>
+                                    <div className="pb-4">
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <span className="text-xs font-bold text-slate-900 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                                                {it.type}
+                                            </span>
+                                            <span className="text-[10px] text-slate-400 font-medium">
+                                                {new Date(it.created_at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
+                                            </span>
+                                        </div>
+                                        <p className="text-sm text-slate-600 whitespace-pre-wrap">{it.content}</p>
+                                    </div>
+                                </div>
+                            ))
+                        ) : (
+                            <p className="text-center py-8 text-slate-400 text-sm italic">No interactions logged yet. Start the journey!</p>
+                        )}
+                    </div>
+                </div>
 
                 <div className="flex gap-4 pt-4">
                     {candidate.linkedin_url && (
