@@ -40,6 +40,8 @@ type Candidate = {
   resume_url?: string;
   resume_text?: string;
   years_experience?: number;
+  last_interaction_type?: string;
+  last_interaction_at?: string;
 };
 
 // Vetting Options
@@ -95,13 +97,37 @@ export default function Dashboard() {
 
   async function fetchCandidates() {
     setLoading(true);
+    
+    // Fetch candidates along with their last interaction
     const { data, error } = await supabase
       .from('candidates')
-      .select('*')
+      .select(`
+        *,
+        candidate_interactions (
+          type,
+          created_at
+        )
+      `)
       .order('match_score', { ascending: false });
 
-    if (error) console.error('Error fetching candidates:', error);
-    else setCandidates(data || []);
+    if (error) {
+      console.error('Error fetching candidates:', error);
+    } else {
+      const formattedData = data.map((c: any) => {
+        // Find latest interaction
+        const sortedInteractions = (c.candidate_interactions || []).sort(
+          (a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        );
+        const last = sortedInteractions[0];
+        
+        return {
+          ...c,
+          last_interaction_type: last?.type,
+          last_interaction_at: last?.created_at
+        };
+      });
+      setCandidates(formattedData);
+    }
     setLoading(false);
   }
 
@@ -606,6 +632,12 @@ function CandidateCard({
             </div>
           </div>
           <div className="flex flex-col items-end gap-1">
+            {candidate.last_interaction_at && (
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 border border-purple-200 flex items-center gap-1 mb-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-pulse"></span>
+                Contacted {new Date(candidate.last_interaction_at).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+              </span>
+            )}
             {isAssigned ? (
               <span className="text-xs font-bold px-2 py-1 rounded-full border bg-green-100 text-green-700 border-green-200 shrink-0 flex items-center gap-1">
                   <BriefcaseIcon className="h-3 w-3" /> Matched
@@ -1159,10 +1191,10 @@ function CandidateDetailsModal({
                     </h3>
                     
                     {/* Log New Interaction */}
-                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 mb-6">
-                        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-3">
+                    <div className="bg-white p-3 rounded-lg border border-slate-100 mb-6 shadow-sm">
+                        <div className="flex flex-col sm:flex-row gap-2 mb-2">
                             <select 
-                                className="sm:col-span-1 border border-slate-300 rounded-md p-2 text-sm outline-none focus:ring-1 focus:ring-black"
+                                className="sm:w-1/3 border border-slate-200 rounded text-xs p-1.5 outline-none focus:ring-1 focus:ring-black bg-slate-50"
                                 value={newInteraction.type}
                                 onChange={e => setNewInteraction({...newInteraction, type: e.target.value})}
                             >
@@ -1174,19 +1206,25 @@ function CandidateDetailsModal({
                                 <option>Feedback</option>
                             </select>
                             <textarea 
-                                className="sm:col-span-3 border border-slate-300 rounded-md p-2 text-sm outline-none focus:ring-1 focus:ring-black min-h-[40px]"
-                                placeholder="Add notes about this interaction..."
+                                className="flex-grow border border-slate-200 rounded text-xs p-1.5 outline-none focus:ring-1 focus:ring-black min-h-[36px]"
+                                placeholder="Add quick notes..."
                                 value={newInteraction.content}
                                 onChange={e => setNewInteraction({...newInteraction, content: e.target.value})}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                                        onSubmitInteraction();
+                                    }
+                                }}
                             />
                         </div>
-                        <div className="flex justify-end">
+                        <div className="flex justify-between items-center px-1">
+                            <span className="text-[10px] text-slate-400">⌘+Enter to save</span>
                             <button 
                                 onClick={onSubmitInteraction}
                                 disabled={submittingInteraction || !newInteraction.content.trim()}
-                                className="bg-black text-white px-4 py-1.5 rounded text-sm font-bold hover:bg-zinc-800 transition disabled:opacity-50"
+                                className="bg-black text-white px-4 py-1 rounded text-xs font-bold hover:bg-zinc-800 transition disabled:opacity-50"
                             >
-                                {submittingInteraction ? 'Saving...' : 'Log Interaction'}
+                                {submittingInteraction ? 'Saving...' : 'Log'}
                             </button>
                         </div>
                     </div>
