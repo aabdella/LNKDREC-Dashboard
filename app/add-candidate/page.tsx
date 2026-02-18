@@ -3,7 +3,7 @@
 import { supabase } from '@/lib/supabaseClient';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { CloudArrowUpIcon, DocumentIcon, XMarkIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
+import { CloudArrowUpIcon, DocumentIcon, XMarkIcon, CheckCircleIcon, UserPlusIcon } from '@heroicons/react/24/outline';
 
 export default function AddCandidate() {
   const router = useRouter();
@@ -14,8 +14,31 @@ export default function AddCandidate() {
   
   // Form State
   const [showForm, setShowForm] = useState(false);
+  const [isManual, setIsManual] = useState(false);
   const [formData, setFormData] = useState<any>({});
   const [unvettedId, setUnvettedId] = useState<string | null>(null);
+
+  const handleManualEntry = () => {
+    setFormData({
+      full_name: '',
+      title: '',
+      email: '',
+      phone: '',
+      location: '',
+      years_experience_total: 0,
+      linkedin_url: '',
+      portfolio_url: '',
+      match_reason: '',
+      source: 'Manual Entry',
+      status: 'New',
+      match_score: 0,
+      technologies: [],
+      tools: [],
+      work_history: []
+    });
+    setIsManual(true);
+    setShowForm(true);
+  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -72,6 +95,7 @@ export default function AddCandidate() {
       }
       
       setShowForm(true);
+      setIsManual(false);
       setFile(null); // Clear file input
       
     } catch (err: any) {
@@ -136,7 +160,7 @@ export default function AddCandidate() {
       
       {!showForm ? (
           <>
-            <p className="text-slate-500 mb-8">Upload a CV (PDF) to automatically parse and review before adding to the talent pool.</p>
+            <p className="text-slate-500 mb-8">Upload a CV (PDF) to automatically parse or add a candidate manually.</p>
             <div className="bg-white p-8 rounded-xl shadow-sm border border-slate-200">
                 {/* Upload Area */}
                 <div className="border-2 border-dashed border-slate-300 rounded-lg p-12 flex flex-col items-center justify-center text-center hover:bg-slate-50 transition cursor-pointer relative">
@@ -151,6 +175,23 @@ export default function AddCandidate() {
                         {file ? file.name : 'Drag & drop or click to upload PDF'}
                     </p>
                     <p className="text-sm text-slate-400 mt-2">Maximum file size: 5MB</p>
+                </div>
+
+                {/* Manual Entry Button */}
+                <div className="mt-8 flex items-center gap-4">
+                    <div className="flex-grow h-px bg-slate-100"></div>
+                    <span className="text-slate-400 text-sm font-medium">OR</span>
+                    <div className="flex-grow h-px bg-slate-100"></div>
+                </div>
+
+                <div className="mt-8 flex justify-center">
+                    <button 
+                        onClick={handleManualEntry}
+                        className="flex items-center gap-2 px-6 py-3 border border-slate-200 rounded-lg text-slate-700 font-semibold hover:bg-slate-50 transition shadow-sm"
+                    >
+                        <UserPlusIcon className="h-5 w-5" />
+                        Add Candidate Manually
+                    </button>
                 </div>
 
                 {/* Selected File & Actions */}
@@ -184,12 +225,16 @@ export default function AddCandidate() {
       ) : (
           <form onSubmit={handleSave} className="bg-white p-8 rounded-xl shadow-sm border border-slate-200 animate-fade-in">
               <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-100">
-                  <div className="bg-green-100 p-2 rounded-full text-green-600">
-                      <CheckCircleIcon className="h-6 w-6" />
+                  <div className={`${isManual ? 'bg-blue-100 text-blue-600' : 'bg-green-100 text-green-600'} p-2 rounded-full`}>
+                      {isManual ? <UserPlusIcon className="h-6 w-6" /> : <CheckCircleIcon className="h-6 w-6" />}
                   </div>
                   <div>
-                      <h2 className="text-lg font-bold text-slate-900">Review & Save Candidate</h2>
-                      <p className="text-sm text-slate-500">Extracted from PDF. Please verify details.</p>
+                      <h2 className="text-lg font-bold text-slate-900">
+                          {isManual ? 'Add Candidate Details' : 'Review & Save Candidate'}
+                      </h2>
+                      <p className="text-sm text-slate-500">
+                          {isManual ? 'Enter the candidate information manually.' : 'Extracted from PDF. Please verify details.'}
+                      </p>
                   </div>
               </div>
 
