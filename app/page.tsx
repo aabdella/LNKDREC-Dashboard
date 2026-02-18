@@ -9,7 +9,13 @@ import { useRouter } from 'next/navigation';
 // Types
 type Tool = { name: string; years: number };
 type Technology = { name: string; years: number };
-type WorkHistory = { company: string; title: string; years: number };
+type WorkHistory = { 
+  company: string; 
+  title: string; 
+  start_date?: string; 
+  end_date?: string; 
+  years?: number 
+};
 type Job = { id: string; title: string; client_id: string; clients: any };
 
 type Candidate = {
@@ -27,7 +33,7 @@ type Candidate = {
   tools?: Tool[];
   technologies?: Technology[];
   skills?: string[];
-  work_history?: WorkHistory[] | string; // Correct type union
+  work_history?: WorkHistory[];
   email?: string;
   phone?: string;
   status?: string;
@@ -627,7 +633,12 @@ function CandidateCard({
 
 function CandidateDetailsModal({ candidate, onClose, onUpdate }: { candidate: Candidate; onClose: () => void; onUpdate: () => void }) {
     const [isEditing, setIsEditing] = useState(false);
-    const [formData, setFormData] = useState(candidate);
+    const [formData, setFormData] = useState<Candidate>({
+        ...candidate,
+        work_history: Array.isArray(candidate.work_history) ? candidate.work_history : [],
+        technologies: Array.isArray(candidate.technologies) ? candidate.technologies : [],
+        tools: Array.isArray(candidate.tools) ? candidate.tools : []
+    });
     const [saving, setSaving] = useState(false);
 
     const handleSave = async (e: React.FormEvent) => {
@@ -637,9 +648,13 @@ function CandidateDetailsModal({ candidate, onClose, onUpdate }: { candidate: Ca
         // Sanitize numeric fields
         const payload = {
             ...formData,
-            years_experience: Number(formData.years_experience) || 0,
-            years_experience_total: Number(formData.years_experience) || Number(formData.years_experience_total) || 0, // Sync both for consistency
-            match_score: Number(formData.match_score) || 0
+            years_experience: Number(formData.years_experience_total) || 0,
+            years_experience_total: Number(formData.years_experience_total) || 0,
+            match_score: Number(formData.match_score) || 0,
+            // Ensure arrays are sent correctly
+            work_history: formData.work_history || [],
+            technologies: formData.technologies || [],
+            tools: formData.tools || []
         };
 
         const { error } = await supabase.from('candidates').update(payload).eq('id', candidate.id);
@@ -653,13 +668,55 @@ function CandidateDetailsModal({ candidate, onClose, onUpdate }: { candidate: Ca
         setSaving(false);
     };
 
-    const handleChange = (field: string, value: any) => {
+    const handleChange = (field: keyof Candidate, value: any) => {
         setFormData(prev => ({ ...prev, [field]: value }));
+    };
+
+    const addWorkHistory = () => {
+        const newEntry: WorkHistory = { company: '', title: '', start_date: '', end_date: '', years: 0 };
+        setFormData(prev => ({
+            ...prev,
+            work_history: [...(prev.work_history || []), newEntry]
+        }));
+    };
+
+    const updateWorkHistory = (index: number, field: keyof WorkHistory, value: any) => {
+        const updatedHistory = [...(formData.work_history || [])];
+        updatedHistory[index] = { ...updatedHistory[index], [field]: value };
+        setFormData(prev => ({ ...prev, work_history: updatedHistory }));
+    };
+
+    const removeWorkHistory = (index: number) => {
+        setFormData(prev => ({
+            ...prev,
+            work_history: (prev.work_history || []).filter((_, i) => i !== index)
+        }));
+    };
+
+    const addTech = (type: 'technologies' | 'tools') => {
+        const newEntry = { name: '', years: 0 };
+        setFormData(prev => ({
+            ...prev,
+            [type]: [...(prev[type] || []), newEntry]
+        }));
+    };
+
+    const updateTech = (type: 'technologies' | 'tools', index: number, field: string, value: any) => {
+        const updated = [...(formData[type] || [])];
+        updated[index] = { ...updated[index], [field]: value };
+        setFormData(prev => ({ ...prev, [type]: updated }));
+    };
+
+    const removeTech = (type: 'technologies' | 'tools', index: number) => {
+        setFormData(prev => ({
+            ...prev,
+            [type]: (prev[type] || []).filter((_, i) => i !== index)
+        }));
     };
 
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={onClose}>
-          <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+          <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="sticky top-0 bg-white border-b border-slate-100 p-6 flex justify-between items-center z-10">
               <div>
                 {!isEditing ? (
@@ -680,7 +737,7 @@ function CandidateDetailsModal({ candidate, onClose, onUpdate }: { candidate: Ca
                         </div>
                     </>
                 ) : (
-                    <h2 className="text-xl font-bold text-slate-900">Edit Profile</h2>
+                    <h2 className="text-xl font-bold text-slate-900">Edit Profile: {candidate.full_name}</h2>
                 )}
               </div>
               <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full transition">
@@ -689,98 +746,233 @@ function CandidateDetailsModal({ candidate, onClose, onUpdate }: { candidate: Ca
             </div>
             
             {isEditing ? (
-                <form onSubmit={handleSave} className="p-6 space-y-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        {/* Full Name */}
-                        <div className="col-span-full md:col-span-1">
-                            <label className="block text-sm font-medium text-slate-700 mb-1">Full Name</label>
-                            <input 
-                                type="text" 
-                                required
-                                className="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-black outline-none"
-                                value={formData.full_name}
-                                onChange={e => handleChange('full_name', e.target.value)}
-                            />
-                        </div>
-                        {/* Title */}
-                        <div className="col-span-full md:col-span-1">
-                            <label className="block text-sm font-medium text-slate-700 mb-1">Job Title</label>
-                            <input 
-                                type="text" 
-                                className="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-black outline-none"
-                                value={formData.title}
-                                onChange={e => handleChange('title', e.target.value)}
-                            />
-                        </div>
-                        {/* Email */}
-                        <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
-                            <input 
-                                type="email" 
-                                className="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-black outline-none"
-                                value={formData.email || ''}
-                                onChange={e => handleChange('email', e.target.value)}
-                            />
-                        </div>
-                        {/* Phone */}
-                        <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-1">Phone</label>
-                            <input 
-                                type="text" 
-                                className="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-black outline-none"
-                                value={formData.phone || ''}
-                                onChange={e => handleChange('phone', e.target.value)}
-                            />
-                        </div>
-                        {/* Location */}
-                        <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-1">Location</label>
-                            <input 
-                                type="text" 
-                                className="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-black outline-none"
-                                value={formData.location}
-                                onChange={e => handleChange('location', e.target.value)}
-                            />
-                        </div>
-                        {/* Years Exp */}
-                        <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-1">Years of Experience</label>
-                            <input 
-                                type="number" 
-                                className="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-black outline-none"
-                                value={formData.years_experience_total || formData.years_experience || 0}
-                                onChange={e => handleChange('years_experience', e.target.value)}
-                            />
-                        </div>
-                        {/* LinkedIn */}
-                        <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-1">LinkedIn URL</label>
-                            <input 
-                                type="url" 
-                                className="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-black outline-none"
-                                value={formData.linkedin_url || ''}
-                                onChange={e => handleChange('linkedin_url', e.target.value)}
-                            />
-                        </div>
-                        {/* Portfolio */}
-                        <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-1">Portfolio URL</label>
-                            <input 
-                                type="url" 
-                                className="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-black outline-none"
-                                value={formData.portfolio_url || ''}
-                                onChange={e => handleChange('portfolio_url', e.target.value)}
-                            />
+                <form onSubmit={handleSave} className="p-6 space-y-8">
+                    {/* Basic Info Section */}
+                    <div className="space-y-4">
+                        <h3 className="text-lg font-bold text-slate-800 border-b pb-2">Basic Information</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Full Name</label>
+                                <input 
+                                    type="text" 
+                                    required
+                                    className="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-black outline-none"
+                                    value={formData.full_name}
+                                    onChange={e => handleChange('full_name', e.target.value)}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Job Title</label>
+                                <input 
+                                    type="text" 
+                                    className="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-black outline-none"
+                                    value={formData.title}
+                                    onChange={e => handleChange('title', e.target.value)}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
+                                <input 
+                                    type="email" 
+                                    className="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-black outline-none"
+                                    value={formData.email || ''}
+                                    onChange={e => handleChange('email', e.target.value)}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Phone</label>
+                                <input 
+                                    type="text" 
+                                    className="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-black outline-none"
+                                    value={formData.phone || ''}
+                                    onChange={e => handleChange('phone', e.target.value)}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Location</label>
+                                <input 
+                                    type="text" 
+                                    className="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-black outline-none"
+                                    value={formData.location}
+                                    onChange={e => handleChange('location', e.target.value)}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Years of Experience</label>
+                                <input 
+                                    type="number" 
+                                    className="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-black outline-none"
+                                    value={formData.years_experience_total || 0}
+                                    onChange={e => handleChange('years_experience_total', e.target.value)}
+                                />
+                            </div>
                         </div>
                     </div>
 
-                    <div className="mb-6">
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Summary / Notes</label>
+                    {/* Work History Section */}
+                    <div className="space-y-4">
+                        <div className="flex justify-between items-center border-b pb-2">
+                            <h3 className="text-lg font-bold text-slate-800">Work History</h3>
+                            <button 
+                                type="button" 
+                                onClick={addWorkHistory}
+                                className="text-sm bg-black text-white px-3 py-1 rounded hover:bg-zinc-800 transition"
+                            >
+                                + Add Entry
+                            </button>
+                        </div>
+                        <div className="space-y-4">
+                            {(formData.work_history || []).map((work, idx) => (
+                                <div key={idx} className="p-4 bg-slate-50 rounded-lg border border-slate-200 relative group">
+                                    <button 
+                                        type="button" 
+                                        onClick={() => removeWorkHistory(idx)}
+                                        className="absolute top-2 right-2 text-slate-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition"
+                                    >
+                                        <XMarkIcon className="h-5 w-5" />
+                                    </button>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Company</label>
+                                            <input 
+                                                type="text" 
+                                                className="w-full border border-slate-300 rounded-md p-2 text-sm focus:ring-1 focus:ring-black outline-none"
+                                                value={work.company}
+                                                onChange={e => updateWorkHistory(idx, 'company', e.target.value)}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Title</label>
+                                            <input 
+                                                type="text" 
+                                                className="w-full border border-slate-300 rounded-md p-2 text-sm focus:ring-1 focus:ring-black outline-none"
+                                                value={work.title}
+                                                onChange={e => updateWorkHistory(idx, 'title', e.target.value)}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Start Date</label>
+                                            <input 
+                                                type="text" 
+                                                className="w-full border border-slate-300 rounded-md p-2 text-sm focus:ring-1 focus:ring-black outline-none"
+                                                placeholder="e.g. Jan 2020"
+                                                value={work.start_date || ''}
+                                                onChange={e => updateWorkHistory(idx, 'start_date', e.target.value)}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">End Date</label>
+                                            <input 
+                                                type="text" 
+                                                className="w-full border border-slate-300 rounded-md p-2 text-sm focus:ring-1 focus:ring-black outline-none"
+                                                placeholder="e.g. Present"
+                                                value={work.end_date || ''}
+                                                onChange={e => updateWorkHistory(idx, 'end_date', e.target.value)}
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                            {(!formData.work_history || formData.work_history.length === 0) && (
+                                <p className="text-center py-4 text-slate-400 text-sm italic">No work history entries added.</p>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Tech & Tools Section */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        {/* Technologies */}
+                        <div className="space-y-4">
+                            <div className="flex justify-between items-center border-b pb-2">
+                                <h3 className="text-lg font-bold text-slate-800">Technologies</h3>
+                                <button 
+                                    type="button" 
+                                    onClick={() => addTech('technologies')}
+                                    className="text-xs bg-slate-200 text-slate-700 px-2 py-1 rounded hover:bg-slate-300 transition"
+                                >
+                                    + Add
+                                </button>
+                            </div>
+                            <div className="space-y-2">
+                                {(formData.technologies || []).map((tech, idx) => (
+                                    <div key={idx} className="flex gap-2 items-center">
+                                        <input 
+                                            type="text" 
+                                            placeholder="Name"
+                                            className="flex-grow border border-slate-300 rounded-md p-2 text-sm focus:ring-1 focus:ring-black outline-none"
+                                            value={tech.name}
+                                            onChange={e => updateTech('technologies', idx, 'name', e.target.value)}
+                                        />
+                                        <input 
+                                            type="number" 
+                                            placeholder="Yrs"
+                                            className="w-16 border border-slate-300 rounded-md p-2 text-sm focus:ring-1 focus:ring-black outline-none"
+                                            value={tech.years}
+                                            onChange={e => updateTech('technologies', idx, 'years', e.target.value)}
+                                        />
+                                        <button 
+                                            type="button" 
+                                            onClick={() => removeTech('technologies', idx)}
+                                            className="text-slate-400 hover:text-red-500 transition"
+                                        >
+                                            <XMarkIcon className="h-5 w-5" />
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Tools */}
+                        <div className="space-y-4">
+                            <div className="flex justify-between items-center border-b pb-2">
+                                <h3 className="text-lg font-bold text-slate-800">Tools</h3>
+                                <button 
+                                    type="button" 
+                                    onClick={() => addTech('tools')}
+                                    className="text-xs bg-slate-200 text-slate-700 px-2 py-1 rounded hover:bg-slate-300 transition"
+                                >
+                                    + Add
+                                </button>
+                            </div>
+                            <div className="space-y-2">
+                                {(formData.tools || []).map((tool, idx) => (
+                                    <div key={idx} className="flex gap-2 items-center">
+                                        <input 
+                                            type="text" 
+                                            placeholder="Name"
+                                            className="flex-grow border border-slate-300 rounded-md p-2 text-sm focus:ring-1 focus:ring-black outline-none"
+                                            value={tool.name}
+                                            onChange={e => updateTech('tools', idx, 'name', e.target.value)}
+                                        />
+                                        <input 
+                                            type="number" 
+                                            placeholder="Yrs"
+                                            className="w-16 border border-slate-300 rounded-md p-2 text-sm focus:ring-1 focus:ring-black outline-none"
+                                            value={tool.years}
+                                            onChange={e => updateTech('tools', idx, 'years', e.target.value)}
+                                        />
+                                        <button 
+                                            type="button" 
+                                            onClick={() => removeTech('tools', idx)}
+                                            className="text-slate-400 hover:text-red-500 transition"
+                                        >
+                                            <XMarkIcon className="h-5 w-5" />
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Resume Text (Read Only) */}
+                    <div className="space-y-2">
+                        <h3 className="text-lg font-bold text-slate-800 border-b pb-2">Original Resume Text (Reference)</h3>
                         <textarea 
-                            className="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-black outline-none min-h-[100px]"
-                            value={formData.match_reason}
-                            onChange={e => handleChange('match_reason', e.target.value)}
+                            readOnly 
+                            className="w-full bg-slate-50 border border-slate-200 rounded-md p-4 text-xs font-mono text-slate-600 min-h-[300px] outline-none"
+                            value={formData.resume_text || 'No resume text available.'}
                         ></textarea>
+                        <p className="text-xs text-slate-400 italic">This field is read-only. Copy information from here to the fields above.</p>
                     </div>
 
                     <div className="flex justify-end gap-3 pt-6 border-t border-slate-100">
@@ -801,7 +993,7 @@ function CandidateDetailsModal({ candidate, onClose, onUpdate }: { candidate: Ca
                     </div>
                 </form>
             ) : (
-                <div className="p-6 space-y-6">
+                <div className="p-6 space-y-8">
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                     <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
                         <div className="text-xs text-slate-500 uppercase font-bold tracking-wider mb-1">Score</div>
@@ -861,25 +1053,22 @@ function CandidateDetailsModal({ candidate, onClose, onUpdate }: { candidate: Ca
                     </div>
                 </div>
 
-                {candidate.work_history && (
+                {candidate.work_history && Array.isArray(candidate.work_history) && candidate.work_history.length > 0 && (
                     <div>
                         <h3 className="font-bold text-slate-900 mb-2">Work History</h3>
-                        <div className="space-y-3">
-                            {Array.isArray(candidate.work_history) ? (
-                                candidate.work_history.map((job, i) => (
-                                    <div key={i} className="flex justify-between items-center border-b border-slate-100 pb-2 last:border-0">
-                                        <div>
-                                            <div className="font-semibold text-slate-800">{job.company}</div>
-                                            <div className="text-sm text-slate-500">{job.title}</div>
-                                        </div>
-                                        <div className="text-sm font-medium text-slate-400">{job.years} Years</div>
+                        <div className="space-y-4">
+                            {candidate.work_history.map((job, i) => (
+                                <div key={i} className="flex justify-between items-start border-b border-slate-100 pb-3 last:border-0">
+                                    <div>
+                                        <div className="font-bold text-slate-800">{job.company}</div>
+                                        <div className="text-sm text-slate-600">{job.title}</div>
                                     </div>
-                                ))
-                            ) : (
-                                <div className="text-slate-600 bg-slate-50 p-3 rounded-md border border-slate-100">
-                                    {String(candidate.work_history)}
+                                    <div className="text-right">
+                                        <div className="text-sm font-semibold text-slate-500">{job.start_date} - {job.end_date}</div>
+                                        {job.years && <div className="text-xs text-slate-400">{job.years} Years</div>}
+                                    </div>
                                 </div>
-                            )}
+                            ))}
                         </div>
                     </div>
                 )}
