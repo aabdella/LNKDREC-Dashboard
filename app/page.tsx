@@ -268,8 +268,8 @@ export default function Dashboard() {
       checkArray(c.tools || [], 'name') ||
       checkArray(c.technologies || [], 'name') ||
       (c.skills && c.skills.some(s => s && s.toLowerCase().includes(q))) ||
-      (Array.isArray(c.work_history) ? checkArray(c.work_history, 'company') : checkString(c.work_history as string)) ||
-      (Array.isArray(c.work_history) ? checkArray(c.work_history, 'title') : false)
+      checkArray(c.work_history || [], 'company') ||
+      checkArray(c.work_history || [], 'title')
     );
   });
 
