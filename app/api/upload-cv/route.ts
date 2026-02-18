@@ -101,6 +101,42 @@ export async function POST(req: NextRequest) {
     const lines = pdfText.split(String.fromCharCode(10)).map(l => l.trim()).filter(l => l.length > 0);
     const potentialName = lines.length > 0 ? lines[0].substring(0, 100) : file.name.replace('.pdf', '');
 
+    // 3b. NEW: Deep Extraction for Technologies, Tools, and Work History
+    // Note: This is heuristic-based regex since we don't have an LLM here.
+    
+    // Tech Stack & Tools (Common Keywords)
+    const techKeywords = ['React', 'Next.js', 'Node.js', 'TypeScript', 'JavaScript', 'Python', 'Django', 'Flask', 'SQL', 'PostgreSQL', 'MongoDB', 'AWS', 'Docker', 'Kubernetes', 'Git', 'Figma', 'Adobe XD', 'Photoshop', 'Illustrator', 'InDesign', 'After Effects', 'Premiere', 'Blender', 'Unity', 'C#', 'C++', 'Java', 'Spring', 'Kotlin', 'Swift', 'Flutter', 'Dart'];
+    
+    const foundTech = techKeywords.filter(tech => new RegExp(`\b${tech}\b`, 'i').test(pdfText));
+    
+    // Map found tech to the schema { name: string, years: number }
+    // Defaulting to 1 year since regex can't reliably determine duration per skill
+    const technologies = foundTech.map(t => ({ name: t, years: 1 }));
+    
+    // Work History Extraction (Experimental)
+    // Looks for lines starting with dates like "2020 - Present" or "Jan 2019 - Dec 2021"
+    // and grabs the surrounding text as a "job"
+    const workHistory = [];
+    const dateRangeRegex = new RegExp('((Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)?\s*\d{4}\s*(-|–|to)\s*(Present|Now|Current|(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)?\s*\d{4}))', 'gi');
+    
+    let match;
+    while ((match = dateRangeRegex.exec(pdfText)) !== null) {
+        // Grab the line with the date and the line before/after it as context
+        const index = match.index;
+        // Simple extraction: Take 100 chars around the date
+        const context = pdfText.substring(Math.max(0, index - 50), Math.min(pdfText.length, index + 100)).replace(/\s+/g, ' ').trim();
+        
+        // Try to parse company/title from context
+        workHistory.push({
+            company: "Unknown Company", // Placeholder - hard to extract without NLP
+            title: context, // Storing the full date context as the title/description for now
+            years: 1
+        });
+    }
+    
+    // Limit work history to top 3 to avoid junk
+    const cleanWorkHistory = workHistory.slice(0, 3);
+
     // 4. Payload for Frontend & Unvetted Table
     const extractedData = {
         full_name: potentialName,
@@ -114,10 +150,13 @@ export async function POST(req: NextRequest) {
         resume_url: publicUrl,
         resume_text: pdfText,
         source: 'PDF Upload',
-        match_score: 10, // Default low score until manually vetted
+        match_score: 10,
         match_reason: "Parsed from PDF. Please review extracted fields.",
         status: 'New',
-        uploaded_at: new Date().toISOString()
+        uploaded_at: new Date().toISOString(),
+        technologies: technologies, // New field
+        tools: [], // Can split technologies into tools if needed, but keeping unified for now
+        work_history: cleanWorkHistory // New field
     };
 
     // 5. Insert into Unvetted Table (or Fallback)

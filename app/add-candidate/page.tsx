@@ -89,19 +89,34 @@ export default function AddCandidate() {
 
     try {
         // 1. Insert into main candidates table
-        const { error: insertError } = await supabase
+        const { data: insertedCandidate, error: insertError } = await supabase
             .from('candidates')
-            .insert(formData);
+            .insert(formData)
+            .select()
+            .single();
 
         if (insertError) throw insertError;
 
-        // 2. Delete from unvetted if it exists there
+        // 2. Trigger Background Enrichment (Async)
+        // We do this AFTER saving so the user isn't blocked.
+        if (insertedCandidate.resume_text) {
+             fetch('/api/enrich-candidate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    candidate_id: insertedCandidate.id,
+                    resume_text: insertedCandidate.resume_text
+                })
+             }).catch(err => console.error('Background enrichment failed:', err));
+        }
+
+        // 3. Delete from unvetted if it exists there
         if (unvettedId) {
             await supabase.from('unvetted').delete().eq('id', unvettedId);
         }
 
-        // 3. Success & Redirect
-        alert('Candidate saved successfully!');
+        // 4. Success & Redirect
+        alert('Candidate saved! Background enrichment started.');
         router.push('/'); // Redirect to main list
         
     } catch (err: any) {
