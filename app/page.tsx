@@ -510,12 +510,27 @@ function CandidateCard({
     onVetCandidate: () => void; 
     onAssignCandidate: () => void;
 }) {
-  const scoreColor = candidate.match_score >= 90 ? 'bg-green-100 text-green-700 border-green-200' :
-                     candidate.match_score >= 80 ? 'bg-yellow-100 text-yellow-700 border-yellow-200' :
-                     'bg-red-100 text-red-700 border-red-200';
-
   const isVetted = candidate.status === 'Vetted';
   const isAssigned = candidate.status === 'Assigned';
+
+  // Calculate Data Health Score
+  // Max score: 100
+  // Weights:
+  // - Name & Title: 20 (Essential)
+  // - Email/Phone: 20 (Contactable)
+  // - Resume Text: 20 (Content)
+  // - Skills/Tools: 20 (Searchable)
+  // - LinkedIn/Portfolio: 20 (Verifiable)
+  let healthScore = 0;
+  if (candidate.full_name && candidate.title) healthScore += 20;
+  if (candidate.email || candidate.phone) healthScore += 20;
+  if (candidate.resume_text && candidate.resume_text.length > 50) healthScore += 20;
+  if ((candidate.skills && candidate.skills.length > 0) || (candidate.tools && candidate.tools.length > 0) || (candidate.technologies && candidate.technologies.length > 0)) healthScore += 20;
+  if (candidate.linkedin_url || candidate.portfolio_url) healthScore += 20;
+
+  const healthColor = healthScore >= 80 ? 'text-green-600 bg-green-50 border-green-200' :
+                      healthScore >= 50 ? 'text-yellow-600 bg-yellow-50 border-yellow-200' :
+                      'text-red-600 bg-red-50 border-red-200';
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden hover:shadow-md transition group flex flex-col h-full hover:border-black/20 relative">
@@ -534,19 +549,21 @@ function CandidateCard({
               </p>
             </div>
           </div>
-          {isAssigned ? (
-            <span className="text-xs font-bold px-2 py-1 rounded-full border bg-green-100 text-green-700 border-green-200 shrink-0 flex items-center gap-1">
-                <BriefcaseIcon className="h-3 w-3" /> Matched
-            </span>
-          ) : isVetted ? (
-              <span className="text-xs font-bold px-2 py-1 rounded-full border bg-blue-100 text-blue-700 border-blue-200 shrink-0 flex items-center gap-1">
-                  <CheckBadgeIcon className="h-3 w-3" /> Vetted
+          <div className="flex flex-col items-end gap-1">
+            {isAssigned ? (
+              <span className="text-xs font-bold px-2 py-1 rounded-full border bg-green-100 text-green-700 border-green-200 shrink-0 flex items-center gap-1">
+                  <BriefcaseIcon className="h-3 w-3" /> Matched
               </span>
-          ) : (
-              <span className={`text-xs font-bold px-2 py-1 rounded-full border ${scoreColor} shrink-0`}>
-                {candidate.match_score}%
-              </span>
-          )}
+            ) : isVetted ? (
+                <span className="text-xs font-bold px-2 py-1 rounded-full border bg-blue-100 text-blue-700 border-blue-200 shrink-0 flex items-center gap-1">
+                    <CheckBadgeIcon className="h-3 w-3" /> Vetted
+                </span>
+            ) : (
+                <div className={`text-[10px] font-bold px-2 py-0.5 rounded border ${healthColor} flex items-center gap-1`} title="Profile Data Health">
+                   <span className="w-1.5 h-1.5 rounded-full bg-current"></span> {healthScore}% Data
+                </div>
+            )}
+          </div>
         </div>
         
         <div className="mb-4 space-y-3">
@@ -557,7 +574,10 @@ function CandidateCard({
              ))}
           </div>
           
-          <div className="bg-slate-50 p-3 rounded-md border border-slate-100">
+          <div className="bg-slate-50 p-3 rounded-md border border-slate-100 relative">
+            <div className="absolute -top-2.5 right-2 bg-white px-2 py-0.5 text-[10px] font-bold text-slate-500 border border-slate-200 rounded-full shadow-sm">
+                Match: {candidate.match_score}%
+            </div>
             <p className="text-sm text-slate-600 line-clamp-3 leading-relaxed">{candidate.match_reason}</p>
           </div>
         </div>
