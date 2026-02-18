@@ -17,7 +17,7 @@ export default function BackfillPage() {
         // 1. Fetch Candidates (limit to 50 for safety)
         const { data: candidates, error } = await supabase
             .from('candidates')
-            .select('id, resume_text, full_name, technologies, tools')
+            .select('id, resume_text, full_name, technologies, tools, work_history')
             .eq('source', 'PDF Upload')
             .not('resume_text', 'is', null);
 
