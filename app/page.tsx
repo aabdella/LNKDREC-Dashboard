@@ -128,7 +128,7 @@ export default function Dashboard() {
       };
       setVettingData(defaultState);
 
-      if (candidate.status === 'Vetted') {
+      if (candidate.status === 'Vetted' || candidate.status === 'Assigned') {
           // Fetch logic: use .limit(1) to avoid .single() crash on duplicates
           const { data, error } = await supabase
             .from('vettings')
