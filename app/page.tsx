@@ -815,6 +815,8 @@ function CandidateDetailsModal({
             last_interaction_at, 
             assigned_job_title, 
             assigned_company_name,
+            candidate_interactions,
+            applications,
             ...updateData 
         } = formData;
 
