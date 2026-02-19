@@ -29,6 +29,9 @@ export default function JobsPage() {
     // Modals
     const [showClientModal, setShowClientModal] = useState(false);
     const [showJobModal, setShowJobModal] = useState(false);
+    const [selectedJob, setSelectedJob] = useState<Job | null>(null);
+    const [assignedCandidates, setAssignedCandidates] = useState<any[]>([]);
+    const [loadingCandidates, setLoadingCandidates] = useState(false);
 
     // Form Data
     const [newClient, setNewClient] = useState({ name: '', industry: '' });
@@ -37,6 +40,20 @@ export default function JobsPage() {
     useEffect(() => {
         fetchData();
     }, []);
+
+    async function fetchAssignedCandidates(jobId: string) {
+        setLoadingCandidates(true);
+        const { data, error } = await supabase
+            .from('applications')
+            .select('candidates(id, full_name, title, location, status)')
+            .eq('job_id', jobId);
+
+        if (data) {
+            const formatted = data.map((d: any) => d.candidates);
+            setAssignedCandidates(formatted);
+        }
+        setLoadingCandidates(false);
+    }
 
     async function fetchData() {
         setLoading(true);
@@ -137,7 +154,13 @@ export default function JobsPage() {
                                 <span className="text-xs text-slate-400 font-medium">
                                     {job.application_count || 0} Candidates Assigned
                                 </span>
-                                <button className="text-black text-sm font-semibold hover:underline">
+                                <button 
+                                    onClick={() => {
+                                        setSelectedJob(job);
+                                        fetchAssignedCandidates(job.id);
+                                    }}
+                                    className="text-black text-sm font-semibold hover:underline"
+                                >
                                     View Details
                                 </button>
                             </div>
@@ -250,6 +273,73 @@ export default function JobsPage() {
                                 <button type="submit" className="bg-black text-white px-4 py-2 rounded hover:bg-zinc-800">Post Job</button>
                             </div>
                         </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Job Details Modal */}
+            {selectedJob && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => setSelectedJob(null)}>
+                    <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[85vh] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
+                        <div className="p-6 border-b border-slate-100 flex justify-between items-center">
+                            <div>
+                                <h2 className="text-xl font-bold text-slate-900">{selectedJob.title}</h2>
+                                <p className="text-slate-500 font-medium text-sm">{selectedJob.clients?.name} • {selectedJob.location}</p>
+                            </div>
+                            <button onClick={() => setSelectedJob(null)} className="p-1 hover:bg-slate-100 rounded-full transition">
+                                <XMarkIcon className="h-6 w-6 text-slate-500" />
+                            </button>
+                        </div>
+                        
+                        <div className="p-6 overflow-y-auto flex-grow space-y-8">
+                            <div>
+                                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Job Description</h3>
+                                <div className="bg-slate-50 p-4 rounded-lg border border-slate-100 text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">
+                                    {selectedJob.description}
+                                </div>
+                            </div>
+
+                            <div>
+                                <div className="flex justify-between items-center mb-4">
+                                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Matched Candidates</h3>
+                                    <span className="text-[10px] font-bold bg-green-100 text-green-700 px-2 py-0.5 rounded-full border border-green-200">
+                                        {assignedCandidates.length} Active
+                                    </span>
+                                </div>
+
+                                {loadingCandidates ? (
+                                    <div className="text-center py-10 text-slate-400 text-sm animate-pulse">Fetching candidate list...</div>
+                                ) : assignedCandidates.length > 0 ? (
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                        {assignedCandidates.map(c => (
+                                            <div key={c.id} className="p-4 rounded-lg border border-slate-100 bg-white shadow-sm flex items-center gap-3">
+                                                <div className="h-10 w-10 rounded-full bg-slate-100 flex items-center justify-center shrink-0 border border-slate-200 text-lg">
+                                                    👤
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <div className="font-bold text-slate-900 text-sm truncate">{c.full_name}</div>
+                                                    <div className="text-[10px] text-slate-500 truncate">{c.title}</div>
+                                                    <div className="text-[9px] text-slate-400">{c.location}</div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="text-center py-12 bg-slate-50 rounded-lg border border-dashed border-slate-200 text-sm text-slate-400 italic">
+                                        No candidates assigned to this role yet.
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="p-6 border-t border-slate-100 bg-slate-50 flex justify-end">
+                            <button 
+                                onClick={() => setSelectedJob(null)}
+                                className="px-6 py-2 bg-black text-white rounded-md font-bold text-sm hover:bg-zinc-800 transition shadow-sm"
+                            >
+                                Close
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
