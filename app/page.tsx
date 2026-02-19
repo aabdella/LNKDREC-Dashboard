@@ -982,6 +982,26 @@ function CandidateDetailsModal({
                                     onChange={e => handleChange('years_experience_total', e.target.value)}
                                 />
                             </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">LinkedIn URL</label>
+                                <input 
+                                    type="text" 
+                                    className="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-black outline-none"
+                                    value={formData.linkedin_url || ''}
+                                    onChange={e => handleChange('linkedin_url', e.target.value)}
+                                    placeholder="https://linkedin.com/in/..."
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Portfolio/Behance URL</label>
+                                <input 
+                                    type="text" 
+                                    className="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-black outline-none"
+                                    value={formData.portfolio_url || ''}
+                                    onChange={e => handleChange('portfolio_url', e.target.value)}
+                                    placeholder="https://behance.net/..."
+                                />
+                            </div>
                         </div>
                     </div>
 
