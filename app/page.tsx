@@ -276,30 +276,19 @@ export default function Dashboard() {
     setSubmittingVetting(false);
   }
 
-  async function submitAssignment(e: React.FormEvent) {
-      e.preventDefault();
-      if (!assigningCandidate || !selectedJobId) return;
-      setSubmittingAssignment(true);
-
-      const { error } = await supabase.from('applications').insert({
-          candidate_id: assigningCandidate.id,
-          job_id: selectedJobId,
-          status: 'Assigned'
-      });
+  async function toggleAssignment(candidate: Candidate) {
+      const newStatus = candidate.status === 'Assigned' ? 'Vetted' : 'Assigned';
+      
+      const { error } = await supabase
+          .from('candidates')
+          .update({ status: newStatus })
+          .eq('id', candidate.id);
 
       if (error) {
-          if (error.code === '23505') alert('This candidate is already assigned to this job.');
-          else alert('Error assigning candidate: ' + error.message);
+          alert('Error toggling assignment: ' + error.message);
       } else {
-          // Update candidate status to Assigned
-          await supabase.from('candidates').update({ status: 'Assigned' }).eq('id', assigningCandidate.id);
-          
-          alert(`Successfully assigned ${assigningCandidate.full_name} to the job!`);
-          setAssigningCandidate(null);
-          setSelectedJobId('');
           fetchCandidates();
       }
-      setSubmittingAssignment(false);
   }
 
   const toggleBenefit = (benefit: string) => {
@@ -370,7 +359,7 @@ export default function Dashboard() {
                 candidate={candidate} 
                 onViewDetails={() => setSelectedCandidate(candidate)} 
                 onVetCandidate={() => openVettingModal(candidate)}
-                onAssignCandidate={() => setAssigningCandidate(candidate)}
+                onToggleAssign={() => toggleAssignment(candidate)}
               />
             ))}
             {filteredCandidates.length === 0 && (
@@ -585,12 +574,12 @@ function CandidateCard({
     candidate, 
     onViewDetails, 
     onVetCandidate, 
-    onAssignCandidate 
+    onToggleAssign
 }: { 
     candidate: Candidate; 
     onViewDetails: () => void; 
     onVetCandidate: () => void; 
-    onAssignCandidate: () => void;
+    onToggleAssign: () => void;
 }) {
   const isVetted = candidate.status === 'Vetted';
   const isAssigned = candidate.status === 'Assigned';
@@ -688,17 +677,16 @@ function CandidateCard({
 
         {(isVetted || isAssigned) && (
             <button 
-                onClick={onAssignCandidate}
-                disabled={isAssigned}
+                onClick={onToggleAssign}
                 className={`flex-1 text-white text-xs font-semibold py-2 rounded transition flex items-center justify-center gap-1 ${
                     isAssigned 
-                        ? 'bg-red-600 cursor-not-allowed opacity-80' 
+                        ? 'bg-red-600 hover:bg-red-700' 
                         : 'bg-blue-600 hover:bg-blue-700'
                 }`}
             >
                 {isAssigned ? (
                     <>
-                        <CheckBadgeIcon className="h-3 w-3" /> Assigned
+                        <XMarkIcon className="h-3 w-3" /> Unmatch
                     </>
                 ) : (
                     <>
