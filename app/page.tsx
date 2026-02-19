@@ -296,13 +296,24 @@ export default function Dashboard() {
 
   async function toggleAssignment(candidate: Candidate) {
       if (candidate.status === 'Assigned') {
-          // UNASSIGN: Just flip status back to Vetted
-          const { error } = await supabase
+          // UNASSIGN: 1. Delete from applications table
+          const { error: appError } = await supabase
+              .from('applications')
+              .delete()
+              .eq('candidate_id', candidate.id);
+
+          if (appError) {
+              alert('Error removing application: ' + appError.message);
+              return;
+          }
+
+          // 2. Flip status back to Vetted in candidates table
+          const { error: candError } = await supabase
               .from('candidates')
               .update({ status: 'Vetted' })
               .eq('id', candidate.id);
 
-          if (error) alert('Error unassigning: ' + error.message);
+          if (candError) alert('Error unassigning: ' + candError.message);
           else fetchCandidates();
       } else {
           // ASSIGN: Open modal to pick a job
