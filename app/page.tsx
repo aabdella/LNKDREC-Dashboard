@@ -44,6 +44,8 @@ type Candidate = {
   last_interaction_at?: string;
   assigned_job_title?: string;
   assigned_company_name?: string;
+  candidate_interactions?: any[];
+  applications?: any[];
 };
 
 // Vetting Options
