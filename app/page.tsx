@@ -1243,10 +1243,10 @@ function CandidateDetailsModal({
                     </h3>
                     
                     {/* Log New Interaction */}
-                    <div className="bg-white p-2 rounded-lg border border-slate-100 mb-6 shadow-sm">
-                        <div className="flex flex-col sm:flex-row gap-2 mb-1.5">
+                    <div className="bg-white p-2.5 rounded-lg border border-slate-100 mb-6 shadow-sm">
+                        <div className="flex flex-col sm:flex-row gap-2.5 mb-2">
                             <select 
-                                className="sm:w-1/3 border border-slate-200 rounded text-xs p-1 outline-none focus:ring-1 focus:ring-black bg-slate-50"
+                                className="sm:w-1/3 border border-slate-200 rounded text-sm p-1.5 outline-none focus:ring-1 focus:ring-black bg-slate-50"
                                 value={newInteraction.type}
                                 onChange={e => setNewInteraction({...newInteraction, type: e.target.value})}
                             >
@@ -1258,7 +1258,7 @@ function CandidateDetailsModal({
                                 <option>Feedback</option>
                             </select>
                             <textarea 
-                                className="sm:w-2/3 flex-grow border border-slate-200 rounded text-[11px] p-1.5 outline-none focus:ring-1 focus:ring-black min-h-[30px]"
+                                className="sm:w-2/3 flex-grow border border-slate-200 rounded text-sm p-1.5 outline-none focus:ring-1 focus:ring-black min-h-[36px]"
                                 placeholder="Quick notes..."
                                 value={newInteraction.content}
                                 onChange={e => setNewInteraction({...newInteraction, content: e.target.value})}
@@ -1270,13 +1270,13 @@ function CandidateDetailsModal({
                             />
                         </div>
                         <div className="flex justify-between items-center px-1">
-                            <span className="text-[9px] text-slate-400">⌘+Enter</span>
+                            <span className="text-xs text-slate-400">⌘+Enter</span>
                             <button 
                                 onClick={onSubmitInteraction}
                                 disabled={submittingInteraction || !newInteraction.content.trim()}
-                                className="bg-black text-white px-3 py-0.5 rounded text-[10px] font-bold hover:bg-zinc-800 transition disabled:opacity-50"
+                                className="bg-black text-white px-5 py-1 rounded text-xs font-bold hover:bg-zinc-800 transition disabled:opacity-50"
                             >
-                                {submittingInteraction ? '...' : 'Log'}
+                                {submittingInteraction ? '...' : 'Log Interaction'}
                             </button>
                         </div>
                     </div>
