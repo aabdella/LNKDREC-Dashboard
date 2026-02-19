@@ -277,18 +277,45 @@ export default function Dashboard() {
   }
 
   async function toggleAssignment(candidate: Candidate) {
-      const newStatus = candidate.status === 'Assigned' ? 'Vetted' : 'Assigned';
-      
-      const { error } = await supabase
-          .from('candidates')
-          .update({ status: newStatus })
-          .eq('id', candidate.id);
+      if (candidate.status === 'Assigned') {
+          // UNASSIGN: Just flip status back to Vetted
+          const { error } = await supabase
+              .from('candidates')
+              .update({ status: 'Vetted' })
+              .eq('id', candidate.id);
+
+          if (error) alert('Error unassigning: ' + error.message);
+          else fetchCandidates();
+      } else {
+          // ASSIGN: Open modal to pick a job
+          setAssigningCandidate(candidate);
+      }
+  }
+
+  async function submitAssignment(e: React.FormEvent) {
+      e.preventDefault();
+      if (!assigningCandidate || !selectedJobId) return;
+      setSubmittingAssignment(true);
+
+      // 1. Create Application Record
+      const { error } = await supabase.from('applications').insert({
+          candidate_id: assigningCandidate.id,
+          job_id: selectedJobId,
+          status: 'Assigned'
+      });
 
       if (error) {
-          alert('Error toggling assignment: ' + error.message);
+          if (error.code === '23505') alert('This candidate is already assigned to this job.');
+          else alert('Error assigning candidate: ' + error.message);
       } else {
+          // 2. Update candidate status to Assigned
+          await supabase.from('candidates').update({ status: 'Assigned' }).eq('id', assigningCandidate.id);
+          
+          setAssigningCandidate(null);
+          setSelectedJobId('');
           fetchCandidates();
       }
+      setSubmittingAssignment(false);
   }
 
   const toggleBenefit = (benefit: string) => {
