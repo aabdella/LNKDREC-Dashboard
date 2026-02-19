@@ -808,9 +808,18 @@ function CandidateDetailsModal({
         e.preventDefault();
         setSaving(true);
         
-        // Sanitize numeric fields
+        // Sanitize numeric fields and OMIT calculated/relational fields from the update payload
+        const { 
+            id, 
+            last_interaction_type, 
+            last_interaction_at, 
+            assigned_job_title, 
+            assigned_company_name,
+            ...updateData 
+        } = formData;
+
         const payload = {
-            ...formData,
+            ...updateData,
             years_experience: Number(formData.years_experience_total) || 0,
             years_experience_total: Number(formData.years_experience_total) || 0,
             match_score: Number(formData.match_score) || 0,
