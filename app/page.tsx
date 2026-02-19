@@ -42,6 +42,8 @@ type Candidate = {
   years_experience?: number;
   last_interaction_type?: string;
   last_interaction_at?: string;
+  assigned_job_title?: string;
+  assigned_company_name?: string;
 };
 
 // Vetting Options
@@ -98,7 +100,7 @@ export default function Dashboard() {
   async function fetchCandidates() {
     setLoading(true);
     
-    // Fetch candidates along with their last interaction
+    // Fetch candidates along with their last interaction and job assignments
     const { data, error } = await supabase
       .from('candidates')
       .select(`
@@ -106,6 +108,15 @@ export default function Dashboard() {
         candidate_interactions (
           type,
           created_at
+        ),
+        applications (
+          job_id,
+          jobs (
+            title,
+            clients (
+              name
+            )
+          )
         )
       `)
       .order('match_score', { ascending: false });
@@ -119,11 +130,18 @@ export default function Dashboard() {
           (a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
         );
         const last = sortedInteractions[0];
+
+        // Find assignment info
+        const application = c.applications?.[0];
+        const jobInfo = application?.jobs;
+        const clientInfo = Array.isArray(jobInfo?.clients) ? jobInfo.clients[0] : jobInfo?.clients;
         
         return {
           ...c,
           last_interaction_type: last?.type,
-          last_interaction_at: last?.created_at
+          last_interaction_at: last?.created_at,
+          assigned_job_title: jobInfo?.title,
+          assigned_company_name: clientInfo?.name
         };
       });
       setCandidates(formattedData);
@@ -655,9 +673,17 @@ function CandidateCard({
               </span>
             )}
             {isAssigned ? (
-              <span className="text-xs font-bold px-2 py-1 rounded-full border bg-green-100 text-green-700 border-green-200 shrink-0 flex items-center gap-1">
-                  <BriefcaseIcon className="h-3 w-3" /> Matched
-              </span>
+              <div className="flex flex-col items-end">
+                <span className="text-xs font-bold px-2 py-1 rounded-full border bg-green-100 text-green-700 border-green-200 shrink-0 flex items-center gap-1">
+                    <BriefcaseIcon className="h-3 w-3" /> Matched
+                </span>
+                {candidate.assigned_company_name && (
+                   <span className="text-[10px] font-bold text-slate-500 mt-1 text-right leading-tight">
+                     {candidate.assigned_company_name}<br/>
+                     <span className="text-slate-400 font-normal">{candidate.assigned_job_title}</span>
+                   </span>
+                )}
+              </div>
             ) : isVetted ? (
                 <span className="text-xs font-bold px-2 py-1 rounded-full border bg-blue-100 text-blue-700 border-blue-200 shrink-0 flex items-center gap-1">
                     <CheckBadgeIcon className="h-3 w-3" /> Vetted
