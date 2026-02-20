@@ -6,7 +6,7 @@ import { createClient } from '@supabase/supabase-js';
 const pdf = require('pdf2json');
 
 // Initialize Supabase Client with fail-safe for build time
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://clrzajerliyyddfyvggd.supabase.co';
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-key';
 
 const supabase = createClient(supabaseUrl, supabaseKey);
@@ -61,21 +61,19 @@ export async function POST(req: NextRequest) {
 
     // 3. ENHANCED EXTRACTION LOGIC
     // Using new RegExp constructor with double-escaped strings for safety against build tool escaping issues
-    // Note: Backslashes are quadrupled in the tool input to ensure double backslashes in the file.
     
     // Email & Phone
-    // File will receive: new RegExp('... \. ...')
-    const emailMatch = pdfText.match(new RegExp('([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\\.[a-zA-Z0-9_-]+)'));
-    const phoneMatch = pdfText.match(new RegExp('(\\+?\\d[\\d -]{8,15}\\d)'));
+    const emailMatch = pdfText.match(new RegExp('([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+)'));
+    const phoneMatch = pdfText.match(new RegExp('(\+?\d[\d -]{8,15}\d)'));
     
     // LinkedIn
-    const linkedinMatch = pdfText.match(new RegExp('(linkedin\\.com/in/[\\w-]+)', 'i'));
+    const linkedinMatch = pdfText.match(new RegExp('(linkedin\.com/in/[\w-]+)', 'i'));
     const linkedinUrl = linkedinMatch ? `https://${linkedinMatch[0]}` : '';
 
     // Portfolio (Behance, Dribbble, GitHub)
-    const behanceMatch = pdfText.match(new RegExp('(behance\\.net/[\\w-]+)', 'i'));
-    const dribbbleMatch = pdfText.match(new RegExp('(dribbble\\.com/[\\w-]+)', 'i'));
-    const githubMatch = pdfText.match(new RegExp('(github\\.com/[\\w-]+)', 'i'));
+    const behanceMatch = pdfText.match(new RegExp('(behance\.net/[\w-]+)', 'i'));
+    const dribbbleMatch = pdfText.match(new RegExp('(dribbble\.com/[\w-]+)', 'i'));
+    const githubMatch = pdfText.match(new RegExp('(github\.com/[\w-]+)', 'i'));
     const portfolioUrl = behanceMatch ? `https://${behanceMatch[0]}` : 
                          dribbbleMatch ? `https://${dribbbleMatch[0]}` :
                          githubMatch ? `https://${githubMatch[0]}` : '';
@@ -85,9 +83,8 @@ export async function POST(req: NextRequest) {
     const locationMatch = pdfText.match(locationRegex);
     const location = locationMatch ? locationMatch[0] : 'Remote';
 
-    // Years of Experience (Basic guess: look for "X years" near the top or "Experience" section)
-    const expRegex = new RegExp('(\d+)\+?\s*(years?|yrs?)', 'i');
-    const expMatch = pdfText.match(new RegExp('(\\d+)\\+?\\s*(years?|yrs?)', 'i'));
+    // Years of Experience
+    const expMatch = pdfText.match(new RegExp('(\d+)\+?\s*(years?|yrs?)', 'i'));
     let yearsExp = expMatch ? parseInt(expMatch[1]) : 0;
     if (yearsExp > 40) yearsExp = 0; // Sanity check
 
@@ -97,47 +94,41 @@ export async function POST(req: NextRequest) {
     const titleMatch = pdfText.match(titleRegex);
     const title = titleMatch ? titleMatch[0] : 'Candidate';
 
-    // Name Extraction (First non-empty line usually works best for PDFs)
+    // Name Extraction
     const lines = pdfText.split(String.fromCharCode(10)).map(l => l.trim()).filter(l => l.length > 0);
     const potentialName = lines.length > 0 ? lines[0].substring(0, 100) : file.name.replace('.pdf', '');
 
     // 3b. NEW: Deep Extraction for Technologies, Tools, and Work History
-    // Note: This is heuristic-based regex since we don't have an LLM here.
+    const techKeywords = ['React', 'Next.js', 'Node.js', 'TypeScript', 'JavaScript', 'Python', 'Django', 'Flask', 'SQL', 'PostgreSQL', 'MongoDB', 'AWS', 'Docker', 'Kubernetes', 'Git', 'Figma', 'Adobe XD', 'Photoshop', 'Illustrator', 'InDesign', 'After Effects', 'Premiere', 'Blender', 'Unity', 'C#', 'C\+\+', 'Java', 'Spring', 'Kotlin', 'Swift', 'Flutter', 'Dart'];
     
-    // Tech Stack & Tools (Common Keywords)
-    const techKeywords = ['React', 'Next.js', 'Node.js', 'TypeScript', 'JavaScript', 'Python', 'Django', 'Flask', 'SQL', 'PostgreSQL', 'MongoDB', 'AWS', 'Docker', 'Kubernetes', 'Git', 'Figma', 'Adobe XD', 'Photoshop', 'Illustrator', 'InDesign', 'After Effects', 'Premiere', 'Blender', 'Unity', 'C#', 'C++', 'Java', 'Spring', 'Kotlin', 'Swift', 'Flutter', 'Dart'];
+    const foundTech = techKeywords.filter(tech => {
+        try {
+            // Use word boundaries only for non-special chars
+            const isSpecial = /[\+\#]/.test(tech);
+            const regex = isSpecial ? new RegExp(tech, 'i') : new RegExp('\b' + tech + '\b', 'i');
+            return regex.test(pdfText);
+        } catch (e) {
+            return false;
+        }
+    });
     
-    const foundTech = techKeywords.filter(tech => new RegExp(`\b${tech}\b`, 'i').test(pdfText));
+    const technologies = foundTech.map(t => ({ name: t.replace('\', ''), years: 1 }));
     
-    // Map found tech to the schema { name: string, years: number }
-    // Defaulting to 1 year since regex can't reliably determine duration per skill
-    const technologies = foundTech.map(t => ({ name: t, years: 1 }));
-    
-    // Work History Extraction (Experimental)
-    // Looks for lines starting with dates like "2020 - Present" or "Jan 2019 - Dec 2021"
-    // and grabs the surrounding text as a "job"
+    // Work History Extraction
     const workHistory = [];
     const dateRangeRegex = new RegExp('((Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)?\s*\d{4}\s*(-|–|to)\s*(Present|Now|Current|(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)?\s*\d{4}))', 'gi');
     
     let match;
     while ((match = dateRangeRegex.exec(pdfText)) !== null) {
-        // Grab the line with the date and the line before/after it as context
         const index = match.index;
-        // Simple extraction: Take 100 chars around the date
         const context = pdfText.substring(Math.max(0, index - 50), Math.min(pdfText.length, index + 100)).replace(/\s+/g, ' ').trim();
-        
-        // Try to parse company/title from context
         workHistory.push({
-            company: "Unknown Company", // Placeholder - hard to extract without NLP
-            title: context, // Storing the full date context as the title/description for now
+            company: "Unknown Company",
+            title: context,
             years: 1
         });
     }
     
-    // Limit work history to top 3 to avoid junk
-    const cleanWorkHistory = workHistory.slice(0, 3);
-
-    // 4. Payload for Frontend & Unvetted Table
     const extractedData = {
         full_name: potentialName,
         title: title,
@@ -154,14 +145,10 @@ export async function POST(req: NextRequest) {
         match_reason: "Parsed from PDF. Please review extracted fields.",
         status: 'New',
         uploaded_at: new Date().toISOString(),
-        technologies: technologies, // New field
-        tools: [], // Can split technologies into tools if needed, but keeping unified for now
-        work_history: cleanWorkHistory // New field
+        technologies: technologies,
+        tools: [],
+        work_history: workHistory.slice(0, 3)
     };
-
-    // 5. Insert into Unvetted Table (or Fallback)
-    let finalData = extractedData;
-    let tableUsed = 'unvetted';
 
     const { data: unvettedRow, error: unvettedError } = await supabase
         .from('unvetted')
@@ -170,36 +157,13 @@ export async function POST(req: NextRequest) {
         .single();
 
     if (unvettedError) {
-        console.warn(`Unvetted insert failed (${unvettedError.code}), falling back to candidates table.`);
-        tableUsed = 'candidates';
-        
-        // Adjust payload for candidates table if schema differs slightly
-        const candidatePayload = {
-            ...extractedData,
-            status: 'Unvetted',
-            lnkd_notes: `Parsed Data:
-Email: ${extractedData.email}
-Phone: ${extractedData.phone}
-
-Raw Text Preview:
-${pdfText.substring(0, 500)}...`
-        };
-
-        const { data: candidateRow, error: candidateError } = await supabase
-            .from('candidates')
-            .insert(candidatePayload)
-            .select()
-            .single();
-
-        if (candidateError) {
-            return NextResponse.json({ error: 'Database insert failed: ' + candidateError.message }, { status: 500 });
-        }
-        finalData = { ...candidateRow, id: candidateRow.id }; // Ensure ID is returned
-    } else {
-        finalData = { ...unvettedRow, id: unvettedRow.id };
+        const candidatePayload = { ...extractedData, status: 'Unvetted' };
+        const { data: candidateRow, error: candidateError } = await supabase.from('candidates').insert(candidatePayload).select().single();
+        if (candidateError) return NextResponse.json({ error: 'Database insert failed: ' + candidateError.message }, { status: 500 });
+        return NextResponse.json({ success: true, candidate: candidateRow, table: 'candidates' });
     }
 
-    return NextResponse.json({ success: true, candidate: finalData, table: tableUsed });
+    return NextResponse.json({ success: true, candidate: unvettedRow, table: 'unvetted' });
 
   } catch (err: any) {
     console.error('Server Error:', err);
