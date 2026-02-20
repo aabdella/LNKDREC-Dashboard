@@ -60,31 +60,30 @@ export async function POST(req: NextRequest) {
     });
 
     // 3. ENHANCED EXTRACTION LOGIC
-    // Using new RegExp constructor with double-escaped strings
+    // Using literal regex where possible for better build-time stability
     
     // Email & Phone
-    const emailMatch = pdfText.match(new RegExp('([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+)'));
-    const phoneMatch = pdfText.match(new RegExp('(\+?\d[\d -]{8,15}\d)'));
+    const emailMatch = pdfText.match(/([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+)/);
+    const phoneMatch = pdfText.match(/(\+?\d[\d -]{8,15}\d)/);
     
     // LinkedIn
-    const linkedinMatch = pdfText.match(new RegExp('(linkedin\.com/in/[\w-]+)', 'i'));
+    const linkedinMatch = pdfText.match(/(linkedin\.com/in/[\w-]+)/i);
     const linkedinUrl = linkedinMatch ? `https://${linkedinMatch[0]}` : '';
 
     // Portfolio (Behance, Dribbble, GitHub)
-    const behanceMatch = pdfText.match(new RegExp('(behance\.net/[\w-]+)', 'i'));
-    const dribbbleMatch = pdfText.match(new RegExp('(dribbble\.com/[\w-]+)', 'i'));
-    const githubMatch = pdfText.match(new RegExp('(github\.com/[\w-]+)', 'i'));
+    const behanceMatch = pdfText.match(/(behance\.net/[\w-]+)/i);
+    const dribbbleMatch = pdfText.match(/(dribbble\.com/[\w-]+)/i);
+    const githubMatch = pdfText.match(/(github\.com/[\w-]+)/i);
     const portfolioUrl = behanceMatch ? `https://${behanceMatch[0]}` : 
                          dribbbleMatch ? `https://${dribbbleMatch[0]}` :
                          githubMatch ? `https://${githubMatch[0]}` : '';
 
     // Location (Common Egyptian Cities + Remote)
-    const locationRegex = new RegExp('(Cairo|Alexandria|Giza|Remote|Egypt|Maadi|Nasr City|October|Zayed)', 'i');
-    const locationMatch = pdfText.match(locationRegex);
+    const locationMatch = pdfText.match(/(Cairo|Alexandria|Giza|Remote|Egypt|Maadi|Nasr City|October|Zayed)/i);
     const location = locationMatch ? locationMatch[0] : 'Remote';
 
     // Years of Experience
-    const expMatch = pdfText.match(new RegExp('(\d+)\+?\s*(years?|yrs?)', 'i'));
+    const expMatch = pdfText.match(/(\d+)\+?\s*(years?|yrs?)/i);
     let yearsExp = expMatch ? parseInt(expMatch[1]) : 0;
     if (yearsExp > 40) yearsExp = 0; // Sanity check
 
@@ -103,9 +102,8 @@ export async function POST(req: NextRequest) {
     
     const foundTech = techKeywords.filter(tech => {
         try {
-            // Use word boundaries only for non-special chars
-            const isSpecial = /[\+\#]/.test(tech);
-            const regex = isSpecial ? new RegExp(tech.replace('+', '\+'), 'i') : new RegExp('\b' + tech + '\b', 'i');
+            // Avoid word boundaries for everything to be safe
+            const regex = new RegExp(tech.replace(/[.*+?^${}()|[\]\]/g, '\$&'), 'i');
             return regex.test(pdfText);
         } catch (e) {
             return false;
@@ -116,7 +114,7 @@ export async function POST(req: NextRequest) {
     
     // Work History Extraction
     const workHistory = [];
-    const dateRangeRegex = new RegExp('((Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)?\s*\d{4}\s*(-|–|to)\s*(Present|Now|Current|(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)?\s*\d{4}))', 'gi');
+    const dateRangeRegex = /((Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)?\s*\d{4}\s*(-|–|to)\s*(Present|Now|Current|(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)?\s*\d{4}))/gi;
     
     let match;
     while ((match = dateRangeRegex.exec(pdfText)) !== null) {
