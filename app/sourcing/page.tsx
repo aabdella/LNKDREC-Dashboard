@@ -37,6 +37,7 @@ export default function SourcingPage() {
     const { data, error } = await supabase
       .from('unvetted')
       .select('*')
+      .eq('source', 'Sourced') // Only show web-sourced candidates
       .order('created_at', { ascending: false });
     
     if (data) setSourcedQueue(data);
