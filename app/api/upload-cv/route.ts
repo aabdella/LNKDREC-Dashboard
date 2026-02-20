@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
     });
 
     // 3. ENHANCED EXTRACTION LOGIC
-    // Switch ALL to new RegExp() to prevent Turbopack parser issues
+    // Using string-based patterns with TRIPLE ESCAPED backslashes for the RegExp constructor
     
     // Email
     const emailMatch = pdfText.match(new RegExp('[a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+', 'i'));
@@ -101,7 +101,7 @@ export async function POST(req: NextRequest) {
     // 3b. NEW: Deep Extraction for Technologies, Tools, and Work History
     const techKeywords = ['React', 'Next.js', 'Node.js', 'TypeScript', 'JavaScript', 'Python', 'Django', 'Flask', 'SQL', 'PostgreSQL', 'MongoDB', 'AWS', 'Docker', 'Kubernetes', 'Git', 'Figma', 'Adobe XD', 'Photoshop', 'Illustrator', 'InDesign', 'After Effects', 'Premiere', 'Blender', 'Unity', 'C#', 'C++', 'Java', 'Spring', 'Kotlin', 'Swift', 'Flutter', 'Dart'];
     
-    // SAFE TECHNOLOGY MATCHING using constructor form
+    // SAFE TECHNOLOGY MATCHING using constructor form and double backslashes
     const foundTech = techKeywords.filter(tech => {
         try {
             const escapedTech = tech.replace(new RegExp('[.*+?^${}()|[\]\\]', 'g'), '\$&');
