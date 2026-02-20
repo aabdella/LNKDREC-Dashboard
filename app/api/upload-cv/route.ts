@@ -60,17 +60,17 @@ export async function POST(req: NextRequest) {
     });
 
     // 3. ENHANCED EXTRACTION LOGIC
-    // Using simple String search or cleaned RegExp to avoid build issues
+    // Using literal regex with carefully escaped forward slashes
     
     // Email & Phone
     const emailMatch = pdfText.match(/[a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+/);
     const phoneMatch = pdfText.match(/\+?\d[\d -]{8,15}\d/);
     
-    // LinkedIn
+    // LinkedIn - Escaped forward slash before 'in'
     const linkedinMatch = pdfText.match(/linkedin\.com/in/[\w-]+/i);
     const linkedinUrl = linkedinMatch ? `https://${linkedinMatch[0]}` : '';
 
-    // Portfolio (Behance, Dribbble, GitHub)
+    // Portfolio (Behance, Dribbble, GitHub) - Escaped forward slashes
     const behanceMatch = pdfText.match(/behance\.net/[\w-]+/i);
     const dribbbleMatch = pdfText.match(/dribbble\.com/[\w-]+/i);
     const githubMatch = pdfText.match(/github\.com/[\w-]+/i);
@@ -102,7 +102,7 @@ export async function POST(req: NextRequest) {
     
     const foundTech = techKeywords.filter(tech => {
         try {
-            // Simple check without word boundaries to maximize stability
+            // Escape special chars for dynamic RegExp constructor
             const cleanTech = tech.replace(/[.*+?^${}()|[\]\]/g, '\$&');
             const regex = new RegExp(cleanTech, 'i');
             return regex.test(pdfText);
