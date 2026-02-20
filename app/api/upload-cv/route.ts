@@ -60,30 +60,31 @@ export async function POST(req: NextRequest) {
     });
 
     // 3. ENHANCED EXTRACTION LOGIC
-    // Using literal regex with carefully escaped forward slashes
+    // Reverting to new RegExp constructor with explicit escaping for stability
     
     // Email & Phone
-    const emailMatch = pdfText.match(/[a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+/);
-    const phoneMatch = pdfText.match(/\+?\d[\d -]{8,15}\d/);
+    const emailMatch = pdfText.match(new RegExp('([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+)'));
+    const phoneMatch = pdfText.match(new RegExp('(\+?\d[\d -]{8,15}\d)'));
     
-    // LinkedIn - Escaped forward slash before 'in'
-    const linkedinMatch = pdfText.match(/linkedin\.com/in/[\w-]+/i);
+    // LinkedIn
+    const linkedinMatch = pdfText.match(new RegExp('(linkedin\.com/in/[\w-]+)', 'i'));
     const linkedinUrl = linkedinMatch ? `https://${linkedinMatch[0]}` : '';
 
-    // Portfolio (Behance, Dribbble, GitHub) - Escaped forward slashes
-    const behanceMatch = pdfText.match(/behance\.net/[\w-]+/i);
-    const dribbbleMatch = pdfText.match(/dribbble\.com/[\w-]+/i);
-    const githubMatch = pdfText.match(/github\.com/[\w-]+/i);
+    // Portfolio (Behance, Dribbble, GitHub)
+    const behanceMatch = pdfText.match(new RegExp('(behance\.net/[\w-]+)', 'i'));
+    const dribbbleMatch = pdfText.match(new RegExp('(dribbble\.com/[\w-]+)', 'i'));
+    const githubMatch = pdfText.match(new RegExp('(github\.com/[\w-]+)', 'i'));
     const portfolioUrl = behanceMatch ? `https://${behanceMatch[0]}` : 
                          dribbbleMatch ? `https://${dribbbleMatch[0]}` :
                          githubMatch ? `https://${githubMatch[0]}` : '';
 
     // Location (Common Egyptian Cities + Remote)
-    const locationMatch = pdfText.match(/(Cairo|Alexandria|Giza|Remote|Egypt|Maadi|Nasr City|October|Zayed)/i);
+    const locationRegex = new RegExp('(Cairo|Alexandria|Giza|Remote|Egypt|Maadi|Nasr City|October|Zayed)', 'i');
+    const locationMatch = pdfText.match(locationRegex);
     const location = locationMatch ? locationMatch[0] : 'Remote';
 
     // Years of Experience
-    const expMatch = pdfText.match(/(\d+)\+?\s*(years?|yrs?)/i);
+    const expMatch = pdfText.match(new RegExp('(\d+)\+?\s*(years?|yrs?)', 'i'));
     let yearsExp = expMatch ? parseInt(expMatch[1]) : 0;
     if (yearsExp > 40) yearsExp = 0; // Sanity check
 
@@ -100,12 +101,15 @@ export async function POST(req: NextRequest) {
     // 3b. NEW: Deep Extraction for Technologies, Tools, and Work History
     const techKeywords = ['React', 'Next.js', 'Node.js', 'TypeScript', 'JavaScript', 'Python', 'Django', 'Flask', 'SQL', 'PostgreSQL', 'MongoDB', 'AWS', 'Docker', 'Kubernetes', 'Git', 'Figma', 'Adobe XD', 'Photoshop', 'Illustrator', 'InDesign', 'After Effects', 'Premiere', 'Blender', 'Unity', 'C#', 'C++', 'Java', 'Spring', 'Kotlin', 'Swift', 'Flutter', 'Dart'];
     
+    // SAFE TECHNOLOGY MATCHING
     const foundTech = techKeywords.filter(tech => {
         try {
-            // Escape special chars for dynamic RegExp constructor
-            const cleanTech = tech.replace(/[.*+?^${}()|[\]\]/g, '\$&');
-            const regex = new RegExp(cleanTech, 'i');
-            return regex.test(pdfText);
+            // Escape special chars like ++ or #
+            const escapedTech = tech.replace(/[.*+?^${}()|[\]\]/g, '\$&');
+            // If it has special chars, don't use word boundaries ()
+            const hasSpecial = /[\+\#]/.test(tech);
+            const pattern = hasSpecial ? escapedTech : `\b${escapedTech}\b`;
+            return new RegExp(pattern, 'i').test(pdfText);
         } catch (e) {
             return false;
         }
@@ -115,7 +119,7 @@ export async function POST(req: NextRequest) {
     
     // Work History Extraction
     const workHistory = [];
-    const dateRangeRegex = /((Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)?\s*\d{4}\s*(-|–|to)\s*(Present|Now|Current|(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)?\s*\d{4}))/gi;
+    const dateRangeRegex = new RegExp('((Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)?\s*\d{4}\s*(-|–|to)\s*(Present|Now|Current|(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)?\s*\d{4}))', 'gi');
     
     let match;
     while ((match = dateRangeRegex.exec(pdfText)) !== null) {
