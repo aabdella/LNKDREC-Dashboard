@@ -63,6 +63,7 @@ export default function Dashboard() {
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [search, setSearch] = useState('');
+  const [filter, setFilter] = useState('All');
   const [loading, setLoading] = useState(true);
   
   // Modal States
@@ -361,7 +362,17 @@ export default function Dashboard() {
   // Filter Logic
   const filteredCandidates = candidates.filter(c => {
     const q = search.toLowerCase();
+
+    // 1. Status Filter
+    if (filter !== 'All') {
+      if (filter === 'UnVetted') {
+        if (c.status === 'Vetted' || c.status === 'Assigned') return false;
+      } else {
+        if (c.status !== filter) return false;
+      }
+    }
     
+    // 2. Search Logic
     // Safety check function: safely handles null/undefined arrays and items
     const checkArray = (arr: any[], key: string) => 
       Array.isArray(arr) && arr.some(item => item && item[key] && item[key].toLowerCase().includes(q));
@@ -391,15 +402,27 @@ export default function Dashboard() {
         
         {/* Search Bar */}
         <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-200 mb-8 flex flex-col md:flex-row gap-4 items-center justify-between">
-          <div className="relative w-full md:w-2/3">
-            <MagnifyingGlassIcon className="absolute left-3 top-3.5 h-5 w-5 text-slate-400" />
-            <input 
-              type="text" 
-              placeholder="Search by name, skills, tools, companies..." 
-              className="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-md focus:ring-2 focus:ring-black outline-none transition"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
+          <div className="flex flex-1 w-full gap-3">
+            <div className="relative flex-grow">
+              <MagnifyingGlassIcon className="absolute left-3 top-3.5 h-5 w-5 text-slate-400" />
+              <input 
+                type="text" 
+                placeholder="Search by name, skills, tools, companies..." 
+                className="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-md focus:ring-2 focus:ring-black outline-none transition"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
+            <select 
+              className="px-4 py-3 border border-slate-200 rounded-md focus:ring-2 focus:ring-black outline-none transition bg-white text-sm font-medium"
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+            >
+              <option value="All">All Candidates</option>
+              <option value="UnVetted">UnVetted</option>
+              <option value="Vetted">Vetted Only</option>
+              <option value="Assigned">Assigned Only</option>
+            </select>
           </div>
           <div className="text-sm text-slate-500 font-medium whitespace-nowrap">
             Showing {filteredCandidates.length} Candidates
