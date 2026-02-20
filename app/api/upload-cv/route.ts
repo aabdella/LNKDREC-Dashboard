@@ -99,7 +99,7 @@ export async function POST(req: NextRequest) {
     const potentialName = lines.length > 0 ? lines[0].substring(0, 100) : file.name.replace('.pdf', '');
 
     // 3b. NEW: Deep Extraction for Technologies, Tools, and Work History
-    const techKeywords = ['React', 'Next.js', 'Node.js', 'TypeScript', 'JavaScript', 'Python', 'Django', 'Flask', 'SQL', 'PostgreSQL', 'MongoDB', 'AWS', 'Docker', 'Kubernetes', 'Git', 'Figma', 'Adobe XD', 'Photoshop', 'Illustrator', 'InDesign', 'After Effects', 'Premiere', 'Blender', 'Unity', 'C#', 'C\+\+', 'Java', 'Spring', 'Kotlin', 'Swift', 'Flutter', 'Dart'];
+    const techKeywords = ['React', 'Next.js', 'Node.js', 'TypeScript', 'JavaScript', 'Python', 'Django', 'Flask', 'SQL', 'PostgreSQL', 'MongoDB', 'AWS', 'Docker', 'Kubernetes', 'Git', 'Figma', 'Adobe XD', 'Photoshop', 'Illustrator', 'InDesign', 'After Effects', 'Premiere', 'Blender', 'Unity', 'C#', 'C++', 'Java', 'Spring', 'Kotlin', 'Swift', 'Flutter', 'Dart'];
     
     const foundTech = techKeywords.filter(tech => {
         try {
@@ -112,7 +112,7 @@ export async function POST(req: NextRequest) {
         }
     });
     
-    const technologies = foundTech.map(t => ({ name: t.replace('\', ''), years: 1 }));
+    const technologies = foundTech.map(t => ({ name: t, years: 1 }));
     
     // Work History Extraction
     const workHistory = [];
