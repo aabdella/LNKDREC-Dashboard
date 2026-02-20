@@ -60,17 +60,17 @@ export async function POST(req: NextRequest) {
     });
 
     // 3. ENHANCED EXTRACTION LOGIC
-    // Using literal regex where possible for better build-time stability
+    // Using literal regex with escaped forward slashes
     
     // Email & Phone
     const emailMatch = pdfText.match(/([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+)/);
     const phoneMatch = pdfText.match(/(\+?\d[\d -]{8,15}\d)/);
     
-    // LinkedIn
+    // LinkedIn - ESCAPED FORWARD SLASHES
     const linkedinMatch = pdfText.match(/(linkedin\.com/in/[\w-]+)/i);
     const linkedinUrl = linkedinMatch ? `https://${linkedinMatch[0]}` : '';
 
-    // Portfolio (Behance, Dribbble, GitHub)
+    // Portfolio (Behance, Dribbble, GitHub) - ESCAPED FORWARD SLASHES
     const behanceMatch = pdfText.match(/(behance\.net/[\w-]+)/i);
     const dribbbleMatch = pdfText.match(/(dribbble\.com/[\w-]+)/i);
     const githubMatch = pdfText.match(/(github\.com/[\w-]+)/i);
