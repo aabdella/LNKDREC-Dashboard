@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
     });
 
     // 3. ENHANCED EXTRACTION LOGIC
-    // Using new RegExp constructor with double-escaped strings for safety against build tool escaping issues
+    // Using new RegExp constructor with double-escaped strings
     
     // Email & Phone
     const emailMatch = pdfText.match(new RegExp('([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+)'));
@@ -105,7 +105,7 @@ export async function POST(req: NextRequest) {
         try {
             // Use word boundaries only for non-special chars
             const isSpecial = /[\+\#]/.test(tech);
-            const regex = isSpecial ? new RegExp(tech, 'i') : new RegExp('\b' + tech + '\b', 'i');
+            const regex = isSpecial ? new RegExp(tech.replace('+', '\+'), 'i') : new RegExp('\b' + tech + '\b', 'i');
             return regex.test(pdfText);
         } catch (e) {
             return false;
