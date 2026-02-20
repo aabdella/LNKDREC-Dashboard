@@ -414,7 +414,7 @@ export default function Dashboard() {
               />
             </div>
             <select 
-              className="px-4 py-3 border border-slate-200 rounded-md focus:ring-2 focus:ring-black outline-none transition bg-white text-sm font-medium"
+              className="px-4 py-3 border border-slate-200 rounded-md focus:ring-2 focus:ring-black outline-none transition bg-white text-sm font-medium appearance-none cursor-pointer"
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
             >
