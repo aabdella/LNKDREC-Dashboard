@@ -60,35 +60,34 @@ export async function POST(req: NextRequest) {
     });
 
     // 3. ENHANCED EXTRACTION LOGIC
-    // Reverting to new RegExp constructor with explicit escaping for stability
+    // Using RegExp with string arguments to avoid literal regex parser issues
     
     // Email & Phone
-    const emailMatch = pdfText.match(new RegExp('([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+)'));
-    const phoneMatch = pdfText.match(new RegExp('(\+?\d[\d -]{8,15}\d)'));
+    const emailMatch = pdfText.match(new RegExp('[a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+', 'i'));
+    const phoneMatch = pdfText.match(new RegExp('\+?\d[\d -]{8,15}\d', 'i'));
     
     // LinkedIn
-    const linkedinMatch = pdfText.match(new RegExp('(linkedin\.com/in/[\w-]+)', 'i'));
+    const linkedinMatch = pdfText.match(new RegExp('linkedin\.com\/in\/[\w-]+', 'i'));
     const linkedinUrl = linkedinMatch ? `https://${linkedinMatch[0]}` : '';
 
-    // Portfolio (Behance, Dribbble, GitHub)
-    const behanceMatch = pdfText.match(new RegExp('(behance\.net/[\w-]+)', 'i'));
-    const dribbbleMatch = pdfText.match(new RegExp('(dribbble\.com/[\w-]+)', 'i'));
-    const githubMatch = pdfText.match(new RegExp('(github\.com/[\w-]+)', 'i'));
+    // Portfolio
+    const behanceMatch = pdfText.match(new RegExp('behance\.net\/[\w-]+', 'i'));
+    const dribbbleMatch = pdfText.match(new RegExp('dribbble\.com\/[\w-]+', 'i'));
+    const githubMatch = pdfText.match(new RegExp('github\.com\/[\w-]+', 'i'));
     const portfolioUrl = behanceMatch ? `https://${behanceMatch[0]}` : 
                          dribbbleMatch ? `https://${dribbbleMatch[0]}` :
                          githubMatch ? `https://${githubMatch[0]}` : '';
 
-    // Location (Common Egyptian Cities + Remote)
-    const locationRegex = new RegExp('(Cairo|Alexandria|Giza|Remote|Egypt|Maadi|Nasr City|October|Zayed)', 'i');
-    const locationMatch = pdfText.match(locationRegex);
+    // Location
+    const locationMatch = pdfText.match(new RegExp('Cairo|Alexandria|Giza|Remote|Egypt|Maadi|Nasr City|October|Zayed', 'i'));
     const location = locationMatch ? locationMatch[0] : 'Remote';
 
     // Years of Experience
     const expMatch = pdfText.match(new RegExp('(\d+)\+?\s*(years?|yrs?)', 'i'));
     let yearsExp = expMatch ? parseInt(expMatch[1]) : 0;
-    if (yearsExp > 40) yearsExp = 0; // Sanity check
+    if (yearsExp > 40) yearsExp = 0;
 
-    // Title (Look for common roles)
+    // Title
     const roles = ['Graphic Designer', 'UI/UX', 'Product Designer', 'Frontend', 'Backend', 'Full Stack', 'Art Director', 'Senior Designer', 'Junior Designer'];
     const titleRegex = new RegExp(`(${roles.join('|')})`, 'i');
     const titleMatch = pdfText.match(titleRegex);
@@ -101,14 +100,13 @@ export async function POST(req: NextRequest) {
     // 3b. NEW: Deep Extraction for Technologies, Tools, and Work History
     const techKeywords = ['React', 'Next.js', 'Node.js', 'TypeScript', 'JavaScript', 'Python', 'Django', 'Flask', 'SQL', 'PostgreSQL', 'MongoDB', 'AWS', 'Docker', 'Kubernetes', 'Git', 'Figma', 'Adobe XD', 'Photoshop', 'Illustrator', 'InDesign', 'After Effects', 'Premiere', 'Blender', 'Unity', 'C#', 'C++', 'Java', 'Spring', 'Kotlin', 'Swift', 'Flutter', 'Dart'];
     
-    // SAFE TECHNOLOGY MATCHING
+    // SAFE TECHNOLOGY MATCHING using your suggested fix
     const foundTech = techKeywords.filter(tech => {
         try {
-            // Escape special chars like ++ or #
-            const escapedTech = tech.replace(/[.*+?^${}()|[\]\]/g, '\$&');
-            // If it has special chars, don't use word boundaries ()
+            // Put ] first in the character class — it doesn't need escaping when it's not used for closing
+            const escapedTech = tech.replace(/[\][.*+?^${}()|\]/g, '\$&');
             const hasSpecial = /[\+\#]/.test(tech);
-            const pattern = hasSpecial ? escapedTech : `\b${escapedTech}\b`;
+            const pattern = hasSpecial ? escapedTech : '\b' + escapedTech + '\b';
             return new RegExp(pattern, 'i').test(pdfText);
         } catch (e) {
             return false;
