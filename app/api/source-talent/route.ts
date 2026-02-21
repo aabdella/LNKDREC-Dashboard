@@ -387,11 +387,14 @@ export async function POST(req: NextRequest) {
     }
 
     // ── Insert into Supabase unvetted table ───────────────────────────────────
+    // Only insert columns that exist in the unvetted schema:
+    // id, created_at, uploaded_at, full_name, email, phone, resume_url, resume_text,
+    // status, title, location, years_experience_total, linkedin_url, portfolio_url,
+    // source, match_score, match_reason
     let insertedCount = 0;
     const insertedCandidates: CandidateResult[] = [];
 
     for (const candidate of candidates) {
-      // Check for duplicate by linkedin_url or portfolio_url
       const dedupeKey = candidate.linkedin_url || candidate.portfolio_url || '';
       if (!dedupeKey) continue;
 
@@ -404,7 +407,26 @@ export async function POST(req: NextRequest) {
 
       if (existing) continue;
 
-      const { error: insertErr } = await supabase.from('unvetted').insert(candidate);
+      // Strip fields not in schema (skills, technologies, tools, work_history)
+      const row = {
+        full_name:              candidate.full_name,
+        title:                  candidate.title,
+        location:               candidate.location,
+        linkedin_url:           candidate.linkedin_url,
+        portfolio_url:          candidate.portfolio_url || null,
+        source:                 candidate.source,
+        match_score:            candidate.match_score,
+        match_reason:           candidate.match_reason,
+        status:                 candidate.status,
+        uploaded_at:            candidate.uploaded_at,
+        years_experience_total: 0,
+        email:                  null,
+        phone:                  null,
+        resume_url:             null,
+        resume_text:            null,
+      };
+
+      const { error: insertErr } = await supabase.from('unvetted').insert(row);
       if (!insertErr) {
         insertedCount++;
         insertedCandidates.push(candidate);
