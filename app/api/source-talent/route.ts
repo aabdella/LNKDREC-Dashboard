@@ -466,6 +466,10 @@ function generateMockCandidates(kwSets: string[][], jd: string): CandidateResult
       skills: t.skills,
       status: 'New',
       uploaded_at: new Date().toISOString(),
+      keywords_matched: matchedKws.slice(0, 3),
+      skills_matched: matchedKws.slice(0, 3),
+      completeness_score: 60,
+      company_matched: false,
     };
   });
 }
