@@ -28,6 +28,7 @@ interface CandidateResult {
   full_name: string;
   title: string;
   location: string;
+  company?: string;          // Extracted company (e.g., "Google", "VIS")
   linkedin_url: string;
   portfolio_url?: string;
   source: string;
@@ -36,6 +37,11 @@ interface CandidateResult {
   skills: string[];
   status: string;
   uploaded_at: string;
+  // Rich metadata
+  keywords_matched: string[];   // Which JD keywords matched this candidate
+  skills_matched: string[];     // Which skills matched
+  completeness_score: number;   // Data completeness (0-100)
+  company_matched: boolean;     // Whether company from JD was found
 }
 
 // ─── Regex helpers (NO backslash escapes — Turbopack safe) ───────────────────
@@ -51,11 +57,101 @@ const R = {
   locationSa: new RegExp('Riyadh|Jeddah|Saudi', 'i'),
   remote: new RegExp('Remote|Worldwide', 'i'),
   creative: new RegExp('designer|graphic|art[ \t]director|creative|illustrator|photoshop|figma|ux|ui[ \t]designer|visual', 'i'),
+  // Company extraction: "Title at Company" or "Title - Company"
+  companyAt: new RegExp('at[ \\t]+([A-Z][a-zA-Z0-9[ \\t\\-_]+)', 'i'),
+  companyDash: new RegExp('[ \\t]-[ \\t]+([A-Z][a-zA-Z0-9[ \\t\\-_]+)', 'i'),
 };
 
+// ── Field Normalization (Improvement #1) ────────────────────────────────────
+function normalizeTitleAndCompany(titleRaw: string): { title: string; company: string } {
+  let title = titleRaw;
+  let company = '';
+
+  // Try "Title at Company" pattern
+  const atMatch = title.match(R.companyAt);
+  if (atMatch) {
+    company = atMatch[1].trim();
+    title = title.substring(0, title.toLowerCase().indexOf(' at ' + company.toLowerCase())).trim();
+  } else {
+    // Try "Title - Company" pattern
+    const dashMatch = title.match(R.companyDash);
+    if (dashMatch) {
+      company = dashMatch[1].trim();
+      const dashIdx = title.toLowerCase().indexOf(' - ' + company.toLowerCase());
+      if (dashIdx > 0) title = title.substring(0, dashIdx).trim();
+    }
+  }
+
+  // Clean title of suffixes
+  title = title.replace(new RegExp('[|][ \\t]*(LinkedIn|Behance|Wuzzuf|Bayt).*$', 'i'), '').trim();
+
+  return { title: title.substring(0, 80) || 'Professional', company };
+}
+
+// ── Fuzzy Name Matching (Improvement #6) ────────────────────────────────────
+function normalizeName(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(new RegExp('[\\.\\-\'_]', 'g'), ' ')
+    .replace(new RegExp('[ \\t]+', 'g'), ' ')
+    .trim();
+}
+
+function namesSimilar(a: string, b: string): boolean {
+  const na = normalizeName(a);
+  const nb = normalizeName(b);
+  if (na === nb) return true;
+  // Check if one contains the other (handles "Ahmed Hassan" ≈ "Ahmed M. Hassan")
+  return na.length > 3 && nb.length > 3 && (na.includes(nb) || nb.includes(na));
+}
+
+// ── Completeness Scoring (Improvement #5) ───────────────────────────────────
+function calcCompleteness(candidate: Partial<CandidateResult>): number {
+  let score = 0;
+  if (candidate.full_name && candidate.full_name !== 'Unknown') score += 20;
+  if (candidate.title && candidate.title !== 'Professional') score += 20;
+  if (candidate.location && candidate.location !== 'Egypt') score += 20;
+  if (candidate.company) score += 20;
+  if (candidate.skills && candidate.skills.length > 0) score += 20;
+  return score;
+}
+
 // ─── JD Keyword Extractor ────────────────────────────────────────────────────
-function extractKeywords(jd: string): string[][] {
+interface ExtractionResult {
+  keywordSets: string[][];
+  experienceLevel: 'junior' | 'mid' | 'senior';
+}
+
+function extractKeywords(jd: string): ExtractionResult {
   const text = jd.toLowerCase();
+
+  // ── Experience Level Detection ────────────────────────────────────────────
+  type ExperienceLevel = 'junior' | 'mid' | 'senior';
+  const expPatterns: Record<ExperienceLevel, RegExp[]> = {
+    junior: [
+      /1-2\s*years?/i, /0-2\s*years?/i, /fresh\s*graduate/i, /entry\s*level/i,
+      /junior/i, /associate/i, /trainee/i, /intern/i, /newly\s*qualif/i,
+      /1\s*\+\s*year/i, /one\s*to\s*two/i, /up\s*to\s*2/i
+    ],
+    mid: [
+      /3-5\s*years?/i, /2-4\s*years?/i, /mid-?level/i, /intermediate/i,
+      /3\s*years?/i, /4\s*years?/i, /mid-level/i
+    ],
+    senior: [
+      /5\s*\+\s*years?/i, /6\s*\+\s*years?/i, /senior/i, /lead/i,
+      /principal/i, /head\s*of/i, /director/i, /7\s*years?/i, /8\s*years?/i,
+      /10\s*\+\s*years?/i, /expert/i, /experienced\s*professional/i
+    ]
+  };
+
+  let detectedExp: ExperienceLevel = 'mid'; // Default
+  const juniorMatches = expPatterns.junior.filter(p => p.test(jd)).length;
+  const seniorMatches = expPatterns.senior.filter(p => p.test(jd)).length;
+  const midMatches = expPatterns.mid.filter(p => p.test(jd)).length;
+
+  if (juniorMatches > seniorMatches && juniorMatches > midMatches) detectedExp = 'junior';
+  else if (seniorMatches > juniorMatches && seniorMatches > midMatches) detectedExp = 'senior';
+  // Otherwise default to 'mid'
 
   // Role detection — Art Director and Creative Director added explicitly
   const rolePatterns: Record<string, string[]> = {
@@ -172,7 +268,8 @@ function extractKeywords(jd: string): string[][] {
     kwSets.push([detectedRole, 'Egypt', 'international', 'support']);
   }
 
-  return kwSets.slice(0, 5);
+  // Return both keyword sets and detected experience level
+  return { keywordSets: kwSets.slice(0, 5), experienceLevel: detectedExp };
 }
 
 // ─── Parse a Brave search result into a candidate ───────────────────────────
@@ -244,6 +341,16 @@ function parseResult(
     'Flutter','Swift','Kotlin','TensorFlow','Photoshop','Illustrator','Adobe XD','After Effects','InDesign','Premiere'];
   const descLower = (titleRaw + ' ' + desc).toLowerCase();
   const skills = skillKeywords.filter(s => descLower.includes(s.toLowerCase())).slice(0, 6);
+  const skillsMatched = skills.filter(s => keywords.some(kw => kw.toLowerCase().includes(s.toLowerCase())));
+
+  // ── Company Extraction (Improvement #1) ───────────────────────────────────
+  const { title: normalizedTitle, company: extractedCompany } = normalizeTitleAndCompany(titleRaw + ' ' + desc);
+  if (normalizedTitle && normalizedTitle !== 'Professional') candidateTitle = normalizedTitle;
+  const company = extractedCompany;
+
+  // ── Rich Match Metadata (Improvement #10) ─────────────────────────────────
+  const keywordsMatched = keywords.filter(kw => descLower.includes(kw.toLowerCase()));
+  const companyMatched = company ? keywords.some(kw => kw.toLowerCase() === company.toLowerCase()) : false;
 
   // Scoring — reward Saudi/GCC market experience AND specific company mentions heavily
   let score = 45;
@@ -251,14 +358,22 @@ function parseResult(
   skills.forEach(() => { score += 2; });
   if (descLower.includes('saudi') || descLower.includes('ksa'))   score += 15;
   if (descLower.includes('gcc')   || descLower.includes('gulf'))  score += 10;
-  // Boost for specific company experience (VIS, VOIS, Vodafone International, etc.)
-  if (descLower.includes('vodafone international') || descLower.includes('vis') || descLower.includes('vois') || descLower.includes('_vois')) score += 20;
+  // Boost for specific company experience (VIS, VOIS, Vodafone International, etc.) using word boundary
+  const visRegex = new RegExp('\\b(vis|vois|_vois|vodafone international)\\b', 'i');
+  if (visRegex.test(descLower)) score += 20;
+  if (companyMatched) score += 15;
   if (score > 99) score = 99;
 
-  const matchedKws = keywords.filter(kw => descLower.includes(kw.toLowerCase()));
-  const match_reason = matchedKws.length > 0
-    ? `Matched on: ${matchedKws.join(', ')}. Found via ${platform}.`
-    : `Found via ${platform} sourcing search.`;
+  // ── Enhanced Match Reasons (Improvement #4) ───────────────────────────────
+  const matchReasonParts: string[] = [];
+  if (keywordsMatched.length > 0) matchReasonParts.push(`Keywords: ${keywordsMatched.slice(0, 4).join(', ')}`);
+  if (skillsMatched.length > 0) matchReasonParts.push(`Skills: ${skillsMatched.join(', ')}`);
+  if (company) matchReasonParts.push(`Ex-${company}`);
+  if (matchReasonParts.length === 0) {
+    matchReasonParts.push(`Found via ${platform} sourcing search`);
+  }
+
+  const completeness = calcCompleteness({ full_name, title: candidateTitle, location, company, skills });
 
   const dedupeKey = linkedin_url || portfolio_url || url;
   if (!dedupeKey) return null;
@@ -267,14 +382,19 @@ function parseResult(
     full_name,
     title: candidateTitle,
     location,
+    company: company || undefined,
     linkedin_url,
     portfolio_url,
     source: platform,
-    match_reason,
+    match_reason: matchReasonParts.join(' | '),
     match_score: score,
     skills,
     status: 'New',
     uploaded_at: new Date().toISOString(),
+    keywords_matched: keywordsMatched,
+    skills_matched: skillsMatched,
+    completeness_score: completeness,
+    company_matched: companyMatched,
   };
 }
 
@@ -360,7 +480,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Please provide a job description (at least 20 characters).' }, { status: 400 });
     }
 
-    const kwSets = extractKeywords(jd);
+    const extraction = extractKeywords(jd);
+    const kwSets = extraction.keywordSets;
+    const experienceLevel = extraction.experienceLevel;
     const BRAVE_API_KEY = process.env.BRAVE_SEARCH_API_KEY || 'BSAkO1bNAF5QCq4K_b3UCuQlR8FNKEP';
     const isCreative = R.creative.test(jd);
 
@@ -401,8 +523,15 @@ export async function POST(req: NextRequest) {
           for (const result of results) {
             const parsed = parseResult(result, kws, jd, platform.name);
             if (!parsed) continue;
+
             const dedupeKey = parsed.linkedin_url || parsed.portfolio_url || '';
+            // Standard URL dedupe
             if (!dedupeKey || seen.has(dedupeKey)) continue;
+
+            // Fuzzy Name Dedupe (Improvement #6)
+            const isDuplicate = allCandidates.some(c => namesSimilar(c.full_name, parsed.full_name));
+            if (isDuplicate) continue;
+
             seen.add(dedupeKey);
             allCandidates.push(parsed);
           }
