@@ -372,9 +372,8 @@ export async function POST(req: NextRequest) {
 
     // ── Platform config — distribute limit across sources ─────────────────
     const platforms: PlatformConfig[] = [
-      { name: 'LinkedIn', siteQuery: 'site:linkedin.com/in',  limit: 4 },
-      { name: 'Wuzzuf',   siteQuery: 'site:wuzzuf.net',       limit: 3 },
-      { name: 'Bayt',     siteQuery: 'site:bayt.com',         limit: 2 },
+      { name: 'LinkedIn', siteQuery: 'site:linkedin.com/in', limit: 6 },
+      { name: 'Bayt',     siteQuery: 'site:bayt.com',        limit: 3 },
       ...(isCreative ? [{ name: 'Behance' as Platform, siteQuery: 'site:behance.net', limit: 2 }] : []),
     ];
 
