@@ -355,7 +355,14 @@ export default function SourcingPage() {
                           )}
                         </td>
                         <td className="px-6 py-4">
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 border border-slate-200">
+                          {/* Platform badge with color coding */}
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                            c.source === 'LinkedIn'  ? 'bg-indigo-50 text-indigo-700 border-indigo-200' :
+                            c.source === 'Wuzzuf'    ? 'bg-orange-50 text-orange-700 border-orange-200' :
+                            c.source === 'Bayt'      ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                            c.source === 'Behance'   ? 'bg-pink-50 text-pink-700 border-pink-200' :
+                            'bg-slate-100 text-slate-500 border-slate-200'
+                          }`}>
                             {c.source}
                           </span>
                           {c.match_score != null && (
@@ -363,6 +370,19 @@ export default function SourcingPage() {
                               <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-100">
                                 {c.match_score}%
                               </span>
+                            </div>
+                          )}
+                          {c.portfolio_url && (
+                            <div className="mt-1">
+                              <a
+                                href={c.portfolio_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={e => e.stopPropagation()}
+                                className="text-[10px] text-pink-500 hover:text-pink-700"
+                              >
+                                Portfolio ↗
+                              </a>
                             </div>
                           )}
                         </td>
