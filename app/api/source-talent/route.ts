@@ -370,55 +370,51 @@ export async function POST(req: NextRequest) {
       .delete()
       .in('source', ['LinkedIn', 'Wuzzuf', 'Bayt', 'Behance', 'Sourced']);
 
-    // ── Platform config — distribute limit across sources ─────────────────
+    // ── Platform config — search ALL platforms, score decides who makes the cut ──
+    // Each platform gets ALL keyword sets; results are pooled and sorted by score
     const platforms: PlatformConfig[] = [
-      { name: 'LinkedIn', siteQuery: 'site:linkedin.com/in', limit: 6 },
-      { name: 'Bayt',     siteQuery: 'site:bayt.com',        limit: 3 },
-      ...(isCreative ? [{ name: 'Behance' as Platform, siteQuery: 'site:behance.net', limit: 2 }] : []),
+      { name: 'LinkedIn', siteQuery: 'site:linkedin.com/in', limit: 5 },
+      { name: 'Bayt',     siteQuery: 'site:bayt.com',        limit: 5 },
+      ...(isCreative ? [{ name: 'Behance' as Platform, siteQuery: 'site:behance.net', limit: 5 }] : []),
     ];
 
-    let candidates: CandidateResult[] = [];
+    const allCandidates: CandidateResult[] = [];
     const seen = new Set<string>();
 
-    // ── Real Brave Search across all platforms ────────────────────────────
-    for (let pi = 0; pi < platforms.length; pi++) {
-      const platform = platforms[pi];
-      if (candidates.length >= limit) break;
-      // Rotate keyword sets per platform so each gets slightly different queries
-      const kws = kwSets[pi % kwSets.length] || kwSets[0];
-      const query = `${platform.siteQuery} ${kws.join(' ')}`;
-      const encoded = encodeURIComponent(query);
-      const url = `https://api.search.brave.com/res/v1/web/search?q=${encoded}&count=${platform.limit + 2}`;
+    // ── Search every platform with every keyword set ──────────────────────
+    for (const platform of platforms) {
+      for (let ki = 0; ki < kwSets.length; ki++) {
+        const kws = kwSets[ki];
+        const query = `${platform.siteQuery} ${kws.join(' ')}`;
+        const encoded = encodeURIComponent(query);
+        const url = `https://api.search.brave.com/res/v1/web/search?q=${encoded}&count=5`;
 
-      try {
-        const resp = await fetch(url, {
-          headers: {
-            'Accept': 'application/json',
-            'X-Subscription-Token': BRAVE_API_KEY,
-          },
-        });
+        try {
+          const resp = await fetch(url, {
+            headers: { 'Accept': 'application/json', 'X-Subscription-Token': BRAVE_API_KEY },
+          });
+          if (!resp.ok) continue;
 
-        if (!resp.ok) {
-          console.warn(`Brave search failed for ${platform.name}: ${resp.status} ${resp.statusText}`);
-          continue;
+          const data = await resp.json();
+          const results: RawBraveResult[] = data?.web?.results || [];
+
+          for (const result of results) {
+            const parsed = parseResult(result, kws, jd, platform.name);
+            if (!parsed) continue;
+            const dedupeKey = parsed.linkedin_url || parsed.portfolio_url || '';
+            if (!dedupeKey || seen.has(dedupeKey)) continue;
+            seen.add(dedupeKey);
+            allCandidates.push(parsed);
+          }
+        } catch (e) {
+          console.warn(`Search error ${platform.name} kw[${ki}]:`, e);
         }
-
-        const data = await resp.json();
-        const results: RawBraveResult[] = data?.web?.results || [];
-
-        for (const result of results) {
-          const parsed = parseResult(result, kws, jd, platform.name);
-          if (!parsed) continue;
-          const dedupeKey = parsed.linkedin_url || parsed.portfolio_url || '';
-          if (seen.has(dedupeKey)) continue;
-          seen.add(dedupeKey);
-          candidates.push(parsed);
-          if (candidates.length >= limit) break;
-        }
-      } catch (searchErr) {
-        console.warn(`Search error for ${platform.name}:`, searchErr);
       }
     }
+
+    // ── Sort ALL results by score descending, take top `limit` ───────────
+    allCandidates.sort((a, b) => b.match_score - a.match_score);
+    let candidates = allCandidates.slice(0, limit);
 
     // ── Top-up with mocks if Brave returned too few real results ──────────
     if (candidates.length < 3) {
