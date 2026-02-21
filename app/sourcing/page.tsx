@@ -53,6 +53,8 @@ export default function SourcingPage() {
     }
     setIsSourcing(true);
     setSourcingAlert(null);
+    setSourcedQueue([]); // Clear queue immediately so user sees it's refreshing
+    setSelectedIds([]);
     try {
       const res = await fetch('/api/source-talent', {
         method: 'POST',

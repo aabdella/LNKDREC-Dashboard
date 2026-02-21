@@ -324,6 +324,12 @@ export async function POST(req: NextRequest) {
     const BRAVE_API_KEY = process.env.BRAVE_SEARCH_API_KEY || 'BSAkO1bNAF5QCq4K_b3UCuQlR8FNKEP';
     const isCreative = R.creative.test(jd);
 
+    // ── Clear previous sourced candidates before new search ───────────────
+    await supabase
+      .from('unvetted')
+      .delete()
+      .in('source', ['LinkedIn', 'Wuzzuf', 'Bayt', 'Behance', 'Sourced']);
+
     // ── Platform config — distribute limit across sources ─────────────────
     const platforms: PlatformConfig[] = [
       { name: 'LinkedIn', siteQuery: 'site:linkedin.com/in',  limit: 4 },
