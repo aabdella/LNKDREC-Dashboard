@@ -63,10 +63,9 @@ export default function SourcingPage() {
       if (!res.ok || !data.success) {
         setSourcingAlert({ type: 'error', message: data.error || 'Sourcing failed. Please try again.' });
       } else {
-        const note = data.usedMock ? ' (demo data — add BRAVE_SEARCH_API_KEY for real results)' : '';
         setSourcingAlert({
           type: 'success',
-          message: `Sourced ${data.sourced} new candidate${data.sourced !== 1 ? 's' : ''} — check the queue!${note}`,
+          message: `Sourced ${data.sourced} new candidate${data.sourced !== 1 ? 's' : ''} — check the queue!`,
         });
         setActiveTab('sourced');
         await fetchSourcedQueue();

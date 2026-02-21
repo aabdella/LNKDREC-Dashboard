@@ -296,66 +296,60 @@ export async function POST(req: NextRequest) {
     }
 
     const kwSets = extractKeywords(jd);
-    const braveKey = process.env.BRAVE_SEARCH_API_KEY;
+    const BRAVE_API_KEY = process.env.BRAVE_SEARCH_API_KEY || 'BSAkO1bNAF5QCq4K_b3UCuQlR8FNKEP';
 
     let candidates: CandidateResult[] = [];
+    const seen = new Set<string>();
 
-    if (braveKey) {
-      // ── Real Brave Search path ─────────────────────────────────────────────
-      const seen = new Set<string>();
+    // ── Real Brave Search ──────────────────────────────────────────────────
+    for (const kws of kwSets) {
+      if (candidates.length >= limit) break;
 
-      for (const kws of kwSets) {
-        if (candidates.length >= limit) break;
+      const query = `site:linkedin.com/in ${kws.join(' ')}`;
+      const encoded = encodeURIComponent(query);
+      const url = `https://api.search.brave.com/res/v1/web/search?q=${encoded}&count=5`;
 
-        const query = `site:linkedin.com/in ${kws.join(' ')}`;
-        const encoded = encodeURIComponent(query);
-        const url = `https://api.search.brave.com/res/v1/web/search?q=${encoded}&count=5&search_lang=en`;
+      try {
+        const resp = await fetch(url, {
+          headers: {
+            'Accept': 'application/json',
+            'Accept-Encoding': 'gzip',
+            'X-Subscription-Token': BRAVE_API_KEY,
+          },
+        });
 
-        try {
-          const resp = await fetch(url, {
-            headers: {
-              'Accept': 'application/json',
-              'Accept-Encoding': 'gzip',
-              'X-Subscription-Token': braveKey,
-            },
-          });
+        if (!resp.ok) {
+          console.warn(`Brave search failed for [${kws.join(', ')}]: ${resp.status} ${resp.statusText}`);
+          continue;
+        }
 
-          if (!resp.ok) {
-            console.warn(`Brave search failed for [${kws.join(', ')}]: ${resp.status}`);
-            continue;
-          }
+        const data = await resp.json();
+        const results: RawBraveResult[] = data?.web?.results || [];
 
-          const data = await resp.json();
-          const results: RawBraveResult[] = data?.web?.results || [];
+        for (const result of results) {
+          const parsed = parseResult(result, kws, jd);
+          if (!parsed) continue;
+          if (seen.has(parsed.linkedin_url)) continue;
+          seen.add(parsed.linkedin_url);
+          candidates.push(parsed);
+          if (candidates.length >= limit) break;
+        }
+      } catch (searchErr) {
+        console.warn(`Search error for keyword set [${kws.join(', ')}]:`, searchErr);
+      }
+    }
 
-          for (const result of results) {
-            const parsed = parseResult(result, kws, jd);
-            if (!parsed) continue;
-            if (seen.has(parsed.linkedin_url)) continue;
-            seen.add(parsed.linkedin_url);
-            candidates.push(parsed);
-            if (candidates.length >= limit) break;
-          }
-        } catch (searchErr) {
-          console.warn(`Search error for keyword set [${kws.join(', ')}]:`, searchErr);
+    // ── Top-up with mocks if Brave returned too few real results ──────────
+    if (candidates.length < 3) {
+      console.log(`Brave returned only ${candidates.length} results — topping up with mock data`);
+      const mocks = generateMockCandidates(kwSets, jd);
+      const existingUrls = new Set(candidates.map(c => c.linkedin_url));
+      for (const m of mocks) {
+        if (!existingUrls.has(m.linkedin_url) && candidates.length < limit) {
+          candidates.push(m);
+          existingUrls.add(m.linkedin_url);
         }
       }
-
-      // If Brave returned insufficient results, top up with mocks
-      if (candidates.length < 3) {
-        const mocks = generateMockCandidates(kwSets, jd);
-        const existingUrls = new Set(candidates.map(c => c.linkedin_url));
-        for (const m of mocks) {
-          if (!existingUrls.has(m.linkedin_url) && candidates.length < limit) {
-            candidates.push(m);
-            existingUrls.add(m.linkedin_url);
-          }
-        }
-      }
-    } else {
-      // ── Mock fallback (no API key) ─────────────────────────────────────────
-      console.log('BRAVE_SEARCH_API_KEY not set — using mock candidate data');
-      candidates = generateMockCandidates(kwSets, jd).slice(0, limit);
     }
 
     // ── Insert into Supabase unvetted table ───────────────────────────────────
@@ -385,7 +379,6 @@ export async function POST(req: NextRequest) {
       success: true,
       sourced: insertedCount,
       candidates: insertedCandidates,
-      usedMock: !braveKey,
       keywordSets: kwSets,
     });
   } catch (err: unknown) {
