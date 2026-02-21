@@ -83,40 +83,59 @@ function extractKeywords(jd: string): string[][] {
     }
   }
 
-  // Skill detection
+  // Skill detection — exact names AND common aliases/suites
   const allSkills = [
     'React', 'Next.js', 'Vue', 'Angular', 'TypeScript', 'JavaScript', 'Node.js',
     'Python', 'Django', 'FastAPI', 'Flask', 'Java', 'Spring', 'Go', 'Rust',
     'PostgreSQL', 'MySQL', 'MongoDB', 'Redis', 'AWS', 'Azure', 'GCP',
     'Docker', 'Kubernetes', 'Terraform', 'GraphQL', 'REST',
-    'Figma', 'Sketch', 'Adobe XD', 'Photoshop', 'Illustrator',
+    'Figma', 'Sketch', 'Adobe XD', 'Photoshop', 'Illustrator', 'InDesign', 'After Effects', 'Premiere',
     'TensorFlow', 'PyTorch', 'scikit-learn', 'Pandas', 'NumPy',
     'React Native', 'Flutter', 'Swift', 'Kotlin',
     'Git', 'CI/CD', 'Agile', 'Scrum',
   ];
-  const detectedSkills = allSkills.filter(s => text.includes(s.toLowerCase())).slice(0, 5);
 
-  // Location detection
+  // Alias map: if JD contains phrase → inject skill name
+  const skillAliases: Record<string, string[]> = {
+    'Photoshop':    ['adobe creative suite', 'adobe creative cloud', 'adobe suite'],
+    'Illustrator':  ['adobe creative suite', 'adobe creative cloud', 'adobe suite', 'adobe illustrator'],
+    'InDesign':     ['adobe creative suite', 'adobe creative cloud', 'adobe suite', 'adobe indesign'],
+    'After Effects':['adobe creative suite', 'adobe creative cloud', 'after effects'],
+    'Figma':        ['figma'],
+    'Social Media': ['social media', 'instagram', 'facebook', 'tiktok', 'campaigns'],
+  };
+
+  const detectedSkills = allSkills.filter(s => text.includes(s.toLowerCase()));
+  // Add alias-detected skills
+  for (const [skill, aliases] of Object.entries(skillAliases)) {
+    if (!detectedSkills.includes(skill) && aliases.some(a => text.includes(a))) {
+      detectedSkills.push(skill);
+    }
+  }
+  const topSkills = detectedSkills.slice(0, 5);
+
+  // Location detection — always put the PRIMARY market first
   const locationHints: string[] = [];
-  if (R.locationEg.test(jd)) locationHints.push('Egypt', 'Cairo');
-  if (R.locationAe.test(jd)) locationHints.push('UAE', 'Dubai');
   if (R.locationSa.test(jd)) locationHints.push('Saudi Arabia');
+  if (R.locationAe.test(jd)) locationHints.push('UAE');
+  if (R.locationEg.test(jd)) locationHints.push('Egypt');
   if (locationHints.length === 0) locationHints.push('Egypt'); // default market
 
   // Build 3-5 search keyword sets
   const kwSets: string[][] = [];
+  const primaryLocation = locationHints[0];
 
   // Set 1: role + primary location
-  kwSets.push([detectedRole, locationHints[0]]);
+  kwSets.push([detectedRole, primaryLocation]);
 
   // Set 2: role + top skill + location
-  if (detectedSkills.length > 0) {
-    kwSets.push([detectedRole, detectedSkills[0], locationHints[0]]);
+  if (topSkills.length > 0) {
+    kwSets.push([detectedRole, topSkills[0], primaryLocation]);
   }
 
   // Set 3: role + second skill (if exists)
-  if (detectedSkills.length > 1) {
-    kwSets.push([detectedRole, detectedSkills[1], locationHints[0]]);
+  if (topSkills.length > 1) {
+    kwSets.push([detectedRole, topSkills[1], primaryLocation]);
   }
 
   // Set 4: role + second location if any
@@ -125,8 +144,8 @@ function extractKeywords(jd: string): string[][] {
   }
 
   // Set 5: skills combo
-  if (detectedSkills.length >= 2) {
-    kwSets.push([detectedSkills[0], detectedSkills[1], locationHints[0]]);
+  if (topSkills.length >= 2) {
+    kwSets.push([topSkills[0], topSkills[1], primaryLocation]);
   }
 
   return kwSets.slice(0, 5);
@@ -233,41 +252,43 @@ function generateMockCandidates(kwSets: string[][], jd: string): CandidateResult
   // Detect primary role for mock data
   const isFrontend = jdLower.includes('react') || jdLower.includes('frontend') || jdLower.includes('front-end');
   const isBackend = jdLower.includes('backend') || jdLower.includes('node') || jdLower.includes('python');
-  const isDesigner = jdLower.includes('figma') || jdLower.includes('ux') || jdLower.includes('designer');
+  const isDesigner = jdLower.includes('figma') || jdLower.includes('ux') || jdLower.includes('designer') || jdLower.includes('graphic') || jdLower.includes('adobe') || jdLower.includes('visual');
+  const isSaudi = jdLower.includes('saudi') || jdLower.includes('riyadh') || jdLower.includes('jeddah');
+  const defaultLocation = isSaudi ? 'Riyadh, Saudi Arabia' : 'Cairo, Egypt';
   const isData = jdLower.includes('data') || jdLower.includes('ml') || jdLower.includes('machine learning');
 
   type MockTemplate = { name: string; title: string; location: string; skills: string[] };
 
   const mockTemplates: MockTemplate[] = isFrontend ? [
-    { name: 'Ahmed Hassan', title: 'Senior Frontend Developer', location: 'Cairo, Egypt', skills: ['React', 'TypeScript', 'Next.js', 'Tailwind'] },
-    { name: 'Sara El-Sayed', title: 'Frontend Engineer', location: 'Cairo, Egypt', skills: ['React', 'JavaScript', 'CSS', 'Figma'] },
-    { name: 'Omar Khalil', title: 'React Developer', location: 'Alexandria, Egypt', skills: ['React', 'Redux', 'Node.js', 'GraphQL'] },
-    { name: 'Nadia Mostafa', title: 'Senior React Engineer', location: 'Cairo, Egypt', skills: ['React', 'TypeScript', 'AWS', 'Docker'] },
-    { name: 'Karim Adel', title: 'Full Stack Developer', location: 'Giza, Egypt', skills: ['React', 'Node.js', 'MongoDB', 'TypeScript'] },
+    { name: 'Ahmed Hassan', title: 'Senior Frontend Developer', location: defaultLocation, skills: ['React', 'TypeScript', 'Next.js', 'Tailwind'] },
+    { name: 'Sara El-Sayed', title: 'Frontend Engineer', location: defaultLocation, skills: ['React', 'JavaScript', 'CSS', 'Figma'] },
+    { name: 'Omar Khalil', title: 'React Developer', location: defaultLocation, skills: ['React', 'Redux', 'Node.js', 'GraphQL'] },
+    { name: 'Nadia Mostafa', title: 'Senior React Engineer', location: defaultLocation, skills: ['React', 'TypeScript', 'AWS', 'Docker'] },
+    { name: 'Karim Adel', title: 'Full Stack Developer', location: defaultLocation, skills: ['React', 'Node.js', 'MongoDB', 'TypeScript'] },
   ] : isBackend ? [
-    { name: 'Mohamed Farouk', title: 'Senior Backend Engineer', location: 'Cairo, Egypt', skills: ['Python', 'Django', 'PostgreSQL', 'Docker'] },
-    { name: 'Yasmine Ibrahim', title: 'Backend Developer', location: 'Cairo, Egypt', skills: ['Node.js', 'TypeScript', 'MongoDB', 'Redis'] },
-    { name: 'Hossam Nasser', title: 'Python Developer', location: 'Alexandria, Egypt', skills: ['Python', 'FastAPI', 'PostgreSQL', 'AWS'] },
-    { name: 'Rania Saleh', title: 'Software Engineer', location: 'Cairo, Egypt', skills: ['Java', 'Spring', 'MySQL', 'Kubernetes'] },
-    { name: 'Tarek Mansour', title: 'Backend Engineer', location: 'Cairo, Egypt', skills: ['Node.js', 'Express', 'MongoDB', 'Docker'] },
+    { name: 'Mohamed Farouk', title: 'Senior Backend Engineer', location: defaultLocation, skills: ['Python', 'Django', 'PostgreSQL', 'Docker'] },
+    { name: 'Yasmine Ibrahim', title: 'Backend Developer', location: defaultLocation, skills: ['Node.js', 'TypeScript', 'MongoDB', 'Redis'] },
+    { name: 'Hossam Nasser', title: 'Python Developer', location: defaultLocation, skills: ['Python', 'FastAPI', 'PostgreSQL', 'AWS'] },
+    { name: 'Rania Saleh', title: 'Software Engineer', location: defaultLocation, skills: ['Java', 'Spring', 'MySQL', 'Kubernetes'] },
+    { name: 'Tarek Mansour', title: 'Backend Engineer', location: defaultLocation, skills: ['Node.js', 'Express', 'MongoDB', 'Docker'] },
   ] : isDesigner ? [
-    { name: 'Dina Kamal', title: 'Senior UX Designer', location: 'Cairo, Egypt', skills: ['Figma', 'Adobe XD', 'Sketch', 'Prototyping'] },
-    { name: 'Hana Ali', title: 'Product Designer', location: 'Cairo, Egypt', skills: ['Figma', 'User Research', 'Design Systems'] },
-    { name: 'Sherif Gamal', title: 'UI/UX Designer', location: 'Giza, Egypt', skills: ['Figma', 'Photoshop', 'Illustrator', 'Framer'] },
-    { name: 'Mariam Fouad', title: 'UX Researcher', location: 'Cairo, Egypt', skills: ['Figma', 'User Testing', 'Wireframing'] },
-    { name: 'Khaled Essam', title: 'Visual Designer', location: 'Cairo, Egypt', skills: ['Illustrator', 'Photoshop', 'Figma', 'Motion'] },
+    { name: 'Dina Kamal', title: 'Senior Graphic Designer', location: defaultLocation, skills: ['Photoshop', 'Illustrator', 'InDesign', 'Figma'] },
+    { name: 'Hana Ali', title: 'Senior Visual Designer', location: defaultLocation, skills: ['Photoshop', 'Social Media', 'Campaigns', 'Adobe XD'] },
+    { name: 'Sherif Gamal', title: 'Creative Designer', location: defaultLocation, skills: ['Illustrator', 'Photoshop', 'After Effects', 'Figma'] },
+    { name: 'Mariam Fouad', title: 'Graphic Designer - Social Media', location: defaultLocation, skills: ['Photoshop', 'Illustrator', 'Canva', 'Figma'] },
+    { name: 'Khaled Essam', title: 'Art Director', location: defaultLocation, skills: ['Illustrator', 'Photoshop', 'After Effects', 'InDesign'] },
   ] : isData ? [
-    { name: 'Aya Sami', title: 'Data Scientist', location: 'Cairo, Egypt', skills: ['Python', 'TensorFlow', 'Pandas', 'scikit-learn'] },
-    { name: 'Hassan Badr', title: 'ML Engineer', location: 'Cairo, Egypt', skills: ['PyTorch', 'Python', 'AWS', 'Docker'] },
-    { name: 'Mona Taha', title: 'Data Analyst', location: 'Cairo, Egypt', skills: ['Python', 'SQL', 'Tableau', 'Pandas'] },
-    { name: 'Amr Fathy', title: 'Senior Data Scientist', location: 'Alexandria, Egypt', skills: ['TensorFlow', 'Python', 'GCP', 'Spark'] },
-    { name: 'Layla Mahmoud', title: 'AI Engineer', location: 'Cairo, Egypt', skills: ['Python', 'PyTorch', 'FastAPI', 'Docker'] },
+    { name: 'Aya Sami', title: 'Data Scientist', location: defaultLocation, skills: ['Python', 'TensorFlow', 'Pandas', 'scikit-learn'] },
+    { name: 'Hassan Badr', title: 'ML Engineer', location: defaultLocation, skills: ['PyTorch', 'Python', 'AWS', 'Docker'] },
+    { name: 'Mona Taha', title: 'Data Analyst', location: defaultLocation, skills: ['Python', 'SQL', 'Tableau', 'Pandas'] },
+    { name: 'Amr Fathy', title: 'Senior Data Scientist', location: defaultLocation, skills: ['TensorFlow', 'Python', 'GCP', 'Spark'] },
+    { name: 'Layla Mahmoud', title: 'AI Engineer', location: defaultLocation, skills: ['Python', 'PyTorch', 'FastAPI', 'Docker'] },
   ] : [
-    { name: 'Ahmed Naguib', title: 'Software Engineer', location: 'Cairo, Egypt', skills: ['Python', 'JavaScript', 'Docker', 'Git'] },
-    { name: 'Sara Ashraf', title: 'Full Stack Developer', location: 'Cairo, Egypt', skills: ['React', 'Node.js', 'PostgreSQL', 'AWS'] },
-    { name: 'Omar Samir', title: 'Senior Developer', location: 'Alexandria, Egypt', skills: ['TypeScript', 'React', 'Node.js', 'MongoDB'] },
-    { name: 'Nour Hamdy', title: 'Software Developer', location: 'Cairo, Egypt', skills: ['Java', 'Spring', 'MySQL', 'Docker'] },
-    { name: 'Youssef Adly', title: 'Tech Lead', location: 'Giza, Egypt', skills: ['React', 'Node.js', 'AWS', 'Kubernetes'] },
+    { name: 'Ahmed Naguib', title: 'Software Engineer', location: defaultLocation, skills: ['Python', 'JavaScript', 'Docker', 'Git'] },
+    { name: 'Sara Ashraf', title: 'Full Stack Developer', location: defaultLocation, skills: ['React', 'Node.js', 'PostgreSQL', 'AWS'] },
+    { name: 'Omar Samir', title: 'Senior Developer', location: defaultLocation, skills: ['TypeScript', 'React', 'Node.js', 'MongoDB'] },
+    { name: 'Nour Hamdy', title: 'Software Developer', location: defaultLocation, skills: ['Java', 'Spring', 'MySQL', 'Docker'] },
+    { name: 'Youssef Adly', title: 'Tech Lead', location: defaultLocation, skills: ['React', 'Node.js', 'AWS', 'Kubernetes'] },
   ];
 
   return mockTemplates.map((t: MockTemplate, i: number) => {
@@ -322,9 +343,11 @@ export async function POST(req: NextRequest) {
     const seen = new Set<string>();
 
     // ── Real Brave Search across all platforms ────────────────────────────
-    for (const platform of platforms) {
+    for (let pi = 0; pi < platforms.length; pi++) {
+      const platform = platforms[pi];
       if (candidates.length >= limit) break;
-      const kws = kwSets[0]; // Use primary keyword set per platform
+      // Rotate keyword sets per platform so each gets slightly different queries
+      const kws = kwSets[pi % kwSets.length] || kwSets[0];
       const query = `${platform.siteQuery} ${kws.join(' ')}`;
       const encoded = encodeURIComponent(query);
       const url = `https://api.search.brave.com/res/v1/web/search?q=${encoded}&count=${platform.limit + 2}`;
