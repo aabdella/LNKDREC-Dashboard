@@ -59,6 +59,7 @@ function extractKeywords(jd: string): string[][] {
 
   // Role detection — Art Director and Creative Director added explicitly
   const rolePatterns: Record<string, string[]> = {
+    'Technical Support Agent': ['technical support agent', 'tech support agent', 'call center', 'technical support specialist', 'customer support agent', 'support advisor', 'technical advisor'],
     'Art Director':         ['art director'],
     'Creative Director':    ['creative director'],
     'Graphic Designer':     ['graphic designer', 'graphic design', 'visual designer', 'senior graphic'],
@@ -116,40 +117,60 @@ function extractKeywords(jd: string): string[][] {
   }
   const topSkills = detectedSkills.slice(0, 5);
 
-  // Location: candidates always in Egypt
-  // Detect market experience keywords from JD — inject into search queries, NOT as location
+  // Company name detection — extract specific employers/brands mentioned in JD
+  // These become high-priority search terms (quoted for exact match)
+  const companyPatterns: string[] = [
+    'Vodafone International Services', 'VIS', 'VOIS', '_VOIS',
+    'Teleperformance', 'Concentrix', 'Sutherland', 'Majorel', 'Intelcia',
+    'Amazon', 'Microsoft', 'Google', 'IBM', 'Oracle', 'SAP', 'Cisco',
+    'McKinsey', 'Deloitte', 'PwC', 'EY', 'KPMG',
+    'Unilever', 'P&G', 'Nestle', 'Pepsi', 'Coca-Cola',
+    'Jumia', 'Talabat', 'Careem', 'Uber',
+  ];
+  const detectedCompanies = companyPatterns.filter(c => text.includes(c.toLowerCase()));
+
+  // Market experience detection — used as search keywords, not location
   const marketKw: string[] = [];
   if (R.locationSa.test(jd) || text.includes('ksa')) marketKw.push('Saudi', 'KSA');
   if (text.includes('gcc') || text.includes('gulf')) marketKw.push('GCC');
   if (R.locationAe.test(jd)) marketKw.push('GCC');
 
-  // Build 5 keyword sets — always Egypt-anchored, market experience woven in
+  // Build 5 keyword sets — always Egypt-anchored, market experience + company names woven in
   const kwSets: string[][] = [];
+  const primaryCompany = detectedCompanies[0] || null;
+  const secondCompany  = detectedCompanies[1] || null;
 
-  // Set 1: role + Egypt + primary market keyword (most targeted — mirrors my manual search)
-  kwSets.push(marketKw.length > 0
-    ? [detectedRole, 'Egypt', marketKw[0]]
-    : [detectedRole, 'Egypt']);
+  // Set 1: role + Egypt + company name (highest precision — mirrors manual search)
+  kwSets.push(primaryCompany
+    ? [detectedRole, 'Egypt', primaryCompany]
+    : marketKw.length > 0 ? [detectedRole, 'Egypt', marketKw[0]] : [detectedRole, 'Egypt']);
 
-  // Set 2: role + Egypt + second market keyword (KSA, GCC)
-  kwSets.push(marketKw.length > 1
-    ? [detectedRole, 'Egypt', marketKw[1]]
-    : topSkills.length > 0 ? [detectedRole, topSkills[0], 'Egypt'] : [detectedRole, 'Egypt', 'campaigns']);
+  // Set 2: role + Egypt + second company or market keyword
+  kwSets.push(secondCompany
+    ? [detectedRole, 'Egypt', secondCompany]
+    : marketKw.length > 1 ? [detectedRole, 'Egypt', marketKw[1]]
+    : topSkills.length > 0 ? [detectedRole, topSkills[0], 'Egypt'] : [detectedRole, 'Egypt', 'international']);
 
-  // Set 3: role + Cairo + market keyword
-  kwSets.push(marketKw.length > 0
-    ? [detectedRole, 'Cairo', marketKw[0]]
-    : [detectedRole, 'Cairo']);
+  // Set 3: role + Cairo + company name
+  kwSets.push(primaryCompany
+    ? [detectedRole, 'Cairo', primaryCompany]
+    : marketKw.length > 0 ? [detectedRole, 'Cairo', marketKw[0]] : [detectedRole, 'Cairo']);
 
-  // Set 4: role + top skill + Egypt
+  // Set 4: role + top skill + Egypt (or company)
   kwSets.push(topSkills.length > 0
     ? [detectedRole, topSkills[0], 'Egypt']
-    : [detectedRole, 'Egypt']);
+    : primaryCompany ? [detectedRole, primaryCompany, 'Egypt'] : [detectedRole, 'Egypt', 'international']);
 
-  // Set 5: skill combo + Egypt or market keyword
-  kwSets.push(topSkills.length >= 2
-    ? [topSkills[0], topSkills[1], 'Egypt']
-    : marketKw.length > 0 ? [detectedRole, 'Egypt', marketKw[0], 'campaigns'] : [detectedRole, 'Egypt', 'campaigns']);
+  // Set 5: company + Egypt + market keyword or skill
+  if (primaryCompany) {
+    kwSets.push(marketKw.length > 0
+      ? [primaryCompany, 'Egypt', marketKw[0]]
+      : [primaryCompany, 'Egypt']);
+  } else if (topSkills.length >= 2) {
+    kwSets.push([topSkills[0], topSkills[1], 'Egypt']);
+  } else {
+    kwSets.push([detectedRole, 'Egypt', 'international', 'support']);
+  }
 
   return kwSets.slice(0, 5);
 }
@@ -224,13 +245,15 @@ function parseResult(
   const descLower = (titleRaw + ' ' + desc).toLowerCase();
   const skills = skillKeywords.filter(s => descLower.includes(s.toLowerCase())).slice(0, 6);
 
-  // Scoring — reward Saudi/GCC market experience heavily
+  // Scoring — reward Saudi/GCC market experience AND specific company mentions heavily
   let score = 45;
-  keywords.forEach(kw => { if (descLower.includes(kw.toLowerCase())) score += 10; });
+  keywords.forEach(kw => { if (descLower.includes(kw.toLowerCase())) score += 12; });
   skills.forEach(() => { score += 2; });
   if (descLower.includes('saudi') || descLower.includes('ksa'))   score += 15;
   if (descLower.includes('gcc')   || descLower.includes('gulf'))  score += 10;
-  if (score > 98) score = 98;
+  // Boost for specific company experience (VIS, VOIS, Vodafone International, etc.)
+  if (descLower.includes('vodafone international') || descLower.includes('vis') || descLower.includes('vois') || descLower.includes('_vois')) score += 20;
+  if (score > 99) score = 99;
 
   const matchedKws = keywords.filter(kw => descLower.includes(kw.toLowerCase()));
   const match_reason = matchedKws.length > 0
