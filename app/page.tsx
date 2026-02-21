@@ -1,8 +1,8 @@
 'use client';
 
 import { supabase } from '@/lib/supabaseClient';
-import { useState, useEffect } from 'react';
-import { MagnifyingGlassIcon, XMarkIcon, CheckBadgeIcon, BriefcaseIcon, EnvelopeIcon, PhoneIcon, PencilSquareIcon, Squares2X2Icon, ListBulletIcon } from '@heroicons/react/24/outline';
+import { useState, useEffect, useCallback } from 'react';
+import { MagnifyingGlassIcon, XMarkIcon, CheckBadgeIcon, BriefcaseIcon, EnvelopeIcon, PhoneIcon, PencilSquareIcon, Squares2X2Icon, ListBulletIcon, DocumentArrowDownIcon } from '@heroicons/react/24/outline';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 
@@ -71,6 +71,7 @@ export default function Dashboard() {
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
   const [vettingCandidate, setVettingCandidate] = useState<Candidate | null>(null);
   const [assigningCandidate, setAssigningCandidate] = useState<Candidate | null>(null);
+  const [cvCandidate, setCvCandidate] = useState<Candidate | null>(null);
 
   // Interaction States
   const [interactions, setInteractions] = useState<any[]>([]);
@@ -471,6 +472,7 @@ export default function Dashboard() {
                 onViewDetails={() => setSelectedCandidate(candidate)} 
                 onVetCandidate={() => openVettingModal(candidate)}
                 onToggleAssign={() => toggleAssignment(candidate)}
+                onGenerateCV={() => setCvCandidate(candidate)}
               />
             ))}
             {filteredCandidates.length === 0 && (
@@ -506,6 +508,7 @@ export default function Dashboard() {
                       onViewDetails={() => setSelectedCandidate(candidate)}
                       onVetCandidate={() => openVettingModal(candidate)}
                       onToggleAssign={() => toggleAssignment(candidate)}
+                      onGenerateCV={() => setCvCandidate(candidate)}
                     />
                   ))}
                 </tbody>
@@ -709,6 +712,14 @@ export default function Dashboard() {
               </div>
           </div>
       )}
+
+      {/* CV Export Modal */}
+      {cvCandidate && (
+        <CVExportModal
+          candidate={cvCandidate}
+          onClose={() => setCvCandidate(null)}
+        />
+      )}
     </div>
   );
 }
@@ -719,11 +730,13 @@ function CandidateRow({
   onViewDetails,
   onVetCandidate,
   onToggleAssign,
+  onGenerateCV,
 }: {
   candidate: Candidate;
   onViewDetails: () => void;
   onVetCandidate: () => void;
   onToggleAssign: () => void;
+  onGenerateCV: () => void;
 }) {
   const isVetted = candidate.status === 'Vetted';
   const isAssigned = candidate.status === 'Assigned';
@@ -871,6 +884,13 @@ function CandidateRow({
               )}
             </button>
           )}
+          <button
+            onClick={onGenerateCV}
+            title="Generate CV"
+            className="px-2.5 py-1 text-xs font-semibold bg-indigo-50 border border-indigo-200 text-indigo-700 rounded hover:bg-indigo-100 transition flex items-center gap-1"
+          >
+            <DocumentArrowDownIcon className="h-3 w-3" /> CV
+          </button>
         </div>
       </td>
     </tr>
@@ -881,12 +901,14 @@ function CandidateCard({
     candidate, 
     onViewDetails, 
     onVetCandidate, 
-    onToggleAssign
+    onToggleAssign,
+    onGenerateCV,
 }: { 
     candidate: Candidate; 
     onViewDetails: () => void; 
     onVetCandidate: () => void; 
     onToggleAssign: () => void;
+    onGenerateCV: () => void;
 }) {
   const isVetted = candidate.status === 'Vetted';
   const isAssigned = candidate.status === 'Assigned';
@@ -1010,6 +1032,13 @@ function CandidateCard({
                 )}
             </button>
         )}
+        <button
+          onClick={onGenerateCV}
+          title="Generate CV"
+          className="px-2 py-2 text-xs font-semibold bg-indigo-50 border border-indigo-200 text-indigo-700 rounded hover:bg-indigo-100 transition flex items-center gap-1"
+        >
+          <DocumentArrowDownIcon className="h-3.5 w-3.5" /> CV
+        </button>
       </div>
       <div className="h-1 bg-black w-full transform origin-left scale-x-0 group-hover:scale-x-100 transition-transform duration-300"></div>
     </div>
@@ -1617,4 +1646,276 @@ function CandidateDetailsModal({
           </div>
         </div>
     );
+}
+
+// ─── CV EXPORT MODAL & PDF TEMPLATES ────────────────────────────────────────
+
+function CVExportModal({
+  candidate,
+  onClose,
+}: {
+  candidate: Candidate;
+  onClose: () => void;
+}) {
+  const [selectedTemplate, setSelectedTemplate] = useState<'A' | 'B'>('A');
+  const [privacy, setPrivacy] = useState({
+    linkedin: true,
+    portfolio: true,
+    email: false,
+    phone: false,
+  });
+  const [generating, setGenerating] = useState(false);
+
+  const initials = candidate.full_name
+    ? candidate.full_name
+        .split(' ')
+        .slice(0, 2)
+        .map((p: string) => p[0])
+        .join('')
+        .toUpperCase()
+    : '??';
+
+  const allSkills = [
+    ...(candidate.technologies?.map((t) => t.name) || []),
+    ...(candidate.tools?.map((t) => t.name) || []),
+    ...(candidate.skills || []),
+  ].slice(0, 12);
+
+  const handleDownload = async () => {
+    setGenerating(true);
+    try {
+      // Dynamically import react-pdf to avoid SSR issues
+      const { pdf } = await import('@react-pdf/renderer');
+      const { CVTemplateA, CVTemplateB } = await import('./cv-templates');
+
+      // Fetch logo as base64
+      let logoBase64 = '';
+      try {
+        const res = await fetch('/logo.jpg');
+        const blob = await res.blob();
+        logoBase64 = await new Promise<string>((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.readAsDataURL(blob);
+        });
+      } catch {
+        // logo fetch failed, proceed without
+      }
+
+      const doc =
+        selectedTemplate === 'A' ? (
+          <CVTemplateA candidate={candidate} privacy={privacy} logoBase64={logoBase64} />
+        ) : (
+          <CVTemplateB candidate={candidate} privacy={privacy} logoBase64={logoBase64} />
+        );
+
+      const blob = await pdf(doc).toBlob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${candidate.full_name.replace(/[ ]+/g, '_')}_CV.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('PDF generation error:', err);
+      alert('Error generating PDF. Please try again.');
+    }
+    setGenerating(false);
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="sticky top-0 bg-white border-b border-slate-100 px-6 py-4 flex justify-between items-center z-10 rounded-t-2xl">
+          <div>
+            <h2 className="text-xl font-bold text-slate-900">Generate CV</h2>
+            <p className="text-sm text-slate-500">{candidate.full_name} — {candidate.title}</p>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full transition">
+            <XMarkIcon className="h-6 w-6 text-slate-500" />
+          </button>
+        </div>
+
+        <div className="p-6 space-y-6">
+          {/* Privacy Options */}
+          <div>
+            <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wider mb-3">Privacy Options</h3>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {[
+                { key: 'linkedin', label: 'Include LinkedIn', available: !!candidate.linkedin_url },
+                { key: 'portfolio', label: 'Include Portfolio', available: !!candidate.portfolio_url },
+                { key: 'email', label: 'Include Email', available: !!candidate.email },
+                { key: 'phone', label: 'Include Phone', available: !!candidate.phone },
+              ].map(({ key, label, available }) => (
+                <label
+                  key={key}
+                  className={`flex items-center gap-2 p-3 border rounded-lg cursor-pointer transition text-sm ${
+                    available
+                      ? 'border-slate-200 hover:border-indigo-300 hover:bg-indigo-50'
+                      : 'border-slate-100 bg-slate-50 opacity-50 cursor-not-allowed'
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={privacy[key as keyof typeof privacy] && available}
+                    disabled={!available}
+                    onChange={(e) => setPrivacy((prev) => ({ ...prev, [key]: e.target.checked }))}
+                    className="h-4 w-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
+                  />
+                  <span className="text-slate-700 font-medium leading-tight">{label}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* Template Selection */}
+          <div>
+            <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wider mb-3">Choose Template</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Template A Preview */}
+              <div
+                onClick={() => setSelectedTemplate('A')}
+                className={`border-2 rounded-xl overflow-hidden cursor-pointer transition-all ${
+                  selectedTemplate === 'A'
+                    ? 'border-indigo-500 shadow-lg shadow-indigo-100'
+                    : 'border-slate-200 hover:border-slate-300'
+                }`}
+              >
+                <div className="bg-slate-50 px-3 py-2 flex items-center justify-between border-b border-slate-200">
+                  <span className="text-xs font-bold text-slate-700">A — Clean Minimal</span>
+                  {selectedTemplate === 'A' && (
+                    <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">Selected</span>
+                  )}
+                </div>
+                {/* Mini preview of Template A */}
+                <div className="bg-white p-3 text-[7px] leading-tight min-h-[220px] select-none">
+                  <div className="flex justify-between items-start mb-2">
+                    <div>
+                      <div className="font-black text-[11px] text-slate-900 leading-none">{candidate.full_name}</div>
+                      <div className="text-slate-500 text-[8px] mt-0.5">{candidate.title}</div>
+                    </div>
+                    <div className="w-8 h-6 bg-slate-200 rounded flex items-center justify-center text-[6px] text-slate-400">LOGO</div>
+                  </div>
+                  <div className="border-t border-slate-200 my-1.5"></div>
+                  <div className="flex gap-2 text-slate-500 mb-2 flex-wrap">
+                    <span className="bg-slate-100 px-1.5 py-0.5 rounded">📍 {candidate.location || '—'}</span>
+                    <span className="bg-slate-100 px-1.5 py-0.5 rounded">🗓 {candidate.years_experience_total || 0} yrs</span>
+                  </div>
+                  <div className="font-bold text-slate-700 mb-1">SKILLS</div>
+                  <div className="flex flex-wrap gap-1 mb-2">
+                    {allSkills.slice(0, 6).map((s, i) => (
+                      <span key={i} className="bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded">{s}</span>
+                    ))}
+                  </div>
+                  {candidate.work_history && candidate.work_history.length > 0 && (
+                    <>
+                      <div className="font-bold text-slate-700 mb-1">EXPERIENCE</div>
+                      {candidate.work_history.slice(0, 2).map((w, i) => (
+                        <div key={i} className="flex justify-between mb-1">
+                          <div>
+                            <div className="font-semibold">{w.company}</div>
+                            <div className="text-slate-400 italic">{w.title}</div>
+                          </div>
+                          <div className="text-slate-400 text-right">{w.start_date} – {w.end_date}</div>
+                        </div>
+                      ))}
+                    </>
+                  )}
+                  <div className="border-t border-slate-100 mt-2 pt-1 text-center text-slate-300 text-[6px]">Presented by LNKDREC.ai</div>
+                </div>
+                <div className={`py-2 text-center text-xs font-bold transition ${
+                  selectedTemplate === 'A' ? 'bg-indigo-500 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}>
+                  {selectedTemplate === 'A' ? '✓ Selected' : 'Select Template A'}
+                </div>
+              </div>
+
+              {/* Template B Preview */}
+              <div
+                onClick={() => setSelectedTemplate('B')}
+                className={`border-2 rounded-xl overflow-hidden cursor-pointer transition-all ${
+                  selectedTemplate === 'B'
+                    ? 'border-indigo-500 shadow-lg shadow-indigo-100'
+                    : 'border-slate-200 hover:border-slate-300'
+                }`}
+              >
+                <div className="bg-slate-50 px-3 py-2 flex items-center justify-between border-b border-slate-200">
+                  <span className="text-xs font-bold text-slate-700">B — Two-Column Modern</span>
+                  {selectedTemplate === 'B' && (
+                    <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">Selected</span>
+                  )}
+                </div>
+                {/* Mini preview of Template B */}
+                <div className="flex min-h-[220px] select-none">
+                  {/* Sidebar */}
+                  <div className="w-1/3 bg-slate-900 p-2 text-white text-[7px] leading-tight">
+                    <div className="w-8 h-5 bg-slate-700 rounded flex items-center justify-center text-[5px] text-slate-400 mb-1.5">LOGO</div>
+                    <div className="h-8 w-8 rounded-full bg-indigo-500 flex items-center justify-center text-[8px] font-black mb-1.5 mx-auto">{initials}</div>
+                    <div className="font-black text-[8px] text-center leading-none text-white mb-0.5">{candidate.full_name}</div>
+                    <div className="text-slate-400 text-[6px] text-center mb-2">{candidate.title}</div>
+                    <div className="text-slate-300 font-bold mb-1 text-[6px]">CONTACT</div>
+                    {privacy.email && candidate.email && <div className="text-slate-400 mb-0.5 truncate">✉ {candidate.email}</div>}
+                    {privacy.phone && candidate.phone && <div className="text-slate-400 mb-0.5">📞 {candidate.phone}</div>}
+                    <div className="text-slate-300 font-bold mb-1 mt-1.5 text-[6px]">SKILLS</div>
+                    {allSkills.slice(0, 4).map((s, i) => (
+                      <div key={i} className="text-slate-300 mb-0.5">• {s}</div>
+                    ))}
+                  </div>
+                  {/* Content */}
+                  <div className="flex-1 bg-white p-2 text-[7px]">
+                    <div className="text-indigo-600 font-black text-[8px] tracking-widest mb-2">CANDIDATE PROFILE</div>
+                    <div className="flex flex-wrap gap-1 mb-2">
+                      <span className="bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded">{candidate.years_experience_total || 0} yrs exp</span>
+                    </div>
+                    {candidate.work_history && candidate.work_history.length > 0 && (
+                      <>
+                        <div className="font-bold text-slate-700 mb-1">EXPERIENCE</div>
+                        {candidate.work_history.slice(0, 2).map((w, i) => (
+                          <div key={i} className="mb-1.5">
+                            <div className="font-semibold">{w.company}</div>
+                            <div className="text-slate-400 italic">{w.title}</div>
+                          </div>
+                        ))}
+                      </>
+                    )}
+                    <div className="border-t border-slate-100 mt-2 pt-1 text-center text-slate-300 text-[6px]">Presented by LNKDREC.ai</div>
+                  </div>
+                </div>
+                <div className={`py-2 text-center text-xs font-bold transition ${
+                  selectedTemplate === 'B' ? 'bg-indigo-500 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}>
+                  {selectedTemplate === 'B' ? '✓ Selected' : 'Select Template B'}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="sticky bottom-0 bg-white border-t border-slate-100 px-6 py-4 flex items-center justify-between rounded-b-2xl">
+          <p className="text-xs text-slate-400">
+            Template {selectedTemplate} · {privacy.email ? 'Email visible · ' : ''}{privacy.phone ? 'Phone visible · ' : ''}
+            {privacy.linkedin ? 'LinkedIn visible · ' : ''}{privacy.portfolio ? 'Portfolio visible' : ''}
+          </p>
+          <button
+            onClick={handleDownload}
+            disabled={generating}
+            className="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition disabled:opacity-60"
+          >
+            <DocumentArrowDownIcon className="h-5 w-5" />
+            {generating ? 'Generating...' : 'Download PDF'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
