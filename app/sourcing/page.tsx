@@ -1,6 +1,7 @@
 'use client';
 
 import { supabase } from '@/lib/supabaseClient';
+import { logActivity } from '@/lib/logActivity';
 import { useState, useEffect } from 'react';
 import { BriefcaseIcon, CloudArrowUpIcon, TrashIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
 
@@ -69,6 +70,7 @@ export default function SourcingPage() {
           type: 'success',
           message: `Sourced ${data.sourced} new candidate${data.sourced !== 1 ? 's' : ''} — check the queue!`,
         });
+        await logActivity('sourcing_triggered', 'Sourcing Run', { candidates_found: data.sourced, jd_snippet: jd.slice(0, 200) }, 'sourcing');
         setActiveTab('sourced');
         await fetchSourcedQueue();
       }
@@ -106,6 +108,7 @@ export default function SourcingPage() {
 
       if (!insertError) {
         await supabase.from('unvetted').delete().eq('id', c.id);
+        await logActivity('candidate_approved', c.full_name, { source: c.source, match_score: c.match_score }, 'candidate', c.id);
       }
     }
 
@@ -120,6 +123,7 @@ export default function SourcingPage() {
 
     const { error } = await supabase.from('unvetted').delete().in('id', selectedIds);
     if (!error) {
+      await logActivity('candidate_rejected', `${selectedIds.length} candidate(s)`, { ids: selectedIds }, 'candidate');
       setSelectedIds([]);
       fetchSourcedQueue();
     }
