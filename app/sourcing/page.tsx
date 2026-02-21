@@ -307,20 +307,29 @@ export default function SourcingPage() {
                 <table className="w-full text-left">
                   <thead className="bg-slate-50 border-b border-slate-200">
                     <tr>
-                      <th className="px-6 py-4 w-10"></th>
-                      <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Candidate Info</th>
-                      <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Skills Found</th>
-                      <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Source</th>
+                      <th className="px-4 py-4 w-10"></th>
+                      <th className="px-4 py-4 text-xs font-bold text-slate-500 uppercase">Name</th>
+                      <th className="px-4 py-4 text-xs font-bold text-slate-500 uppercase">Role</th>
+                      <th className="px-4 py-4 text-xs font-bold text-slate-500 uppercase">Company</th>
+                      <th className="px-4 py-4 text-xs font-bold text-slate-500 uppercase">Yrs Exp</th>
+                      <th className="px-4 py-4 text-xs font-bold text-slate-500 uppercase">Source</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {sourcedQueue.map(c => (
+                    {sourcedQueue.map(c => {
+                      // Extract company from match_reason (e.g. "Majorel Egypt — 5 yrs..." or "at Concentrix")
+                      const companyMatch = c.match_reason
+                        ? (c.match_reason.match(/^([^—]+?)\s*—/) || c.match_reason.match(/\bat\s+([A-Z][^.,]+)/i))
+                        : null;
+                      const company = companyMatch ? companyMatch[1].trim() : '—';
+
+                      return (
                       <tr
                         key={c.id}
                         className={`hover:bg-slate-50/50 transition cursor-pointer ${selectedIds.includes(c.id) ? 'bg-indigo-50/30' : ''}`}
                         onClick={() => toggleSelect(c.id)}
                       >
-                        <td className="px-6 py-4" onClick={e => e.stopPropagation()}>
+                        <td className="px-4 py-4" onClick={e => e.stopPropagation()}>
                           <input
                             type="checkbox"
                             className="h-4 w-4 rounded border-slate-300"
@@ -328,36 +337,43 @@ export default function SourcingPage() {
                             onChange={() => toggleSelect(c.id)}
                           />
                         </td>
-                        <td className="px-6 py-4">
-                          <div className="font-bold text-slate-900">{c.full_name}</div>
-                          <div className="text-xs text-slate-500">{c.title}</div>
+                        <td className="px-4 py-4">
+                          <div className="font-bold text-slate-900 text-sm">{c.full_name}</div>
                           <div className="text-[10px] text-slate-400 mt-0.5">{c.location}</div>
-                          {c.linkedin_url && (
-                            <a
-                              href={c.linkedin_url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              onClick={e => e.stopPropagation()}
-                              className="text-[10px] text-indigo-500 hover:text-indigo-700 mt-0.5 inline-block"
-                            >
-                              LinkedIn ↗
-                            </a>
-                          )}
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex flex-wrap gap-1">
-                            {c.skills?.slice(0, 3).map((s, i) => (
-                              <span key={i} className="text-[10px] bg-slate-100 px-1.5 py-0.5 rounded text-slate-600 border border-slate-200">{s}</span>
-                            ))}
+                          <div className="flex gap-2 mt-1">
+                            {c.linkedin_url && (
+                              <a href={c.linkedin_url} target="_blank" rel="noopener noreferrer"
+                                onClick={e => e.stopPropagation()}
+                                className="text-[10px] text-indigo-500 hover:text-indigo-700">
+                                LinkedIn ↗
+                              </a>
+                            )}
+                            {c.portfolio_url && (
+                              <a href={c.portfolio_url} target="_blank" rel="noopener noreferrer"
+                                onClick={e => e.stopPropagation()}
+                                className="text-[10px] text-pink-500 hover:text-pink-700">
+                                Portfolio ↗
+                              </a>
+                            )}
                           </div>
+                        </td>
+                        <td className="px-4 py-4">
+                          <div className="text-sm text-slate-700 font-medium">{c.title || '—'}</div>
                           {c.match_reason && (
-                            <div className="text-[10px] text-slate-400 mt-1 max-w-xs truncate" title={c.match_reason}>
+                            <div className="text-[10px] text-slate-400 mt-1 max-w-[160px] truncate" title={c.match_reason}>
                               {c.match_reason}
                             </div>
                           )}
                         </td>
-                        <td className="px-6 py-4">
-                          {/* Platform badge with color coding */}
+                        <td className="px-4 py-4">
+                          <div className="text-sm text-slate-600">{company}</div>
+                        </td>
+                        <td className="px-4 py-4">
+                          <span className="text-sm font-semibold text-slate-700">
+                            {c.years_experience_total ? `${c.years_experience_total} yrs` : '—'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-4">
                           <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
                             c.source === 'LinkedIn'  ? 'bg-indigo-50 text-indigo-700 border-indigo-200' :
                             c.source === 'Wuzzuf'    ? 'bg-orange-50 text-orange-700 border-orange-200' :
@@ -374,25 +390,13 @@ export default function SourcingPage() {
                               </span>
                             </div>
                           )}
-                          {c.portfolio_url && (
-                            <div className="mt-1">
-                              <a
-                                href={c.portfolio_url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                onClick={e => e.stopPropagation()}
-                                className="text-[10px] text-pink-500 hover:text-pink-700"
-                              >
-                                Portfolio ↗
-                              </a>
-                            </div>
-                          )}
                         </td>
                       </tr>
-                    ))}
+                      );
+                    })}
                     {sourcedQueue.length === 0 && (
                       <tr>
-                        <td colSpan={4} className="px-6 py-12 text-center text-slate-400 italic">
+                        <td colSpan={6} className="px-6 py-12 text-center text-slate-400 italic">
                           The sourced queue is empty. Paste a JD and click "Source New Talent" to get started.
                         </td>
                       </tr>
