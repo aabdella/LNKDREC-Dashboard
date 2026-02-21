@@ -16,11 +16,20 @@ interface RawBraveResult {
   description?: string;
 }
 
+type Platform = 'LinkedIn' | 'Wuzzuf' | 'Bayt' | 'Behance';
+
+interface PlatformConfig {
+  name: Platform;
+  siteQuery: string;
+  limit: number;
+}
+
 interface CandidateResult {
   full_name: string;
   title: string;
   location: string;
   linkedin_url: string;
+  portfolio_url?: string;
   source: string;
   match_reason: string;
   match_score: number;
@@ -33,11 +42,15 @@ interface CandidateResult {
 // \w → [a-zA-Z0-9_]   \d → [0-9]   \s → [ \t\r\n]   \. → [.]
 const R = {
   linkedinSlug: new RegExp('linkedin[.]com/in/([a-zA-Z0-9_-]+)', 'i'),
+  behanceSlug:  new RegExp('behance[.]net/([a-zA-Z0-9_-]+)', 'i'),
+  wuzzufUrl:    new RegExp('wuzzuf[.]net', 'i'),
+  baytUrl:      new RegExp('bayt[.]com', 'i'),
   nameFromTitle: new RegExp('^([A-Z][a-z]+([ \t][A-Z][a-z]+)+)'),
   locationEg: new RegExp('Egypt|Cairo|Alexandria|Giza|Maadi|Heliopolis|Dokki|Nasr[ \t]City|Sheikh[ \t]Zayed|October', 'i'),
   locationAe: new RegExp('Dubai|Abu[ \t]Dhabi|Sharjah|UAE|Emirates', 'i'),
   locationSa: new RegExp('Riyadh|Jeddah|Saudi', 'i'),
   remote: new RegExp('Remote|Worldwide', 'i'),
+  creative: new RegExp('designer|graphic|art[ \t]director|creative|illustrator|photoshop|figma|ux|ui[ \t]designer|visual', 'i'),
 };
 
 // ─── JD Keyword Extractor ────────────────────────────────────────────────────
@@ -123,46 +136,47 @@ function extractKeywords(jd: string): string[][] {
 function parseResult(
   result: RawBraveResult,
   keywords: string[],
-  jd: string
+  jd: string,
+  platform: Platform
 ): CandidateResult | null {
   const url = result.url || '';
   const titleRaw = result.title || '';
   const desc = result.description || '';
 
-  // Must be a linkedin profile URL
-  if (!url.includes('linkedin.com/in/')) return null;
+  // Platform-specific URL validation
+  if (platform === 'LinkedIn' && !url.includes('linkedin.com/in/')) return null;
+  if (platform === 'Behance' && !url.includes('behance.net')) return null;
+  if (platform === 'Wuzzuf' && !url.includes('wuzzuf.net')) return null;
+  if (platform === 'Bayt' && !url.includes('bayt.com')) return null;
 
-  // Extract slug and build clean URL
-  const slugMatch = url.match(R.linkedinSlug);
-  const linkedin_url = slugMatch ? `https://www.linkedin.com/in/${slugMatch[1]}` : url;
-
-  // Extract name: LinkedIn titles usually look like "First Last - Title | LinkedIn"
+  let linkedin_url = '';
+  let portfolio_url = '';
   let full_name = 'Unknown';
-  const dashParts = titleRaw.split(' - ');
-  if (dashParts.length >= 2) {
-    full_name = dashParts[0].trim();
-  } else {
-    // Try pipe separator "First Last | Title"
-    const pipeParts = titleRaw.split(' | ');
-    if (pipeParts.length >= 2) full_name = pipeParts[0].trim();
-    else full_name = titleRaw.replace(' | LinkedIn', '').trim().substring(0, 60);
-  }
-
-  // Extract title from description or page title
   let candidateTitle = 'Professional';
-  if (dashParts.length >= 2) {
-    // "Name - Title at Company | LinkedIn"
-    const afterDash = dashParts[1].split(' at ')[0].split(' | ')[0].trim();
-    if (afterDash.length > 2) candidateTitle = afterDash;
-  } else {
-    // Fall back to description first sentence
-    const firstSentence = desc.split('.')[0].trim();
-    if (firstSentence.length > 5 && firstSentence.length < 80) {
-      candidateTitle = firstSentence;
+
+  if (platform === 'LinkedIn') {
+    const slugMatch = url.match(R.linkedinSlug);
+    linkedin_url = slugMatch ? `https://www.linkedin.com/in/${slugMatch[1]}` : url;
+    const dashParts = titleRaw.split(' - ');
+    if (dashParts.length >= 2) {
+      full_name = dashParts[0].trim();
+      candidateTitle = dashParts[1].split(' at ')[0].split(' | ')[0].trim() || 'Professional';
+    } else {
+      full_name = titleRaw.replace(' | LinkedIn', '').trim().substring(0, 60);
     }
+  } else if (platform === 'Behance') {
+    const slugMatch = url.match(R.behanceSlug);
+    portfolio_url = slugMatch ? `https://www.behance.net/${slugMatch[1]}` : url;
+    full_name = titleRaw.split(' - ')[0].replace('Behance', '').replace('Portfolio', '').trim().substring(0, 60) || 'Designer';
+    candidateTitle = desc.split('.')[0].trim().substring(0, 80) || 'Creative Designer';
+  } else {
+    // Wuzzuf / Bayt — these are job postings, extract role info
+    portfolio_url = url;
+    full_name = titleRaw.split(' - ')[0].split(' | ')[0].trim().substring(0, 60) || 'Candidate';
+    candidateTitle = titleRaw.split(' - ').length > 1 ? titleRaw.split(' - ')[0].trim() : (desc.split('.')[0].trim().substring(0, 80) || 'Professional');
   }
 
-  // Detect location
+  // Location detection
   let location = 'Egypt';
   const combinedText = titleRaw + ' ' + desc;
   if (R.locationEg.test(combinedText)) {
@@ -177,36 +191,33 @@ function parseResult(
     location = 'Remote';
   }
 
-  // Detect skills from description
-  const skillKeywords = [
-    'React', 'Angular', 'Vue', 'TypeScript', 'JavaScript', 'Node.js', 'Python',
-    'Django', 'FastAPI', 'Java', 'Go', 'PostgreSQL', 'MongoDB', 'AWS', 'Docker',
-    'Kubernetes', 'GraphQL', 'Figma', 'Flutter', 'Swift', 'Kotlin', 'TensorFlow',
-  ];
+  // Skills detection
+  const skillKeywords = ['React','Angular','Vue','TypeScript','JavaScript','Node.js','Python','Django','FastAPI','Java','Go','PostgreSQL','MongoDB','AWS','Docker','Kubernetes','GraphQL','Figma','Flutter','Swift','Kotlin','TensorFlow','Photoshop','Illustrator','Adobe XD'];
   const descLower = (titleRaw + ' ' + desc).toLowerCase();
   const skills = skillKeywords.filter(s => descLower.includes(s.toLowerCase())).slice(0, 6);
 
-  // Scoring: based on keyword overlap
-  const jdLower = jd.toLowerCase();
-  let score = 40; // base score for being on LinkedIn
-  keywords.forEach(kw => {
-    if (descLower.includes(kw.toLowerCase())) score += 10;
-  });
+  // Scoring
+  let score = 40;
+  keywords.forEach(kw => { if (descLower.includes(kw.toLowerCase())) score += 10; });
   skills.forEach(() => { score += 3; });
   if (score > 95) score = 95;
 
   const matchedKws = keywords.filter(kw => descLower.includes(kw.toLowerCase()));
-  const match_reason =
-    matchedKws.length > 0
-      ? `Matched keywords: ${matchedKws.join(', ')}. Found via LinkedIn search.`
-      : 'Found via LinkedIn sourcing search.';
+  const match_reason = matchedKws.length > 0
+    ? `Matched on: ${matchedKws.join(', ')}. Found via ${platform}.`
+    : `Found via ${platform} sourcing search.`;
+
+  // Unique key for dedup
+  const dedupeKey = linkedin_url || portfolio_url || url;
+  if (!dedupeKey) return null;
 
   return {
     full_name,
     title: candidateTitle,
     location,
     linkedin_url,
-    source: 'Sourced',
+    portfolio_url,
+    source: platform,
     match_reason,
     match_score: score,
     skills,
@@ -297,17 +308,26 @@ export async function POST(req: NextRequest) {
 
     const kwSets = extractKeywords(jd);
     const BRAVE_API_KEY = process.env.BRAVE_SEARCH_API_KEY || 'BSAkO1bNAF5QCq4K_b3UCuQlR8FNKEP';
+    const isCreative = R.creative.test(jd);
+
+    // ── Platform config — distribute limit across sources ─────────────────
+    const platforms: PlatformConfig[] = [
+      { name: 'LinkedIn', siteQuery: 'site:linkedin.com/in',  limit: 4 },
+      { name: 'Wuzzuf',   siteQuery: 'site:wuzzuf.net',       limit: 3 },
+      { name: 'Bayt',     siteQuery: 'site:bayt.com',         limit: 2 },
+      ...(isCreative ? [{ name: 'Behance' as Platform, siteQuery: 'site:behance.net', limit: 2 }] : []),
+    ];
 
     let candidates: CandidateResult[] = [];
     const seen = new Set<string>();
 
-    // ── Real Brave Search ──────────────────────────────────────────────────
-    for (const kws of kwSets) {
+    // ── Real Brave Search across all platforms ────────────────────────────
+    for (const platform of platforms) {
       if (candidates.length >= limit) break;
-
-      const query = `site:linkedin.com/in ${kws.join(' ')}`;
+      const kws = kwSets[0]; // Use primary keyword set per platform
+      const query = `${platform.siteQuery} ${kws.join(' ')}`;
       const encoded = encodeURIComponent(query);
-      const url = `https://api.search.brave.com/res/v1/web/search?q=${encoded}&count=5`;
+      const url = `https://api.search.brave.com/res/v1/web/search?q=${encoded}&count=${platform.limit + 2}`;
 
       try {
         const resp = await fetch(url, {
@@ -319,7 +339,7 @@ export async function POST(req: NextRequest) {
         });
 
         if (!resp.ok) {
-          console.warn(`Brave search failed for [${kws.join(', ')}]: ${resp.status} ${resp.statusText}`);
+          console.warn(`Brave search failed for ${platform.name}: ${resp.status} ${resp.statusText}`);
           continue;
         }
 
@@ -327,15 +347,16 @@ export async function POST(req: NextRequest) {
         const results: RawBraveResult[] = data?.web?.results || [];
 
         for (const result of results) {
-          const parsed = parseResult(result, kws, jd);
+          const parsed = parseResult(result, kws, jd, platform.name);
           if (!parsed) continue;
-          if (seen.has(parsed.linkedin_url)) continue;
-          seen.add(parsed.linkedin_url);
+          const dedupeKey = parsed.linkedin_url || parsed.portfolio_url || '';
+          if (seen.has(dedupeKey)) continue;
+          seen.add(dedupeKey);
           candidates.push(parsed);
           if (candidates.length >= limit) break;
         }
       } catch (searchErr) {
-        console.warn(`Search error for keyword set [${kws.join(', ')}]:`, searchErr);
+        console.warn(`Search error for ${platform.name}:`, searchErr);
       }
     }
 
@@ -357,14 +378,18 @@ export async function POST(req: NextRequest) {
     const insertedCandidates: CandidateResult[] = [];
 
     for (const candidate of candidates) {
-      // Check for duplicate linkedin_url
+      // Check for duplicate by linkedin_url or portfolio_url
+      const dedupeKey = candidate.linkedin_url || candidate.portfolio_url || '';
+      if (!dedupeKey) continue;
+
+      const field = candidate.linkedin_url ? 'linkedin_url' : 'portfolio_url';
       const { data: existing } = await supabase
         .from('unvetted')
         .select('id')
-        .eq('linkedin_url', candidate.linkedin_url)
+        .eq(field, dedupeKey)
         .maybeSingle();
 
-      if (existing) continue; // skip duplicates
+      if (existing) continue;
 
       const { error: insertErr } = await supabase.from('unvetted').insert(candidate);
       if (!insertErr) {
