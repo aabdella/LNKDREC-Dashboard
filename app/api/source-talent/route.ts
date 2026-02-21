@@ -349,7 +349,6 @@ export async function POST(req: NextRequest) {
         const resp = await fetch(url, {
           headers: {
             'Accept': 'application/json',
-            'Accept-Encoding': 'gzip',
             'X-Subscription-Token': BRAVE_API_KEY,
           },
         });
@@ -378,14 +377,12 @@ export async function POST(req: NextRequest) {
 
     // ── Top-up with mocks if Brave returned too few real results ──────────
     if (candidates.length < 3) {
-      console.log(`Brave returned only ${candidates.length} results — topping up with mock data`);
       const mocks = generateMockCandidates(kwSets, jd);
-      const existingUrls = new Set(candidates.map(c => c.linkedin_url));
-      for (const m of mocks) {
-        if (!existingUrls.has(m.linkedin_url) && candidates.length < limit) {
-          candidates.push(m);
-          existingUrls.add(m.linkedin_url);
-        }
+      const ts = Date.now();
+      for (let i = 0; i < mocks.length && candidates.length < limit; i++) {
+        // Make mock URLs unique per run to avoid dedup collisions
+        const m = { ...mocks[i], linkedin_url: mocks[i].linkedin_url + '-' + ts + '-' + i };
+        candidates.push(m);
       }
     }
 
