@@ -114,36 +114,36 @@ function extractKeywords(jd: string): string[][] {
   }
   const topSkills = detectedSkills.slice(0, 5);
 
-  // Location detection — always put the PRIMARY market first
-  const locationHints: string[] = [];
-  if (R.locationSa.test(jd)) locationHints.push('Saudi Arabia');
-  if (R.locationAe.test(jd)) locationHints.push('UAE');
-  if (R.locationEg.test(jd)) locationHints.push('Egypt');
-  if (locationHints.length === 0) locationHints.push('Egypt'); // default market
+  // Location: candidates are ALWAYS in Egypt regardless of JD market mentions
+  // JD may mention Saudi/UAE/etc. as required market experience — not candidate location
+  const locationHints = ['Egypt', 'Cairo'];
 
-  // Build 3-5 search keyword sets
+  // Detect market experience keywords to use as additional search terms
+  const marketExp: string[] = [];
+  if (R.locationSa.test(jd)) marketExp.push('Saudi market');
+  if (R.locationAe.test(jd)) marketExp.push('UAE market');
+
+  // Build 3-5 search keyword sets — always anchored to Egypt
   const kwSets: string[][] = [];
-  const primaryLocation = locationHints[0];
+  const primaryLocation = 'Egypt';
 
-  // Set 1: role + primary location
+  // Set 1: role + Egypt
   kwSets.push([detectedRole, primaryLocation]);
 
-  // Set 2: role + top skill + location
+  // Set 2: role + top skill + Egypt
   if (topSkills.length > 0) {
     kwSets.push([detectedRole, topSkills[0], primaryLocation]);
   }
 
-  // Set 3: role + second skill (if exists)
+  // Set 3: role + second skill + Egypt
   if (topSkills.length > 1) {
     kwSets.push([detectedRole, topSkills[1], primaryLocation]);
   }
 
-  // Set 4: role + second location if any
-  if (locationHints.length > 1) {
-    kwSets.push([detectedRole, locationHints[1]]);
-  }
+  // Set 4: role + Cairo (more specific Egypt location)
+  kwSets.push([detectedRole, 'Cairo']);
 
-  // Set 5: skills combo
+  // Set 5: skills combo + Egypt
   if (topSkills.length >= 2) {
     kwSets.push([topSkills[0], topSkills[1], primaryLocation]);
   }
@@ -195,19 +195,12 @@ function parseResult(
     candidateTitle = titleRaw.split(' - ').length > 1 ? titleRaw.split(' - ')[0].trim() : (desc.split('.')[0].trim().substring(0, 80) || 'Professional');
   }
 
-  // Location detection
+  // Location: always Egypt — detect specific city if mentioned in profile
   let location = 'Egypt';
   const combinedText = titleRaw + ' ' + desc;
   if (R.locationEg.test(combinedText)) {
     const m = combinedText.match(R.locationEg);
     location = m ? m[0] : 'Egypt';
-  } else if (R.locationAe.test(combinedText)) {
-    const m = combinedText.match(R.locationAe);
-    location = m ? m[0] : 'UAE';
-  } else if (R.locationSa.test(combinedText)) {
-    location = 'Saudi Arabia';
-  } else if (R.remote.test(combinedText)) {
-    location = 'Remote';
   }
 
   // Skills detection
@@ -253,8 +246,8 @@ function generateMockCandidates(kwSets: string[][], jd: string): CandidateResult
   const isFrontend = jdLower.includes('react') || jdLower.includes('frontend') || jdLower.includes('front-end');
   const isBackend = jdLower.includes('backend') || jdLower.includes('node') || jdLower.includes('python');
   const isDesigner = jdLower.includes('figma') || jdLower.includes('ux') || jdLower.includes('designer') || jdLower.includes('graphic') || jdLower.includes('adobe') || jdLower.includes('visual');
-  const isSaudi = jdLower.includes('saudi') || jdLower.includes('riyadh') || jdLower.includes('jeddah');
-  const defaultLocation = isSaudi ? 'Riyadh, Saudi Arabia' : 'Cairo, Egypt';
+  // Candidates are ALWAYS in Egypt — ignore JD market mentions for location
+  const defaultLocation = 'Cairo, Egypt';
   const isData = jdLower.includes('data') || jdLower.includes('ml') || jdLower.includes('machine learning');
 
   type MockTemplate = { name: string; title: string; location: string; skills: string[] };
