@@ -1,6 +1,7 @@
 'use client';
 
 import { supabase } from '@/lib/supabaseClient';
+import { logActivity } from '@/lib/logActivity';
 import { useState, useEffect, useCallback } from 'react';
 import { MagnifyingGlassIcon, XMarkIcon, CheckBadgeIcon, BriefcaseIcon, EnvelopeIcon, PhoneIcon, PencilSquareIcon, Squares2X2Icon, ListBulletIcon, DocumentArrowDownIcon } from '@heroicons/react/24/outline';
 import Image from 'next/image';
@@ -294,6 +295,12 @@ export default function Dashboard() {
     }
 
     // Refresh & Close
+    await logActivity('candidate_vetted', vettingCandidate.full_name, {
+      english: vettingData.english_proficiency,
+      work_presence: vettingData.work_presence,
+      expected_salary: vettingData.expected_salary,
+      notice_period: vettingData.notice_period,
+    }, 'candidate', vettingCandidate.id);
     await fetchCandidates();
     setVettingCandidate(null);
     setSubmittingVetting(false);
@@ -319,7 +326,10 @@ export default function Dashboard() {
               .eq('id', candidate.id);
 
           if (candError) alert('Error unassigning: ' + candError.message);
-          else fetchCandidates();
+          else {
+            await logActivity('candidate_unassigned', candidate.full_name, {}, 'candidate', candidate.id);
+            fetchCandidates();
+          }
       } else {
           // ASSIGN: Open modal to pick a job
           setAssigningCandidate(candidate);
@@ -344,7 +354,7 @@ export default function Dashboard() {
       } else {
           // 2. Update candidate status to Assigned
           await supabase.from('candidates').update({ status: 'Assigned' }).eq('id', assigningCandidate.id);
-          
+          await logActivity('candidate_assigned', assigningCandidate.full_name, { job_id: selectedJobId }, 'candidate', assigningCandidate.id);
           setAssigningCandidate(null);
           setSelectedJobId('');
           fetchCandidates();
