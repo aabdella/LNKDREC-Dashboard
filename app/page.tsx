@@ -2,7 +2,7 @@
 
 import { supabase } from '@/lib/supabaseClient';
 import { useState, useEffect } from 'react';
-import { MagnifyingGlassIcon, XMarkIcon, CheckBadgeIcon, BriefcaseIcon, EnvelopeIcon, PhoneIcon, PencilSquareIcon } from '@heroicons/react/24/outline';
+import { MagnifyingGlassIcon, XMarkIcon, CheckBadgeIcon, BriefcaseIcon, EnvelopeIcon, PhoneIcon, PencilSquareIcon, Squares2X2Icon, ListBulletIcon } from '@heroicons/react/24/outline';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 
@@ -65,6 +65,7 @@ export default function Dashboard() {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('All');
   const [loading, setLoading] = useState(true);
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   
   // Modal States
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
@@ -424,15 +425,44 @@ export default function Dashboard() {
               <option value="Assigned">Assigned Only</option>
             </select>
           </div>
-          <div className="text-sm text-slate-500 font-medium whitespace-nowrap">
-            Showing {filteredCandidates.length} Candidates
+          <div className="flex items-center gap-3">
+            <div className="text-sm text-slate-500 font-medium whitespace-nowrap">
+              Showing {filteredCandidates.length} Candidates
+            </div>
+            {/* View Mode Toggle */}
+            <div className="flex items-center border border-slate-200 rounded-lg overflow-hidden bg-white">
+              <button
+                onClick={() => setViewMode('grid')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold transition-all ${
+                  viewMode === 'grid'
+                    ? 'bg-black text-white'
+                    : 'text-slate-500 hover:bg-slate-50'
+                }`}
+                title="Grid View"
+              >
+                <Squares2X2Icon className="h-4 w-4" />
+                Cards
+              </button>
+              <button
+                onClick={() => setViewMode('list')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold transition-all ${
+                  viewMode === 'list'
+                    ? 'bg-black text-white'
+                    : 'text-slate-500 hover:bg-slate-50'
+                }`}
+                title="List View"
+              >
+                <ListBulletIcon className="h-4 w-4" />
+                List
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* Grid */}
+        {/* Grid / List */}
         {loading ? (
           <div className="text-center py-20 text-slate-400 animate-pulse">Loading talent pool...</div>
-        ) : (
+        ) : viewMode === 'grid' ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredCandidates.map((candidate) => (
               <CandidateCard 
@@ -447,6 +477,39 @@ export default function Dashboard() {
               <div className="col-span-full text-center py-12 text-slate-400">
                 No candidates found matching "{search}"
               </div>
+            )}
+          </div>
+        ) : (
+          /* List View */
+          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+            {filteredCandidates.length === 0 ? (
+              <div className="text-center py-12 text-slate-400">
+                No candidates found matching "{search}"
+              </div>
+            ) : (
+              <table className="w-full text-sm border-collapse">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-200">
+                    <th className="text-left px-4 py-3 text-xs uppercase text-slate-500 font-semibold">Name</th>
+                    <th className="text-left px-4 py-3 text-xs uppercase text-slate-500 font-semibold">Title</th>
+                    <th className="text-left px-4 py-3 text-xs uppercase text-slate-500 font-semibold">Yrs Exp</th>
+                    <th className="text-left px-4 py-3 text-xs uppercase text-slate-500 font-semibold">Links</th>
+                    <th className="text-left px-4 py-3 text-xs uppercase text-slate-500 font-semibold">Status</th>
+                    <th className="text-right px-4 py-3 text-xs uppercase text-slate-500 font-semibold">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredCandidates.map((candidate) => (
+                    <CandidateRow
+                      key={candidate.id}
+                      candidate={candidate}
+                      onViewDetails={() => setSelectedCandidate(candidate)}
+                      onVetCandidate={() => openVettingModal(candidate)}
+                      onToggleAssign={() => toggleAssignment(candidate)}
+                    />
+                  ))}
+                </tbody>
+              </table>
             )}
           </div>
         )}
@@ -651,6 +714,169 @@ export default function Dashboard() {
 }
 
 // Sub-Components
+function CandidateRow({
+  candidate,
+  onViewDetails,
+  onVetCandidate,
+  onToggleAssign,
+}: {
+  candidate: Candidate;
+  onViewDetails: () => void;
+  onVetCandidate: () => void;
+  onToggleAssign: () => void;
+}) {
+  const isVetted = candidate.status === 'Vetted';
+  const isAssigned = candidate.status === 'Assigned';
+
+  // Initials for avatar
+  const initials = candidate.full_name
+    ? candidate.full_name
+        .split(' ')
+        .slice(0, 2)
+        .map((part: string) => part[0])
+        .join('')
+        .toUpperCase()
+    : '?';
+
+  // Health score (same logic as CandidateCard)
+  let healthScore = 0;
+  if (candidate.full_name && candidate.title) healthScore += 20;
+  if (candidate.email) healthScore += 20;
+  if (candidate.phone) healthScore += 20;
+  if (
+    (candidate.skills && candidate.skills.length > 0) ||
+    (candidate.tools && candidate.tools.length > 0) ||
+    (candidate.technologies && candidate.technologies.length > 0)
+  )
+    healthScore += 20;
+  if (candidate.linkedin_url || candidate.portfolio_url) healthScore += 20;
+
+  const healthColor =
+    healthScore >= 80
+      ? 'text-green-600 bg-green-50 border-green-200'
+      : healthScore >= 50
+      ? 'text-yellow-600 bg-yellow-50 border-yellow-200'
+      : 'text-red-600 bg-red-50 border-red-200';
+
+  return (
+    <tr className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+      {/* Name */}
+      <td className="px-4 py-3">
+        <div className="flex items-center gap-2.5">
+          <div className="h-8 w-8 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-xs font-bold text-slate-600 shrink-0">
+            {initials}
+          </div>
+          <span className="font-semibold text-slate-900 whitespace-nowrap">{candidate.full_name}</span>
+        </div>
+      </td>
+
+      {/* Title */}
+      <td className="px-4 py-3 text-slate-500 max-w-[180px]">
+        <span className="line-clamp-1">{candidate.title || '—'}</span>
+      </td>
+
+      {/* Yrs Exp */}
+      <td className="px-4 py-3 text-slate-700 whitespace-nowrap">
+        {candidate.years_experience_total || candidate.years_experience || 0} yrs
+      </td>
+
+      {/* Links */}
+      <td className="px-4 py-3">
+        <div className="flex items-center gap-1.5">
+          {candidate.linkedin_url && (
+            <a
+              href={candidate.linkedin_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              title="LinkedIn"
+              className="inline-flex items-center justify-center h-6 w-6 rounded bg-[#0077b5] hover:bg-[#006097] transition"
+            >
+              <svg className="h-3.5 w-3.5 fill-white" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 0 1-2.063-2.065 2.064 2.064 0 1 1 2.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z" />
+              </svg>
+            </a>
+          )}
+          {candidate.portfolio_url && (
+            <a
+              href={candidate.portfolio_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              title="Portfolio / Behance"
+              className="inline-flex items-center justify-center h-6 w-6 rounded bg-[#1769ff] hover:bg-[#0057e0] transition"
+            >
+              <svg className="h-3.5 w-3.5 fill-white" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path d="M6.938 4.503c.702 0 1.34.06 1.92.188.577.13 1.07.33 1.485.61.41.28.733.65.96 1.12.225.47.34 1.05.34 1.73 0 .74-.17 1.36-.507 1.86-.338.5-.837.9-1.502 1.22.906.26 1.576.72 2.022 1.37.448.66.665 1.45.665 2.36 0 .75-.13 1.39-.41 1.93-.28.55-.67 1-1.16 1.35-.48.348-1.05.6-1.69.75-.63.15-1.28.22-1.96.22H0V4.51h6.938v-.007zm-.412 5.53c.58 0 1.06-.14 1.44-.42.38-.28.57-.72.57-1.32 0-.33-.06-.61-.18-.83-.12-.23-.29-.41-.5-.55-.21-.14-.45-.24-.72-.3-.27-.06-.56-.08-.87-.08H3.9v3.5h2.626zm.15 5.77c.33 0 .64-.03.93-.1.29-.06.54-.17.75-.32.21-.15.38-.36.5-.62.12-.26.18-.59.18-.99 0-.79-.22-1.36-.67-1.71-.45-.35-1.04-.53-1.76-.53H3.9v4.27h2.776zm10.724.54l-.004.012H21.4v.003c-.19.55-.5 1.02-.93 1.42-.42.4-.95.7-1.56.92-.61.22-1.28.33-2 .33-.78 0-1.49-.13-2.12-.4-.63-.27-1.17-.64-1.61-1.12-.44-.48-.78-1.06-1.01-1.74-.23-.68-.35-1.43-.35-2.25 0-.79.12-1.53.37-2.2.25-.67.6-1.25 1.05-1.73.45-.48.99-.85 1.63-1.11.64-.26 1.35-.39 2.12-.39.82 0 1.54.16 2.16.47.62.31 1.13.73 1.54 1.26.41.53.71 1.14.9 1.83.19.69.27 1.42.24 2.19h-6.82c.02.79.26 1.4.7 1.82.44.42 1.02.63 1.74.63.5 0 .93-.12 1.28-.36.35-.24.59-.56.72-.97h2.18zM17.5 13.5c-.04-.67-.26-1.22-.66-1.63-.4-.41-.94-.62-1.62-.62-.47 0-.87.08-1.19.25-.32.17-.58.38-.79.64-.21.26-.36.54-.46.84-.1.3-.15.59-.16.88h4.88v-.36zM14.5 7.35h4.76V8.9H14.5V7.35z" />
+              </svg>
+            </a>
+          )}
+          {!candidate.linkedin_url && !candidate.portfolio_url && (
+            <span className="text-slate-400">—</span>
+          )}
+        </div>
+      </td>
+
+      {/* Status Badge */}
+      <td className="px-4 py-3 whitespace-nowrap">
+        {isAssigned ? (
+          <span className="text-xs font-bold px-2 py-1 rounded-full border bg-green-100 text-green-700 border-green-200 flex items-center gap-1 w-fit">
+            <BriefcaseIcon className="h-3 w-3" /> Matched
+          </span>
+        ) : isVetted ? (
+          <span className="text-xs font-bold px-2 py-1 rounded-full border bg-blue-100 text-blue-700 border-blue-200 flex items-center gap-1 w-fit">
+            <CheckBadgeIcon className="h-3 w-3" /> Vetted
+          </span>
+        ) : (
+          <span
+            className={`text-[10px] font-bold px-2 py-0.5 rounded border flex items-center gap-1 w-fit ${healthColor}`}
+            title="Profile Data Health"
+          >
+            <span className="w-1.5 h-1.5 rounded-full bg-current"></span>
+            {healthScore}% Data
+          </span>
+        )}
+      </td>
+
+      {/* Actions */}
+      <td className="px-4 py-3">
+        <div className="flex items-center justify-end gap-1.5">
+          <button
+            onClick={onViewDetails}
+            className="px-2.5 py-1 text-xs font-semibold bg-white border border-slate-200 text-slate-700 rounded hover:bg-slate-50 transition"
+          >
+            Details
+          </button>
+          <button
+            onClick={onVetCandidate}
+            className={`px-2.5 py-1 text-xs font-semibold rounded transition ${
+              isVetted ? 'bg-green-600 text-white hover:bg-green-700' : 'bg-black text-white hover:bg-zinc-800'
+            }`}
+          >
+            {isVetted || isAssigned ? 'Edit Vetting' : 'Vet'}
+          </button>
+          {(isVetted || isAssigned) && (
+            <button
+              onClick={onToggleAssign}
+              className={`px-2.5 py-1 text-xs font-semibold text-white rounded transition flex items-center gap-1 ${
+                isAssigned ? 'bg-red-600 hover:bg-red-700' : 'bg-blue-600 hover:bg-blue-700'
+              }`}
+            >
+              {isAssigned ? (
+                <>
+                  <XMarkIcon className="h-3 w-3" /> Unmatch
+                </>
+              ) : (
+                <>
+                  <BriefcaseIcon className="h-3 w-3" /> Assign
+                </>
+              )}
+            </button>
+          )}
+        </div>
+      </td>
+    </tr>
+  );
+}
+
 function CandidateCard({ 
     candidate, 
     onViewDetails, 
