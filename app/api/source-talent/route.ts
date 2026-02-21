@@ -57,22 +57,24 @@ const R = {
 function extractKeywords(jd: string): string[][] {
   const text = jd.toLowerCase();
 
-  // Role detection
+  // Role detection — Art Director and Creative Director added explicitly
   const rolePatterns: Record<string, string[]> = {
-    'Software Engineer': ['software engineer', 'software developer', 'swe'],
-    'Frontend Developer': ['frontend', 'front-end', 'front end', 'react developer', 'vue developer', 'angular developer'],
-    'Backend Developer': ['backend', 'back-end', 'back end', 'node.js developer', 'python developer', 'django'],
+    'Art Director':         ['art director'],
+    'Creative Director':    ['creative director'],
+    'Graphic Designer':     ['graphic designer', 'graphic design', 'visual designer', 'senior graphic'],
+    'Software Engineer':    ['software engineer', 'software developer', 'swe'],
+    'Frontend Developer':   ['frontend', 'front-end', 'front end', 'react developer', 'vue developer'],
+    'Backend Developer':    ['backend', 'back-end', 'back end', 'node.js developer', 'python developer'],
     'Full Stack Developer': ['full stack', 'full-stack', 'fullstack'],
-    'Product Manager': ['product manager', 'product management', 'pm '],
-    'UX Designer': ['ux designer', 'ui/ux', 'ui designer', 'product designer'],
-    'Data Scientist': ['data scientist', 'data science', 'ml engineer', 'machine learning'],
-    'DevOps Engineer': ['devops', 'dev ops', 'sre ', 'site reliability', 'infrastructure'],
-    'Mobile Developer': ['mobile developer', 'ios developer', 'android developer', 'react native', 'flutter'],
-    'Marketing Manager': ['marketing manager', 'digital marketing', 'growth manager'],
-    'Sales Manager': ['sales manager', 'account executive', 'business development'],
-    'Graphic Designer': ['graphic designer', 'graphic design', 'visual designer'],
-    'Content Writer': ['content writer', 'copywriter', 'content creator'],
-    'HR Manager': ['hr manager', 'human resources', 'talent acquisition', 'recruiter'],
+    'Product Manager':      ['product manager', 'product management'],
+    'UX Designer':          ['ux designer', 'ui/ux', 'ui designer', 'product designer'],
+    'Data Scientist':       ['data scientist', 'data science', 'ml engineer', 'machine learning'],
+    'DevOps Engineer':      ['devops', 'site reliability', 'infrastructure engineer'],
+    'Mobile Developer':     ['mobile developer', 'ios developer', 'android developer', 'react native'],
+    'Marketing Manager':    ['marketing manager', 'digital marketing', 'growth manager'],
+    'Sales Manager':        ['sales manager', 'account executive', 'business development'],
+    'Content Writer':       ['content writer', 'copywriter', 'content creator'],
+    'HR Manager':           ['hr manager', 'human resources', 'talent acquisition', 'recruiter'],
   };
 
   let detectedRole = 'Professional';
@@ -114,39 +116,40 @@ function extractKeywords(jd: string): string[][] {
   }
   const topSkills = detectedSkills.slice(0, 5);
 
-  // Location: candidates are ALWAYS in Egypt regardless of JD market mentions
-  // JD may mention Saudi/UAE/etc. as required market experience — not candidate location
-  const locationHints = ['Egypt', 'Cairo'];
+  // Location: candidates always in Egypt
+  // Detect market experience keywords from JD — inject into search queries, NOT as location
+  const marketKw: string[] = [];
+  if (R.locationSa.test(jd) || text.includes('ksa')) marketKw.push('Saudi', 'KSA');
+  if (text.includes('gcc') || text.includes('gulf')) marketKw.push('GCC');
+  if (R.locationAe.test(jd)) marketKw.push('GCC');
 
-  // Detect market experience keywords to use as additional search terms
-  const marketExp: string[] = [];
-  if (R.locationSa.test(jd)) marketExp.push('Saudi market');
-  if (R.locationAe.test(jd)) marketExp.push('UAE market');
-
-  // Build 3-5 search keyword sets — always anchored to Egypt
+  // Build 5 keyword sets — always Egypt-anchored, market experience woven in
   const kwSets: string[][] = [];
-  const primaryLocation = 'Egypt';
 
-  // Set 1: role + Egypt
-  kwSets.push([detectedRole, primaryLocation]);
+  // Set 1: role + Egypt + primary market keyword (most targeted — mirrors my manual search)
+  kwSets.push(marketKw.length > 0
+    ? [detectedRole, 'Egypt', marketKw[0]]
+    : [detectedRole, 'Egypt']);
 
-  // Set 2: role + top skill + Egypt
-  if (topSkills.length > 0) {
-    kwSets.push([detectedRole, topSkills[0], primaryLocation]);
-  }
+  // Set 2: role + Egypt + second market keyword (KSA, GCC)
+  kwSets.push(marketKw.length > 1
+    ? [detectedRole, 'Egypt', marketKw[1]]
+    : topSkills.length > 0 ? [detectedRole, topSkills[0], 'Egypt'] : [detectedRole, 'Egypt', 'campaigns']);
 
-  // Set 3: role + second skill + Egypt
-  if (topSkills.length > 1) {
-    kwSets.push([detectedRole, topSkills[1], primaryLocation]);
-  }
+  // Set 3: role + Cairo + market keyword
+  kwSets.push(marketKw.length > 0
+    ? [detectedRole, 'Cairo', marketKw[0]]
+    : [detectedRole, 'Cairo']);
 
-  // Set 4: role + Cairo (more specific Egypt location)
-  kwSets.push([detectedRole, 'Cairo']);
+  // Set 4: role + top skill + Egypt
+  kwSets.push(topSkills.length > 0
+    ? [detectedRole, topSkills[0], 'Egypt']
+    : [detectedRole, 'Egypt']);
 
-  // Set 5: skills combo + Egypt
-  if (topSkills.length >= 2) {
-    kwSets.push([topSkills[0], topSkills[1], primaryLocation]);
-  }
+  // Set 5: skill combo + Egypt or market keyword
+  kwSets.push(topSkills.length >= 2
+    ? [topSkills[0], topSkills[1], 'Egypt']
+    : marketKw.length > 0 ? [detectedRole, 'Egypt', marketKw[0], 'campaigns'] : [detectedRole, 'Egypt', 'campaigns']);
 
   return kwSets.slice(0, 5);
 }
@@ -176,26 +179,37 @@ function parseResult(
   if (platform === 'LinkedIn') {
     const slugMatch = url.match(R.linkedinSlug);
     linkedin_url = slugMatch ? `https://www.linkedin.com/in/${slugMatch[1]}` : url;
-    const dashParts = titleRaw.split(' - ');
-    if (dashParts.length >= 2) {
-      full_name = dashParts[0].trim();
-      candidateTitle = dashParts[1].split(' at ')[0].split(' | ')[0].trim() || 'Professional';
+    // Strip " | LinkedIn" suffix, then split on first " - "
+    const cleaned = titleRaw.replace(new RegExp('[|][ \t]*LinkedIn.*$', 'i'), '').trim();
+    const dashIdx = cleaned.indexOf(' - ');
+    if (dashIdx > 0) {
+      full_name      = cleaned.substring(0, dashIdx).trim();
+      candidateTitle = cleaned.substring(dashIdx + 3).split(' at ')[0].split(' | ')[0].trim() || 'Professional';
     } else {
-      full_name = titleRaw.replace(' | LinkedIn', '').trim().substring(0, 60);
+      full_name = cleaned.trim().substring(0, 60);
+      const firstSentence = desc.replace(new RegExp('<[^>]+>', 'g'), '').split('.')[0].trim();
+      if (firstSentence.length > 3 && firstSentence.length < 100) candidateTitle = firstSentence;
     }
+    // Sanity: skip if name looks like a company/garbage (all caps or too long)
+    if (!full_name || full_name.length > 60 || full_name === full_name.toUpperCase()) return null;
+
   } else if (platform === 'Behance') {
     const slugMatch = url.match(R.behanceSlug);
-    portfolio_url = slugMatch ? `https://www.behance.net/${slugMatch[1]}` : url;
-    full_name = titleRaw.split(' - ')[0].replace('Behance', '').replace('Portfolio', '').trim().substring(0, 60) || 'Designer';
+    portfolio_url  = slugMatch ? `https://www.behance.net/${slugMatch[1]}` : url;
+    const cleaned  = titleRaw.replace(new RegExp('[|].*Behance.*$', 'i'), '').trim();
+    full_name      = cleaned.split(' - ')[0].replace('Portfolio', '').trim().substring(0, 60) || 'Designer';
     candidateTitle = desc.split('.')[0].trim().substring(0, 80) || 'Creative Designer';
   } else {
-    // Wuzzuf / Bayt — these are job postings, extract role info
-    portfolio_url = url;
-    full_name = titleRaw.split(' - ')[0].split(' | ')[0].trim().substring(0, 60) || 'Candidate';
-    candidateTitle = titleRaw.split(' - ').length > 1 ? titleRaw.split(' - ')[0].trim() : (desc.split('.')[0].trim().substring(0, 80) || 'Professional');
+    // Wuzzuf / Bayt — job postings
+    portfolio_url  = url;
+    const cleaned  = titleRaw.replace(new RegExp('[|].*$', ''), '').trim();
+    full_name      = cleaned.split(' - ')[0].trim().substring(0, 60) || 'Candidate';
+    candidateTitle = cleaned.split(' - ').length > 1
+      ? cleaned.split(' - ')[0].trim()
+      : desc.split('.')[0].trim().substring(0, 80) || 'Professional';
   }
 
-  // Location: always Egypt — detect specific city if mentioned in profile
+  // Location: always Egypt, detect city if mentioned
   let location = 'Egypt';
   const combinedText = titleRaw + ' ' + desc;
   if (R.locationEg.test(combinedText)) {
@@ -204,22 +218,25 @@ function parseResult(
   }
 
   // Skills detection
-  const skillKeywords = ['React','Angular','Vue','TypeScript','JavaScript','Node.js','Python','Django','FastAPI','Java','Go','PostgreSQL','MongoDB','AWS','Docker','Kubernetes','GraphQL','Figma','Flutter','Swift','Kotlin','TensorFlow','Photoshop','Illustrator','Adobe XD'];
+  const skillKeywords = ['React','Angular','Vue','TypeScript','JavaScript','Node.js','Python','Django',
+    'FastAPI','Java','Go','PostgreSQL','MongoDB','AWS','Docker','Kubernetes','GraphQL','Figma',
+    'Flutter','Swift','Kotlin','TensorFlow','Photoshop','Illustrator','Adobe XD','After Effects','InDesign','Premiere'];
   const descLower = (titleRaw + ' ' + desc).toLowerCase();
   const skills = skillKeywords.filter(s => descLower.includes(s.toLowerCase())).slice(0, 6);
 
-  // Scoring
-  let score = 40;
+  // Scoring — reward Saudi/GCC market experience heavily
+  let score = 45;
   keywords.forEach(kw => { if (descLower.includes(kw.toLowerCase())) score += 10; });
-  skills.forEach(() => { score += 3; });
-  if (score > 95) score = 95;
+  skills.forEach(() => { score += 2; });
+  if (descLower.includes('saudi') || descLower.includes('ksa'))   score += 15;
+  if (descLower.includes('gcc')   || descLower.includes('gulf'))  score += 10;
+  if (score > 98) score = 98;
 
   const matchedKws = keywords.filter(kw => descLower.includes(kw.toLowerCase()));
   const match_reason = matchedKws.length > 0
     ? `Matched on: ${matchedKws.join(', ')}. Found via ${platform}.`
     : `Found via ${platform} sourcing search.`;
 
-  // Unique key for dedup
   const dedupeKey = linkedin_url || portfolio_url || url;
   if (!dedupeKey) return null;
 
