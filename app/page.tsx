@@ -1676,6 +1676,21 @@ function CVExportModal({
   });
   const [generating, setGenerating] = useState(false);
   const [vetting, setVetting] = useState<Record<string, any> | null>(null);
+  const [egpRate, setEgpRate] = useState<number>(47); // fallback rate
+
+  // Fetch live EGP/USD rate
+  useEffect(() => {
+    async function fetchRate() {
+      try {
+        const res = await fetch('https://api.frankfurter.app/latest?from=USD&to=EGP');
+        const data = await res.json();
+        if (data?.rates?.EGP) setEgpRate(data.rates.EGP);
+      } catch {
+        // keep fallback rate of 47
+      }
+    }
+    fetchRate();
+  }, []);
 
   // Fetch vetting data on mount if candidate is vetted/assigned
   useEffect(() => {
@@ -1730,9 +1745,9 @@ function CVExportModal({
 
       const doc =
         selectedTemplate === 'A' ? (
-          <CVTemplateA candidate={candidate} privacy={privacy} logoBase64={logoBase64} vetting={vetting} />
+          <CVTemplateA candidate={candidate} privacy={privacy} logoBase64={logoBase64} vetting={vetting} egpRate={egpRate} />
         ) : (
-          <CVTemplateB candidate={candidate} privacy={privacy} logoBase64={logoBase64} vetting={vetting} />
+          <CVTemplateB candidate={candidate} privacy={privacy} logoBase64={logoBase64} vetting={vetting} egpRate={egpRate} />
         );
 
       const blob = await pdf(doc).toBlob();
