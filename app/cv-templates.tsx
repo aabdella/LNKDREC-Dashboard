@@ -51,6 +51,7 @@ type TemplateProps = {
   candidate: Candidate;
   privacy: Privacy;
   logoBase64: string;
+  vetting?: Record<string, any> | null;
 };
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -202,9 +203,48 @@ const stylesA = StyleSheet.create({
   section: {
     marginBottom: 16,
   },
+  vettingBox: {
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderRadius: 6,
+    padding: 10,
+    marginTop: 4,
+  },
+  vettingRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 16,
+    marginBottom: 6,
+  },
+  vettingLabel: {
+    fontSize: 9,
+    color: '#94a3b8',
+    fontFamily: 'Helvetica-Bold',
+  },
+  vettingValue: {
+    fontSize: 9,
+    color: '#334155',
+  },
+  benefitsWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 4,
+    marginTop: 4,
+  },
+  benefitChip: {
+    backgroundColor: '#f0fdf4',
+    borderWidth: 1,
+    borderColor: '#bbf7d0',
+    borderRadius: 3,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    fontSize: 8,
+    color: '#15803d',
+  },
 });
 
-export function CVTemplateA({ candidate, privacy, logoBase64 }: TemplateProps) {
+export function CVTemplateA({ candidate, privacy, logoBase64, vetting }: TemplateProps) {
   const skills = getAllSkills(candidate);
   const yrs = candidate.years_experience_total || candidate.years_experience || 0;
 
@@ -278,6 +318,63 @@ export function CVTemplateA({ candidate, privacy, logoBase64 }: TemplateProps) {
                 </View>
               </View>
             ))}
+          </View>
+        )}
+
+        {/* Vetting Details */}
+        {vetting && (
+          <View style={stylesA.section}>
+            <Text style={stylesA.sectionTitle}>Vetting Details</Text>
+            <View style={stylesA.vettingBox}>
+              <View style={stylesA.vettingRow}>
+                {vetting.english_proficiency ? (
+                  <View>
+                    <Text style={stylesA.vettingLabel}>English Level</Text>
+                    <Text style={stylesA.vettingValue}>{vetting.english_proficiency}</Text>
+                  </View>
+                ) : null}
+                {vetting.work_presence ? (
+                  <View>
+                    <Text style={stylesA.vettingLabel}>Work Preference</Text>
+                    <Text style={stylesA.vettingValue}>{vetting.work_presence}</Text>
+                  </View>
+                ) : null}
+                {vetting.notice_period ? (
+                  <View>
+                    <Text style={stylesA.vettingLabel}>Notice Period</Text>
+                    <Text style={stylesA.vettingValue}>{vetting.notice_period}</Text>
+                  </View>
+                ) : null}
+                {vetting.current_salary ? (
+                  <View>
+                    <Text style={stylesA.vettingLabel}>Current Salary</Text>
+                    <Text style={stylesA.vettingValue}>EGP {Number(vetting.current_salary).toLocaleString()}</Text>
+                  </View>
+                ) : null}
+                {vetting.expected_salary ? (
+                  <View>
+                    <Text style={stylesA.vettingLabel}>Expected Salary</Text>
+                    <Text style={stylesA.vettingValue}>EGP {Number(vetting.expected_salary).toLocaleString()}</Text>
+                  </View>
+                ) : null}
+              </View>
+              {vetting.benefits && vetting.benefits.length > 0 ? (
+                <View>
+                  <Text style={stylesA.vettingLabel}>Benefits Required</Text>
+                  <View style={stylesA.benefitsWrap}>
+                    {vetting.benefits.map((b: string, i: number) => (
+                      <Text key={i} style={stylesA.benefitChip}>{b}</Text>
+                    ))}
+                  </View>
+                </View>
+              ) : null}
+              {vetting.notes ? (
+                <View style={{ marginTop: 8 }}>
+                  <Text style={stylesA.vettingLabel}>Interview Notes</Text>
+                  <Text style={{ ...stylesA.vettingValue, marginTop: 2, lineHeight: 1.4 }}>{vetting.notes}</Text>
+                </View>
+              ) : null}
+            </View>
           </View>
         )}
 
@@ -457,7 +554,7 @@ const stylesB = StyleSheet.create({
   },
 });
 
-export function CVTemplateB({ candidate, privacy, logoBase64 }: TemplateProps) {
+export function CVTemplateB({ candidate, privacy, logoBase64, vetting }: TemplateProps) {
   const skills = getAllSkills(candidate);
   const yrs = candidate.years_experience_total || candidate.years_experience || 0;
   const initials = getInitials(candidate.full_name);
@@ -542,6 +639,60 @@ export function CVTemplateB({ candidate, privacy, logoBase64 }: TemplateProps) {
                   </View>
                 </View>
               ))}
+            </View>
+          )}
+
+          {/* Vetting Details */}
+          {vetting && (
+            <View>
+              <Text style={stylesB.contentSectionTitle}>Vetting Details</Text>
+              <View style={{ backgroundColor: '#f8fafc', borderLeftWidth: 3, borderLeftColor: '#4f46e5', paddingHorizontal: 10, paddingVertical: 8 }}>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 16, marginBottom: 6 }}>
+                  {vetting.english_proficiency ? (
+                    <View>
+                      <Text style={{ fontSize: 8, color: '#94a3b8', fontFamily: 'Helvetica-Bold' }}>English Level</Text>
+                      <Text style={{ fontSize: 9, color: '#334155' }}>{vetting.english_proficiency}</Text>
+                    </View>
+                  ) : null}
+                  {vetting.work_presence ? (
+                    <View>
+                      <Text style={{ fontSize: 8, color: '#94a3b8', fontFamily: 'Helvetica-Bold' }}>Work Preference</Text>
+                      <Text style={{ fontSize: 9, color: '#334155' }}>{vetting.work_presence}</Text>
+                    </View>
+                  ) : null}
+                  {vetting.notice_period ? (
+                    <View>
+                      <Text style={{ fontSize: 8, color: '#94a3b8', fontFamily: 'Helvetica-Bold' }}>Notice Period</Text>
+                      <Text style={{ fontSize: 9, color: '#334155' }}>{vetting.notice_period}</Text>
+                    </View>
+                  ) : null}
+                  {vetting.current_salary ? (
+                    <View>
+                      <Text style={{ fontSize: 8, color: '#94a3b8', fontFamily: 'Helvetica-Bold' }}>Current Salary</Text>
+                      <Text style={{ fontSize: 9, color: '#334155' }}>EGP {Number(vetting.current_salary).toLocaleString()}</Text>
+                    </View>
+                  ) : null}
+                  {vetting.expected_salary ? (
+                    <View>
+                      <Text style={{ fontSize: 8, color: '#94a3b8', fontFamily: 'Helvetica-Bold' }}>Expected Salary</Text>
+                      <Text style={{ fontSize: 9, color: '#334155' }}>EGP {Number(vetting.expected_salary).toLocaleString()}</Text>
+                    </View>
+                  ) : null}
+                </View>
+                {vetting.benefits && vetting.benefits.length > 0 ? (
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginBottom: 6 }}>
+                    {vetting.benefits.map((b: string, i: number) => (
+                      <Text key={i} style={{ backgroundColor: '#f0fdf4', borderWidth: 1, borderColor: '#bbf7d0', borderRadius: 3, paddingHorizontal: 6, paddingVertical: 2, fontSize: 8, color: '#15803d' }}>{b}</Text>
+                    ))}
+                  </View>
+                ) : null}
+                {vetting.notes ? (
+                  <View style={{ marginTop: 4 }}>
+                    <Text style={{ fontSize: 8, color: '#94a3b8', fontFamily: 'Helvetica-Bold' }}>Interview Notes</Text>
+                    <Text style={{ fontSize: 9, color: '#475569', marginTop: 2, lineHeight: 1.4 }}>{vetting.notes}</Text>
+                  </View>
+                ) : null}
+              </View>
             </View>
           )}
 

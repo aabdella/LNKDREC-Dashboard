@@ -1675,6 +1675,22 @@ function CVExportModal({
     phone: false,
   });
   const [generating, setGenerating] = useState(false);
+  const [vetting, setVetting] = useState<Record<string, any> | null>(null);
+
+  // Fetch vetting data on mount if candidate is vetted/assigned
+  useEffect(() => {
+    async function fetchVetting() {
+      if (!candidate.id) return;
+      const { data } = await supabase
+        .from('vettings')
+        .select('*')
+        .eq('candidate_id', candidate.id)
+        .order('vetted_at', { ascending: false })
+        .limit(1);
+      if (data && data.length > 0) setVetting(data[0]);
+    }
+    fetchVetting();
+  }, [candidate.id]);
 
   const initials = candidate.full_name
     ? candidate.full_name
@@ -1714,9 +1730,9 @@ function CVExportModal({
 
       const doc =
         selectedTemplate === 'A' ? (
-          <CVTemplateA candidate={candidate} privacy={privacy} logoBase64={logoBase64} />
+          <CVTemplateA candidate={candidate} privacy={privacy} logoBase64={logoBase64} vetting={vetting} />
         ) : (
-          <CVTemplateB candidate={candidate} privacy={privacy} logoBase64={logoBase64} />
+          <CVTemplateB candidate={candidate} privacy={privacy} logoBase64={logoBase64} vetting={vetting} />
         );
 
       const blob = await pdf(doc).toBlob();
