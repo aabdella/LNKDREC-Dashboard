@@ -3,7 +3,7 @@
 import { supabase } from '@/lib/supabaseClient';
 import { logActivity } from '@/lib/logActivity';
 import { useState, useEffect, useCallback } from 'react';
-import { MagnifyingGlassIcon, XMarkIcon, CheckBadgeIcon, BriefcaseIcon, EnvelopeIcon, PhoneIcon, PencilSquareIcon, Squares2X2Icon, ListBulletIcon, DocumentArrowDownIcon } from '@heroicons/react/24/outline';
+import { MagnifyingGlassIcon, XMarkIcon, CheckBadgeIcon, BriefcaseIcon, EnvelopeIcon, PhoneIcon, PencilSquareIcon, Squares2X2Icon, ListBulletIcon, DocumentArrowDownIcon, TrashIcon } from '@heroicons/react/24/outline';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 
@@ -67,6 +67,35 @@ export default function Dashboard() {
   const [filter, setFilter] = useState('All');
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [selectedListIds, setSelectedListIds] = useState<string[]>([]);
+
+  const toggleListSelect = (id: string) => {
+    setSelectedListIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
+  };
+
+  const toggleSelectAllList = () => {
+    if (selectedListIds.length === filteredCandidates.length) {
+      setSelectedListIds([]);
+    } else {
+      setSelectedListIds(filteredCandidates.map(c => c.id));
+    }
+  };
+
+  async function deleteSelectedCandidates() {
+    if (selectedListIds.length === 0) return;
+    const confirmed = window.confirm(
+      `Are you sure you want to permanently delete ${selectedListIds.length} candidate${selectedListIds.length > 1 ? 's' : ''}? This cannot be undone.`
+    );
+    if (!confirmed) return;
+
+    const { error } = await supabase.from('candidates').delete().in('id', selectedListIds);
+    if (error) {
+      alert('Error deleting candidates: ' + error.message);
+    } else {
+      setSelectedListIds([]);
+      fetchCandidates();
+    }
+  }
   
   // Modal States
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
@@ -493,6 +522,30 @@ export default function Dashboard() {
           </div>
         ) : (
           /* List View */
+          <div className="space-y-3">
+            {/* Bulk action bar */}
+            {selectedListIds.length > 0 && (
+              <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 flex items-center justify-between">
+                <span className="text-sm font-semibold text-red-700">
+                  {selectedListIds.length} candidate{selectedListIds.length > 1 ? 's' : ''} selected
+                </span>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setSelectedListIds([])}
+                    className="text-xs px-3 py-1.5 bg-white border border-slate-200 text-slate-600 rounded-md hover:bg-slate-50 transition"
+                  >
+                    Clear
+                  </button>
+                  <button
+                    onClick={deleteSelectedCandidates}
+                    className="text-xs px-3 py-1.5 bg-red-600 text-white font-bold rounded-md hover:bg-red-700 transition flex items-center gap-1"
+                  >
+                    <TrashIcon className="h-3.5 w-3.5" /> Delete Selected
+                  </button>
+                </div>
+              </div>
+            )}
+
           <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
             {filteredCandidates.length === 0 ? (
               <div className="text-center py-12 text-slate-400">
@@ -502,6 +555,14 @@ export default function Dashboard() {
               <table className="w-full text-sm border-collapse">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-200">
+                    <th className="px-4 py-3 w-10">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 rounded border-slate-300 cursor-pointer"
+                        checked={selectedListIds.length === filteredCandidates.length && filteredCandidates.length > 0}
+                        onChange={toggleSelectAllList}
+                      />
+                    </th>
                     <th className="text-left px-4 py-3 text-xs uppercase text-slate-500 font-semibold">Name</th>
                     <th className="text-left px-4 py-3 text-xs uppercase text-slate-500 font-semibold">Title</th>
                     <th className="text-left px-4 py-3 text-xs uppercase text-slate-500 font-semibold">Yrs Exp</th>
@@ -515,6 +576,8 @@ export default function Dashboard() {
                     <CandidateRow
                       key={candidate.id}
                       candidate={candidate}
+                      isSelected={selectedListIds.includes(candidate.id)}
+                      onToggleSelect={() => toggleListSelect(candidate.id)}
                       onViewDetails={() => setSelectedCandidate(candidate)}
                       onVetCandidate={() => openVettingModal(candidate)}
                       onToggleAssign={() => toggleAssignment(candidate)}
@@ -524,6 +587,7 @@ export default function Dashboard() {
                 </tbody>
               </table>
             )}
+          </div>
           </div>
         )}
 
@@ -737,12 +801,16 @@ export default function Dashboard() {
 // Sub-Components
 function CandidateRow({
   candidate,
+  isSelected,
+  onToggleSelect,
   onViewDetails,
   onVetCandidate,
   onToggleAssign,
   onGenerateCV,
 }: {
   candidate: Candidate;
+  isSelected: boolean;
+  onToggleSelect: () => void;
   onViewDetails: () => void;
   onVetCandidate: () => void;
   onToggleAssign: () => void;
@@ -782,7 +850,16 @@ function CandidateRow({
       : 'text-red-600 bg-red-50 border-red-200';
 
   return (
-    <tr className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+    <tr className={`border-b border-slate-100 hover:bg-slate-50 transition-colors ${isSelected ? 'bg-red-50/40' : ''}`}>
+      {/* Checkbox */}
+      <td className="px-4 py-3 w-10" onClick={e => e.stopPropagation()}>
+        <input
+          type="checkbox"
+          className="h-4 w-4 rounded border-slate-300 cursor-pointer"
+          checked={isSelected}
+          onChange={onToggleSelect}
+        />
+      </td>
       {/* Name */}
       <td className="px-4 py-3">
         <div className="flex items-center gap-2.5">
