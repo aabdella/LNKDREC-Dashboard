@@ -15,7 +15,8 @@ type WorkHistory = {
   title: string; 
   start_date?: string; 
   end_date?: string; 
-  years?: number 
+  years?: number;
+  brief?: string;
 };
 type Job = { id: string; title: string; client_id: string; clients: any };
 
@@ -47,6 +48,24 @@ type Candidate = {
   assigned_company_name?: string;
   candidate_interactions?: any[];
   applications?: any[];
+  pipeline_stage?: string;
+  brief?: string;
+  education?: string;
+  courses_certificates?: string;
+};
+
+// Pipeline stages
+const PIPELINE_STAGES = ['Sourced', 'Screening', 'Interview', 'Shortlisted', 'Offer', 'Hired', 'Rejected'] as const;
+type PipelineStage = typeof PIPELINE_STAGES[number];
+
+const STAGE_COLORS: Record<string, string> = {
+  Sourced:     'bg-slate-700 text-slate-100',
+  Screening:   'bg-amber-600 text-white',
+  Interview:   'bg-purple-600 text-white',
+  Shortlisted: 'bg-blue-600 text-white',
+  Offer:       'bg-green-600 text-white',
+  Hired:       'bg-emerald-700 text-white',
+  Rejected:    'bg-red-700 text-white',
 };
 
 // Vetting Options
@@ -68,6 +87,16 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [selectedListIds, setSelectedListIds] = useState<string[]>([]);
+  const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
+  // Pipeline bulk action
+  const [showBulkPipelinePicker, setShowBulkPipelinePicker] = useState(false);
+  const [bulkPipelineStage, setBulkPipelineStage] = useState<PipelineStage>('Sourced');
+  const [movingToPipeline, setMovingToPipeline] = useState(false);
+
+  const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 3500);
+  };
 
   const toggleListSelect = (id: string) => {
     setSelectedListIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
@@ -90,8 +119,27 @@ export default function Dashboard() {
 
     const { error } = await supabase.from('candidates').delete().in('id', selectedListIds);
     if (error) {
-      alert('Error deleting candidates: ' + error.message);
+      showToast('Error deleting candidates: ' + error.message, 'error');
     } else {
+      setSelectedListIds([]);
+      fetchCandidates();
+      showToast(`Deleted ${selectedListIds.length} candidate(s).`);
+    }
+  }
+
+  async function moveBulkToPipeline() {
+    if (selectedListIds.length === 0 || !bulkPipelineStage) return;
+    setMovingToPipeline(true);
+    const { error } = await supabase
+      .from('candidates')
+      .update({ pipeline_stage: bulkPipelineStage, stage_changed_at: new Date().toISOString() })
+      .in('id', selectedListIds);
+    setMovingToPipeline(false);
+    setShowBulkPipelinePicker(false);
+    if (error) {
+      showToast('Error updating pipeline: ' + error.message, 'error');
+    } else {
+      showToast(`Moved ${selectedListIds.length} candidate(s) to ${bulkPipelineStage} ✓`);
       setSelectedListIds([]);
       fetchCandidates();
     }
@@ -102,6 +150,30 @@ export default function Dashboard() {
   const [vettingCandidate, setVettingCandidate] = useState<Candidate | null>(null);
   const [assigningCandidate, setAssigningCandidate] = useState<Candidate | null>(null);
   const [cvCandidate, setCvCandidate] = useState<Candidate | null>(null);
+
+  // Pipeline stage picker for vetting modal
+  const [showVettingPipelinePicker, setShowVettingPipelinePicker] = useState(false);
+  const [vettingPipelineStage, setVettingPipelineStage] = useState<PipelineStage>('Sourced');
+  const [movingVettingToPipeline, setMovingVettingToPipeline] = useState(false);
+
+  async function moveVettingCandidateToPipeline() {
+    if (!vettingCandidate || !vettingPipelineStage) return;
+    setMovingVettingToPipeline(true);
+    const { error } = await supabase
+      .from('candidates')
+      .update({ pipeline_stage: vettingPipelineStage, stage_changed_at: new Date().toISOString() })
+      .eq('id', vettingCandidate.id);
+    setMovingVettingToPipeline(false);
+    setShowVettingPipelinePicker(false);
+    if (error) {
+      showToast('Error updating pipeline: ' + error.message, 'error');
+    } else {
+      showToast(`${vettingCandidate.full_name} moved to ${vettingPipelineStage} ✓`);
+      // Update local vettingCandidate state to reflect change
+      setVettingCandidate(prev => prev ? { ...prev, pipeline_stage: vettingPipelineStage } : prev);
+      fetchCandidates();
+    }
+  }
 
   // Interaction States
   const [interactions, setInteractions] = useState<any[]>([]);
@@ -233,6 +305,12 @@ export default function Dashboard() {
   async function openVettingModal(candidate: Candidate) {
       setVettingCandidate(candidate);
       setLoadingVetting(true);
+      setShowVettingPipelinePicker(false);
+      if (candidate.pipeline_stage) {
+        setVettingPipelineStage(candidate.pipeline_stage as PipelineStage);
+      } else {
+        setVettingPipelineStage('Sourced');
+      }
       
       // Default State
       const defaultState = {
@@ -440,7 +518,17 @@ export default function Dashboard() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
-        
+
+        {/* Toast Notification */}
+        {toast && (
+          <div className={`fixed top-6 right-6 z-[500] px-5 py-3 rounded-xl shadow-2xl text-sm font-semibold transition-all duration-300 flex items-center gap-2 ${
+            toast.type === 'success'
+              ? 'bg-emerald-600 text-white'
+              : 'bg-red-600 text-white'
+          }`}>
+            {toast.type === 'success' ? '✓' : '✕'} {toast.msg}
+          </div>
+        )}
         {/* Search Bar */}
         <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-200 mb-8 flex flex-col md:flex-row gap-4 items-center justify-between">
           <div className="flex flex-1 w-full gap-3">
@@ -525,20 +613,63 @@ export default function Dashboard() {
           <div className="space-y-3">
             {/* Bulk action bar */}
             {selectedListIds.length > 0 && (
-              <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 flex items-center justify-between">
-                <span className="text-sm font-semibold text-red-700">
+              <div className="bg-slate-900 border border-slate-700 rounded-lg px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+                <span className="text-sm font-semibold text-white">
                   {selectedListIds.length} candidate{selectedListIds.length > 1 ? 's' : ''} selected
                 </span>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2 items-center">
                   <button
                     onClick={() => setSelectedListIds([])}
-                    className="text-xs px-3 py-1.5 bg-white border border-slate-200 text-slate-600 rounded-md hover:bg-slate-50 transition"
+                    className="text-xs px-3 py-1.5 bg-slate-700 border border-slate-600 text-slate-200 rounded-md hover:bg-slate-600 transition duration-200"
                   >
                     Clear
                   </button>
+
+                  {/* Move to Pipeline inline picker */}
+                  {showBulkPipelinePicker ? (
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <div className="flex gap-1 flex-wrap">
+                        {PIPELINE_STAGES.map(stage => (
+                          <button
+                            key={stage}
+                            type="button"
+                            onClick={() => setBulkPipelineStage(stage)}
+                            className={`text-xs px-2.5 py-1 rounded-full font-semibold transition duration-200 border ${
+                              bulkPipelineStage === stage
+                                ? STAGE_COLORS[stage] + ' border-transparent ring-2 ring-white/30'
+                                : 'bg-slate-700 text-slate-300 border-slate-600 hover:bg-slate-600'
+                            }`}
+                          >
+                            {stage}
+                          </button>
+                        ))}
+                      </div>
+                      <button
+                        onClick={moveBulkToPipeline}
+                        disabled={movingToPipeline}
+                        className="text-xs px-3 py-1.5 bg-indigo-600 text-white font-bold rounded-md hover:bg-indigo-700 transition duration-200 disabled:opacity-50"
+                      >
+                        {movingToPipeline ? 'Moving...' : 'Confirm'}
+                      </button>
+                      <button
+                        onClick={() => setShowBulkPipelinePicker(false)}
+                        className="text-xs px-2 py-1.5 text-slate-400 hover:text-white transition"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setShowBulkPipelinePicker(true)}
+                      className="text-xs px-3 py-1.5 bg-indigo-600 text-white font-bold rounded-md hover:bg-indigo-700 transition duration-200 flex items-center gap-1"
+                    >
+                      🏷 Move to Pipeline
+                    </button>
+                  )}
+
                   <button
                     onClick={deleteSelectedCandidates}
-                    className="text-xs px-3 py-1.5 bg-red-600 text-white font-bold rounded-md hover:bg-red-700 transition flex items-center gap-1"
+                    className="text-xs px-3 py-1.5 bg-red-600 text-white font-bold rounded-md hover:bg-red-700 transition duration-200 flex items-center gap-1"
                   >
                     <TrashIcon className="h-3.5 w-3.5" /> Delete Selected
                   </button>
@@ -721,6 +852,71 @@ export default function Dashboard() {
                         onChange={e => setVettingData({...vettingData, notes: e.target.value})}
                         placeholder="Candidate demeanor, key strengths, red flags..."
                     ></textarea>
+                </div>
+
+                {/* Move to Pipeline */}
+                <div className="bg-slate-900 rounded-xl p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="text-sm font-bold text-white">Move to Pipeline</h4>
+                      {vettingCandidate?.pipeline_stage && (
+                        <p className="text-xs text-slate-400 mt-0.5">
+                          Currently: <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-bold ml-1 ${STAGE_COLORS[vettingCandidate.pipeline_stage] || 'bg-slate-600 text-slate-200'}`}>{vettingCandidate.pipeline_stage}</span>
+                        </p>
+                      )}
+                    </div>
+                    {!showVettingPipelinePicker && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (vettingCandidate?.pipeline_stage) {
+                            setVettingPipelineStage(vettingCandidate.pipeline_stage as PipelineStage);
+                          }
+                          setShowVettingPipelinePicker(true);
+                        }}
+                        className="text-xs px-3 py-1.5 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 transition duration-200"
+                      >
+                        🏷 Set Stage
+                      </button>
+                    )}
+                  </div>
+                  {showVettingPipelinePicker && (
+                    <div className="space-y-3">
+                      <div className="flex flex-wrap gap-1.5">
+                        {PIPELINE_STAGES.map(stage => (
+                          <button
+                            key={stage}
+                            type="button"
+                            onClick={() => setVettingPipelineStage(stage)}
+                            className={`text-xs px-3 py-1.5 rounded-full font-semibold transition duration-200 border ${
+                              vettingPipelineStage === stage
+                                ? STAGE_COLORS[stage] + ' border-transparent ring-2 ring-white/20'
+                                : 'bg-slate-700 text-slate-300 border-slate-600 hover:bg-slate-600'
+                            }`}
+                          >
+                            {stage}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={moveVettingCandidateToPipeline}
+                          disabled={movingVettingToPipeline}
+                          className="text-xs px-4 py-1.5 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 transition duration-200 disabled:opacity-50"
+                        >
+                          {movingVettingToPipeline ? 'Saving...' : `Confirm → ${vettingPipelineStage}`}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setShowVettingPipelinePicker(false)}
+                          className="text-xs px-3 py-1.5 text-slate-400 hover:text-white transition"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Actions */}
@@ -1214,7 +1410,7 @@ function CandidateDetailsModal({
     };
 
     const addWorkHistory = () => {
-        const newEntry: WorkHistory = { company: '', title: '', start_date: '', end_date: '', years: 0 };
+        const newEntry: WorkHistory = { company: '', title: '', start_date: '', end_date: '', years: 0, brief: '' };
         setFormData(prev => ({
             ...prev,
             work_history: [...(prev.work_history || []), newEntry]
@@ -1368,6 +1564,42 @@ function CandidateDetailsModal({
                                 />
                             </div>
                         </div>
+
+                        {/* Brief & Education — full-width fields */}
+                        <div className="space-y-4 pt-2">
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Brief about candidate</label>
+                                <textarea
+                                    rows={3}
+                                    className="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-black outline-none appearance-none bg-white text-slate-800 transition duration-200 resize-y"
+                                    value={formData.brief || ''}
+                                    onChange={e => handleChange('brief', e.target.value)}
+                                    placeholder="Short bio or summary about the candidate..."
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Education</label>
+                                <textarea
+                                    rows={2}
+                                    className="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-black outline-none appearance-none bg-white text-slate-800 transition duration-200 resize-y"
+                                    value={formData.education || ''}
+                                    onChange={e => handleChange('education', e.target.value)}
+                                    placeholder="e.g. BSc Computer Science, Cairo University, 2019"
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Courses & Certificates Section */}
+                    <div className="space-y-4">
+                        <h3 className="text-lg font-bold text-slate-800 border-b pb-2">Courses &amp; Certificates</h3>
+                        <textarea
+                            rows={3}
+                            className="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-black outline-none appearance-none bg-white text-slate-800 transition duration-200 resize-y"
+                            value={formData.courses_certificates || ''}
+                            onChange={e => handleChange('courses_certificates', e.target.value)}
+                            placeholder="e.g. AWS Certified Solutions Architect, 2022&#10;Google UX Design Certificate, 2021"
+                        />
                     </div>
 
                     {/* Work History Section */}
@@ -1431,6 +1663,17 @@ function CandidateDetailsModal({
                                                 onChange={e => updateWorkHistory(idx, 'end_date', e.target.value)}
                                             />
                                         </div>
+                                    </div>
+                                    {/* Brief about this role */}
+                                    <div className="mt-3">
+                                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Brief about this role</label>
+                                        <textarea
+                                            rows={2}
+                                            className="w-full border border-slate-300 rounded-md p-2 text-sm focus:ring-1 focus:ring-black outline-none appearance-none bg-white transition duration-200 resize-y"
+                                            placeholder="Key responsibilities or achievements in this role..."
+                                            value={work.brief || ''}
+                                            onChange={e => updateWorkHistory(idx, 'brief', e.target.value)}
+                                        />
                                     </div>
                                 </div>
                             ))}
@@ -1590,6 +1833,27 @@ function CandidateDetailsModal({
                     </div>
                 )}
 
+                {candidate.brief && (
+                    <div>
+                        <h3 className="font-bold text-slate-900 mb-2">About</h3>
+                        <p className="text-slate-600 bg-slate-50 p-4 rounded-lg border border-slate-100 whitespace-pre-wrap">{candidate.brief}</p>
+                    </div>
+                )}
+
+                {candidate.education && (
+                    <div>
+                        <h3 className="font-bold text-slate-900 mb-2">Education</h3>
+                        <p className="text-slate-600 whitespace-pre-wrap">{candidate.education}</p>
+                    </div>
+                )}
+
+                {candidate.courses_certificates && (
+                    <div>
+                        <h3 className="font-bold text-slate-900 mb-2">Courses &amp; Certificates</h3>
+                        <p className="text-slate-600 whitespace-pre-wrap">{candidate.courses_certificates}</p>
+                    </div>
+                )}
+
                 <div>
                     <h3 className="font-bold text-slate-900 mb-2">Tech Stack / Skills</h3>
                     <div className="flex flex-wrap gap-2">
@@ -1619,15 +1883,20 @@ function CandidateDetailsModal({
                         <h3 className="font-bold text-slate-900 mb-2">Work History</h3>
                         <div className="space-y-4">
                             {candidate.work_history.map((job, i) => (
-                                <div key={i} className="flex justify-between items-start border-b border-slate-100 pb-3 last:border-0">
-                                    <div>
-                                        <div className="font-bold text-slate-800">{job.company}</div>
-                                        <div className="text-sm text-slate-600">{job.title}</div>
+                                <div key={i} className="border-b border-slate-100 pb-3 last:border-0">
+                                    <div className="flex justify-between items-start">
+                                        <div>
+                                            <div className="font-bold text-slate-800">{job.company}</div>
+                                            <div className="text-sm text-slate-600">{job.title}</div>
+                                        </div>
+                                        <div className="text-right">
+                                            <div className="text-sm font-semibold text-slate-500">{job.start_date} - {job.end_date}</div>
+                                            {job.years && <div className="text-xs text-slate-400">{job.years} Years</div>}
+                                        </div>
                                     </div>
-                                    <div className="text-right">
-                                        <div className="text-sm font-semibold text-slate-500">{job.start_date} - {job.end_date}</div>
-                                        {job.years && <div className="text-xs text-slate-400">{job.years} Years</div>}
-                                    </div>
+                                    {job.brief && (
+                                        <p className="mt-2 text-sm text-slate-500 italic bg-slate-50 px-3 py-2 rounded-md border border-slate-100 whitespace-pre-wrap">{job.brief}</p>
+                                    )}
                                 </div>
                             ))}
                         </div>
