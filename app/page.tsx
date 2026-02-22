@@ -632,7 +632,7 @@ export default function Dashboard() {
 
                 {/* Row 4: Benefits (Multi-select) */}
                 <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">Benefits Required</label>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">Current Benefits</label>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                         {BENEFITS_LIST.map(benefit => (
                             <label key={benefit} className="flex items-center gap-2 cursor-pointer p-2 border border-slate-200 rounded-md hover:bg-slate-50 transition">
