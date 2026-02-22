@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import Link from 'next/link';
 import Image from 'next/image';
+import { ViewColumnsIcon } from '@heroicons/react/24/outline';
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"] });
@@ -39,6 +40,9 @@ export default function RootLayout({
                         <Link href="/sourcing" className="hover:text-white transition py-2 border-b-2 border-transparent hover:border-white">Sourcing</Link>
                         <Link href="/jobs" className="hover:text-white transition py-2 border-b-2 border-transparent hover:border-white">Companies/Jobs</Link>
                         <Link href="/add-candidate" className="hover:text-white transition py-2 border-b-2 border-transparent hover:border-white">Add Candidate</Link>
+                        <Link href="/pipeline" className="hover:text-white transition py-2 border-b-2 border-transparent hover:border-white flex items-center gap-1.5">
+                          <ViewColumnsIcon className="h-4 w-4" />Pipeline
+                        </Link>
                     </nav>
                 </div>
                 
@@ -53,6 +57,9 @@ export default function RootLayout({
                 <Link href="/sourcing" className="hover:text-white transition whitespace-nowrap">Sourcing</Link>
                 <Link href="/jobs" className="hover:text-white transition whitespace-nowrap">Companies/Jobs</Link>
                 <Link href="/add-candidate" className="hover:text-white transition whitespace-nowrap">Add Candidate</Link>
+                <Link href="/pipeline" className="hover:text-white transition whitespace-nowrap flex items-center gap-1">
+                  <ViewColumnsIcon className="h-4 w-4" />Pipeline
+                </Link>
               </nav>
             </div>
           </header>
