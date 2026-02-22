@@ -52,6 +52,7 @@ type TemplateProps = {
   privacy: Privacy;
   logoBase64: string;
   vetting?: Record<string, any> | null;
+  egpRate?: number;
 };
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -70,6 +71,18 @@ function getAllSkills(candidate: Candidate): string[] {
     ...(candidate.tools?.map((t) => t.name) || []),
     ...(candidate.skills || []),
   ];
+}
+
+// Convert EGP salary to USD. If value looks like it's already USD (< 5000), return as-is.
+function formatSalary(raw: any, egpRate: number): string {
+  const val = Number(raw);
+  if (!val) return '—';
+  // Heuristic: if value < 5000 it's likely already in USD
+  if (val < 5000) {
+    return `$${val.toLocaleString()}`;
+  }
+  const usd = Math.round(val / egpRate);
+  return `$${usd.toLocaleString()} (~EGP ${val.toLocaleString()})`;
 }
 
 // ── TEMPLATE A: Clean Minimal ───────────────────────────────────────────────
@@ -244,7 +257,7 @@ const stylesA = StyleSheet.create({
   },
 });
 
-export function CVTemplateA({ candidate, privacy, logoBase64, vetting }: TemplateProps) {
+export function CVTemplateA({ candidate, privacy, logoBase64, vetting, egpRate = 47 }: TemplateProps) {
   const skills = getAllSkills(candidate);
   const yrs = candidate.years_experience_total || candidate.years_experience || 0;
 
@@ -348,13 +361,13 @@ export function CVTemplateA({ candidate, privacy, logoBase64, vetting }: Templat
                 {vetting.current_salary ? (
                   <View>
                     <Text style={stylesA.vettingLabel}>Current Salary</Text>
-                    <Text style={stylesA.vettingValue}>EGP {Number(vetting.current_salary).toLocaleString()}</Text>
+                    <Text style={stylesA.vettingValue}>{formatSalary(vetting.current_salary, egpRate)}</Text>
                   </View>
                 ) : null}
                 {vetting.expected_salary ? (
                   <View>
                     <Text style={stylesA.vettingLabel}>Expected Salary</Text>
-                    <Text style={stylesA.vettingValue}>EGP {Number(vetting.expected_salary).toLocaleString()}</Text>
+                    <Text style={stylesA.vettingValue}>{formatSalary(vetting.expected_salary, egpRate)}</Text>
                   </View>
                 ) : null}
               </View>
@@ -554,7 +567,7 @@ const stylesB = StyleSheet.create({
   },
 });
 
-export function CVTemplateB({ candidate, privacy, logoBase64, vetting }: TemplateProps) {
+export function CVTemplateB({ candidate, privacy, logoBase64, vetting, egpRate = 47 }: TemplateProps) {
   const skills = getAllSkills(candidate);
   const yrs = candidate.years_experience_total || candidate.years_experience || 0;
   const initials = getInitials(candidate.full_name);
@@ -669,13 +682,13 @@ export function CVTemplateB({ candidate, privacy, logoBase64, vetting }: Templat
                   {vetting.current_salary ? (
                     <View>
                       <Text style={{ fontSize: 8, color: '#94a3b8', fontFamily: 'Helvetica-Bold' }}>Current Salary</Text>
-                      <Text style={{ fontSize: 9, color: '#334155' }}>EGP {Number(vetting.current_salary).toLocaleString()}</Text>
+                      <Text style={{ fontSize: 9, color: '#334155' }}>{formatSalary(vetting.current_salary, egpRate)}</Text>
                     </View>
                   ) : null}
                   {vetting.expected_salary ? (
                     <View>
                       <Text style={{ fontSize: 8, color: '#94a3b8', fontFamily: 'Helvetica-Bold' }}>Expected Salary</Text>
-                      <Text style={{ fontSize: 9, color: '#334155' }}>EGP {Number(vetting.expected_salary).toLocaleString()}</Text>
+                      <Text style={{ fontSize: 9, color: '#334155' }}>{formatSalary(vetting.expected_salary, egpRate)}</Text>
                     </View>
                   ) : null}
                 </View>
