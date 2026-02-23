@@ -22,7 +22,6 @@ type Candidate = {
   status?: string;
   pipeline_stage?: string;
   stage_changed_at?: string;
-  updated_at?: string;
   created_at?: string;
   linkedin_url?: string;
 };
@@ -121,7 +120,7 @@ function statusForStage(stage: string): string | null {
 // ─── Days in stage ────────────────────────────────────────────────────────────
 
 function daysInStage(c: Candidate): number {
-  const ref = c.stage_changed_at || c.updated_at || c.created_at;
+  const ref = c.stage_changed_at || c.created_at;
   if (!ref) return 0;
   const ms = Date.now() - new Date(ref).getTime();
   return Math.max(0, Math.floor(ms / (1000 * 60 * 60 * 24)));
@@ -417,8 +416,8 @@ export default function PipelinePage() {
     setLoading(true);
     const { data, error } = await supabase
       .from('candidates')
-      .select('id, full_name, title, match_score, status, pipeline_stage, stage_changed_at, updated_at, created_at, linkedin_url')
-      .order('stage_changed_at', { ascending: false });
+      .select('id, full_name, title, match_score, status, pipeline_stage, stage_changed_at, created_at, linkedin_url')
+      .order('stage_changed_at', { ascending: false, nullsFirst: false });
 
     if (error) {
       console.error('Error fetching candidates:', error);
