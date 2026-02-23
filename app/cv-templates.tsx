@@ -19,6 +19,7 @@ type WorkHistory = {
   start_date?: string;
   end_date?: string;
   years?: number;
+  brief?: string;
 };
 
 type Candidate = {
@@ -38,6 +39,9 @@ type Candidate = {
   match_reason?: string;
   match_score?: number;
   status?: string;
+  brief?: string;
+  education?: string;
+  courses_certificates?: string;
 };
 
 type Privacy = {
@@ -255,6 +259,28 @@ const stylesA = StyleSheet.create({
     fontSize: 8,
     color: '#15803d',
   },
+  aboutText: {
+    fontSize: 9.5,
+    color: '#334155',
+    lineHeight: 1.5,
+  },
+  educationText: {
+    fontSize: 9.5,
+    color: '#334155',
+    lineHeight: 1.5,
+  },
+  coursesText: {
+    fontSize: 9.5,
+    color: '#334155',
+    lineHeight: 1.5,
+  },
+  workBrief: {
+    fontSize: 9,
+    color: '#64748b',
+    fontFamily: 'Helvetica-Oblique',
+    marginTop: 3,
+    lineHeight: 1.5,
+  },
 });
 
 export function CVTemplateA({ candidate, privacy, logoBase64, vetting, egpRate = 47 }: TemplateProps) {
@@ -297,6 +323,14 @@ export function CVTemplateA({ candidate, privacy, logoBase64, vetting, egpRate =
           <Text style={stylesA.infoChip}>Experience: {yrs} years</Text>
         </View>
 
+        {/* About */}
+        {candidate.brief && (
+          <View style={stylesA.section}>
+            <Text style={stylesA.sectionTitle}>About</Text>
+            <Text style={stylesA.aboutText}>{candidate.brief}</Text>
+          </View>
+        )}
+
         {/* Skills */}
         {skills.length > 0 && (
           <View style={stylesA.section}>
@@ -329,8 +363,27 @@ export function CVTemplateA({ candidate, privacy, logoBase64, vetting, egpRate =
                     ) : null}
                   </View>
                 </View>
+                {job.brief ? (
+                  <Text style={stylesA.workBrief}>{job.brief}</Text>
+                ) : null}
               </View>
             ))}
+          </View>
+        )}
+
+        {/* Education */}
+        {candidate.education && (
+          <View style={stylesA.section}>
+            <Text style={stylesA.sectionTitle}>Education</Text>
+            <Text style={stylesA.educationText}>{candidate.education}</Text>
+          </View>
+        )}
+
+        {/* Courses & Certificates */}
+        {candidate.courses_certificates && (
+          <View style={stylesA.section}>
+            <Text style={stylesA.sectionTitle}>Courses &amp; Certificates</Text>
+            <Text style={stylesA.coursesText}>{candidate.courses_certificates}</Text>
           </View>
         )}
 
@@ -565,6 +618,28 @@ const stylesB = StyleSheet.create({
     fontSize: 8,
     color: '#94a3b8',
   },
+  workBrief: {
+    fontSize: 8.5,
+    color: '#64748b',
+    fontFamily: 'Helvetica-Oblique',
+    marginTop: 3,
+    lineHeight: 1.5,
+  },
+  aboutText: {
+    fontSize: 9,
+    color: '#334155',
+    lineHeight: 1.5,
+  },
+  educationText: {
+    fontSize: 9,
+    color: '#334155',
+    lineHeight: 1.5,
+  },
+  coursesText: {
+    fontSize: 9,
+    color: '#334155',
+    lineHeight: 1.5,
+  },
 });
 
 export function CVTemplateB({ candidate, privacy, logoBase64, vetting, egpRate = 47 }: TemplateProps) {
@@ -630,6 +705,14 @@ export function CVTemplateB({ candidate, privacy, logoBase64, vetting, egpRate =
             ) : null}
           </View>
 
+          {/* About */}
+          {candidate.brief && (
+            <View>
+              <Text style={stylesB.contentSectionTitle}>About</Text>
+              <Text style={stylesB.aboutText}>{candidate.brief}</Text>
+            </View>
+          )}
+
           {/* Work History */}
           {candidate.work_history && candidate.work_history.length > 0 && (
             <View>
@@ -650,8 +733,27 @@ export function CVTemplateB({ candidate, privacy, logoBase64, vetting, egpRate =
                       ) : null}
                     </View>
                   </View>
+                  {job.brief ? (
+                    <Text style={stylesB.workBrief}>{job.brief}</Text>
+                  ) : null}
                 </View>
               ))}
+            </View>
+          )}
+
+          {/* Education */}
+          {candidate.education && (
+            <View>
+              <Text style={stylesB.contentSectionTitle}>Education</Text>
+              <Text style={stylesB.educationText}>{candidate.education}</Text>
+            </View>
+          )}
+
+          {/* Courses & Certificates */}
+          {candidate.courses_certificates && (
+            <View>
+              <Text style={stylesB.contentSectionTitle}>Courses &amp; Certificates</Text>
+              <Text style={stylesB.coursesText}>{candidate.courses_certificates}</Text>
             </View>
           )}
 

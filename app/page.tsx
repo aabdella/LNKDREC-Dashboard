@@ -2033,6 +2033,7 @@ function CVExportModal({
   const [generating, setGenerating] = useState(false);
   const [vetting, setVetting] = useState<Record<string, any> | null>(null);
   const [egpRate, setEgpRate] = useState<number>(47); // fallback rate
+  const [editableMatchReason, setEditableMatchReason] = useState<string>(candidate.match_reason || '');
 
   // Fetch live EGP/USD rate
   useEffect(() => {
@@ -2101,9 +2102,9 @@ function CVExportModal({
 
       const doc =
         selectedTemplate === 'A' ? (
-          <CVTemplateA candidate={candidate} privacy={privacy} logoBase64={logoBase64} vetting={vetting} egpRate={egpRate} />
+          <CVTemplateA candidate={{ ...candidate, match_reason: editableMatchReason }} privacy={privacy} logoBase64={logoBase64} vetting={vetting} egpRate={egpRate} />
         ) : (
-          <CVTemplateB candidate={candidate} privacy={privacy} logoBase64={logoBase64} vetting={vetting} egpRate={egpRate} />
+          <CVTemplateB candidate={{ ...candidate, match_reason: editableMatchReason }} privacy={privacy} logoBase64={logoBase64} vetting={vetting} egpRate={egpRate} />
         );
 
       const blob = await pdf(doc).toBlob();
@@ -2294,6 +2295,18 @@ function CVExportModal({
                 </div>
               </div>
             </div>
+          </div>
+
+          {/* Editable Match Reason */}
+          <div>
+            <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wider mb-3">Match Reason / Notes</h3>
+            <textarea
+              value={editableMatchReason}
+              onChange={(e) => setEditableMatchReason(e.target.value)}
+              rows={4}
+              placeholder="Enter match reason or notes for this candidate..."
+              className="w-full px-4 py-3 bg-slate-900 text-slate-100 placeholder-slate-500 border border-slate-700 rounded-xl text-sm appearance-none focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-y"
+            />
           </div>
         </div>
 
