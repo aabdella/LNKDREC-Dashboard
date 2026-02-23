@@ -418,7 +418,7 @@ export default function PipelinePage() {
     const { data, error } = await supabase
       .from('candidates')
       .select('id, full_name, title, match_score, status, pipeline_stage, stage_changed_at, updated_at, created_at, linkedin_url')
-      .not('pipeline_stage', 'is', null)
+      .filter('pipeline_stage', 'not.is', null)
       .order('match_score', { ascending: false });
 
     if (error) {
