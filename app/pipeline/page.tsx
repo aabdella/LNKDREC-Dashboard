@@ -418,6 +418,7 @@ export default function PipelinePage() {
     const { data, error } = await supabase
       .from('candidates')
       .select('id, full_name, title, match_score, status, pipeline_stage, stage_changed_at, updated_at, created_at, linkedin_url')
+      .not('pipeline_stage', 'is', null)
       .order('match_score', { ascending: false });
 
     if (error) {
@@ -425,7 +426,7 @@ export default function PipelinePage() {
     } else {
       const enriched = (data || []).map((c: Candidate) => ({
         ...c,
-        pipeline_stage: c.pipeline_stage || deriveStage(c),
+        pipeline_stage: c.pipeline_stage,
       }));
       setCandidates(enriched);
     }
@@ -564,6 +565,14 @@ export default function PipelinePage() {
       {loading ? (
         <div className="flex-1 flex items-center justify-center text-slate-400 animate-pulse text-sm">
           Loading pipeline...
+        </div>
+      ) : total === 0 ? (
+        <div className="flex-1 flex flex-col items-center justify-center gap-3 text-center px-4">
+          <div className="text-5xl">📋</div>
+          <p className="text-slate-700 font-semibold text-base">No candidates in the pipeline yet.</p>
+          <p className="text-slate-400 text-sm max-w-sm">
+            Assign a stage from the Candidates list to get started.
+          </p>
         </div>
       ) : (
         <DragDropContext onDragEnd={onDragEnd}>
