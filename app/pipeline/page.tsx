@@ -10,6 +10,7 @@ import {
   ChevronDownIcon,
   ChevronRightIcon,
   ExclamationTriangleIcon,
+  BuildingOfficeIcon,
 } from '@heroicons/react/24/outline';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -24,6 +25,10 @@ type Candidate = {
   stage_changed_at?: string;
   created_at?: string;
   linkedin_url?: string;
+  assigned_company_name?: string;
+  assigned_job_title?: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  applications?: any[];
 };
 
 type Stage = {
@@ -158,6 +163,7 @@ function CandidateCard({
 }) {
   const days = daysInStage(candidate);
   const score = candidate.match_score;
+  const companyName = candidate.assigned_company_name;
 
   return (
     <Draggable draggableId={candidate.id} index={index}>
@@ -186,6 +192,12 @@ function CandidateCard({
                   {candidate.title}
                 </p>
               )}
+              {companyName && (
+                <p className="flex items-center gap-0.5 text-[11px] text-slate-400 leading-tight truncate mt-0.5">
+                  <BuildingOfficeIcon className="h-3 w-3 shrink-0" />
+                  {companyName}
+                </p>
+              )}
             </div>
             {/* Score chip */}
             {score !== undefined && score !== null && (
@@ -195,7 +207,7 @@ function CandidateCard({
             )}
           </div>
 
-          {/* Bottom row: days + linkedin + action */}
+          {/* Bottom row: days + linkedin + company | cv + details */}
           <div className="flex items-center justify-between gap-1 mt-1">
             <div className="flex items-center gap-2">
               <span className="flex items-center gap-0.5 text-[10px] text-slate-400">
@@ -217,12 +229,22 @@ function CandidateCard({
                 </a>
               )}
             </div>
-            <button
-              onClick={() => onDetails(candidate)}
-              className="text-[10px] font-semibold px-2 py-0.5 bg-slate-50 border border-slate-200 text-slate-600 rounded hover:bg-slate-100 transition"
-            >
-              Details
-            </button>
+            <div className="flex items-center gap-1">
+              <a
+                href={`/?cv=${candidate.id}`}
+                onClick={(e) => e.stopPropagation()}
+                className="text-[10px] font-semibold px-2 py-0.5 bg-slate-50 border border-slate-200 text-slate-600 rounded hover:bg-slate-100 transition"
+                title="Generate CV"
+              >
+                CV
+              </a>
+              <button
+                onClick={() => onDetails(candidate)}
+                className="text-[10px] font-semibold px-2 py-0.5 bg-slate-50 border border-slate-200 text-slate-600 rounded hover:bg-slate-100 transition"
+              >
+                Details
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -416,7 +438,7 @@ export default function PipelinePage() {
     setLoading(true);
     const { data, error } = await supabase
       .from('candidates')
-      .select('id, full_name, title, match_score, status, pipeline_stage, stage_changed_at, created_at, linkedin_url')
+      .select('id, full_name, title, match_score, status, pipeline_stage, stage_changed_at, created_at, linkedin_url, applications(job_id, jobs(title, clients(name)))')
       .order('stage_changed_at', { ascending: false, nullsFirst: false });
 
     if (error) {
@@ -424,10 +446,19 @@ export default function PipelinePage() {
     } else {
       const enriched = (data || [])
         .filter((c: Candidate) => c.pipeline_stage !== null && c.pipeline_stage !== undefined)
-        .map((c: Candidate) => ({
-          ...c,
-          pipeline_stage: c.pipeline_stage,
-        }));
+        .map((c: Candidate) => {
+          const apps = c.applications;
+          const firstApp = Array.isArray(apps) ? apps[0] : undefined;
+          const jobClients = firstApp?.jobs?.clients;
+          const companyName = Array.isArray(jobClients) ? jobClients[0]?.name : jobClients?.name;
+          const jobTitle = firstApp?.jobs?.title;
+          return {
+            ...c,
+            pipeline_stage: c.pipeline_stage,
+            assigned_company_name: companyName ?? undefined,
+            assigned_job_title: jobTitle ?? undefined,
+          };
+        });
       setCandidates(enriched);
     }
     setLoading(false);

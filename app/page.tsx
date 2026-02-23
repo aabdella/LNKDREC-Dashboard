@@ -2,10 +2,11 @@
 
 import { supabase } from '@/lib/supabaseClient';
 import { logActivity } from '@/lib/logActivity';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, Suspense } from 'react';
 import { MagnifyingGlassIcon, XMarkIcon, CheckBadgeIcon, BriefcaseIcon, EnvelopeIcon, PhoneIcon, PencilSquareIcon, Squares2X2Icon, ListBulletIcon, DocumentArrowDownIcon, TrashIcon } from '@heroicons/react/24/outline';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 
 // Types
 type Tool = { name: string; years: number };
@@ -70,6 +71,15 @@ const BENEFITS_LIST = [
 ];
 
 export default function Dashboard() {
+  return (
+    <Suspense fallback={null}>
+      <DashboardInner />
+    </Suspense>
+  );
+}
+
+function DashboardInner() {
+  const searchParams = useSearchParams();
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [search, setSearch] = useState('');
@@ -193,6 +203,16 @@ export default function Dashboard() {
     fetchCandidates();
     fetchJobs();
   }, []);
+
+  // Auto-trigger CV generation when ?cv=<id> param is present
+  useEffect(() => {
+    const cvId = searchParams?.get('cv');
+    if (!cvId || candidates.length === 0) return;
+    const match = candidates.find((c) => c.id === cvId);
+    if (match) {
+      setCvCandidate(match);
+    }
+  }, [searchParams, candidates]);
 
   async function fetchCandidates() {
     setLoading(true);
