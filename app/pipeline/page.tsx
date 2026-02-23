@@ -37,35 +37,36 @@ type Stage = {
 };
 
 // ─── Stage Config ─────────────────────────────────────────────────────────────
+// Stage order & names sourced from lib/constants.ts (single source of truth).
 
 const STAGES: Stage[] = [
   {
-    id: 'Unvetted',
-    label: 'Unvetted',
+    id: 'Sourced',
+    label: 'Sourced',
     color: 'bg-slate-100',
     textColor: 'text-slate-700',
     badgeColor: 'bg-slate-200 text-slate-700',
     borderColor: 'border-l-slate-400',
   },
   {
-    id: 'Screening',
-    label: 'Screening',
+    id: 'Lnkd Interview',
+    label: 'Lnkd Interview',
     color: 'bg-amber-50',
     textColor: 'text-amber-800',
     badgeColor: 'bg-amber-200 text-amber-800',
     borderColor: 'border-l-amber-400',
   },
   {
-    id: 'Submitted',
-    label: 'Submitted',
+    id: 'Shortlisted by Lnkd',
+    label: 'Shortlisted by Lnkd',
     color: 'bg-blue-50',
     textColor: 'text-blue-800',
     badgeColor: 'bg-blue-200 text-blue-800',
     borderColor: 'border-l-blue-400',
   },
   {
-    id: 'Interview',
-    label: 'Interview',
+    id: 'Client Interview',
+    label: 'Client Interview',
     color: 'bg-purple-50',
     textColor: 'text-purple-800',
     badgeColor: 'bg-purple-200 text-purple-800',
@@ -101,17 +102,17 @@ const STAGES: Stage[] = [
 
 function deriveStage(c: Candidate): string {
   if (c.pipeline_stage) return c.pipeline_stage;
-  if (!c.status || c.status === 'Unvetted') return 'Unvetted';
-  if (c.status === 'Vetted') return 'Screening';
-  if (c.status === 'Assigned') return 'Submitted';
-  return 'Unvetted';
+  if (!c.status || c.status === 'Unvetted') return 'Sourced';
+  if (c.status === 'Vetted') return 'Lnkd Interview';
+  if (c.status === 'Assigned') return 'Shortlisted by Lnkd';
+  return 'Sourced';
 }
 
 // ─── Status sync when moving ──────────────────────────────────────────────────
 
 function statusForStage(stage: string): string | null {
-  if (stage === 'Unvetted') return 'Unvetted';
-  if (stage === 'Screening' || stage === 'Submitted' || stage === 'Interview' || stage === 'Offer') return 'Vetted';
+  if (stage === 'Sourced') return 'Unvetted';
+  if (stage === 'Lnkd Interview' || stage === 'Shortlisted by Lnkd' || stage === 'Client Interview' || stage === 'Offer') return 'Vetted';
   if (stage === 'Hired') return 'Assigned';
   if (stage === 'Rejected') return null; // keep existing
   return null;
@@ -441,11 +442,11 @@ export default function PipelinePage() {
     const map: Record<string, Candidate[]> = {};
     STAGES.forEach((s) => (map[s.id] = []));
     candidates.forEach((c) => {
-      const stage = c.pipeline_stage || 'Unvetted';
+      const stage = c.pipeline_stage || 'Sourced';
       if (map[stage]) {
         map[stage].push(c);
       } else {
-        map['Unvetted'].push(c);
+        map['Sourced'].push(c);
       }
     });
     return map;
@@ -550,10 +551,10 @@ export default function PipelinePage() {
         <span className="text-sm font-semibold text-slate-700">Pipeline</span>
         <div className="h-4 w-px bg-slate-200" />
         <StatPill label="Total" count={total} color="bg-slate-100 text-slate-700" />
-        <StatPill label="Unvetted" count={grouped['Unvetted']?.length || 0} color="bg-slate-200 text-slate-700" />
-        <StatPill label="Screening" count={grouped['Screening']?.length || 0} color="bg-amber-100 text-amber-800" />
-        <StatPill label="Submitted" count={grouped['Submitted']?.length || 0} color="bg-blue-100 text-blue-800" />
-        <StatPill label="Interview" count={grouped['Interview']?.length || 0} color="bg-purple-100 text-purple-800" />
+        <StatPill label="Sourced" count={grouped['Sourced']?.length || 0} color="bg-slate-200 text-slate-700" />
+        <StatPill label="Lnkd Interview" count={grouped['Lnkd Interview']?.length || 0} color="bg-amber-100 text-amber-800" />
+        <StatPill label="Shortlisted by Lnkd" count={grouped['Shortlisted by Lnkd']?.length || 0} color="bg-blue-100 text-blue-800" />
+        <StatPill label="Client Interview" count={grouped['Client Interview']?.length || 0} color="bg-purple-100 text-purple-800" />
         <StatPill label="Offer" count={grouped['Offer']?.length || 0} color="bg-green-100 text-green-800" />
         <StatPill label="Hired" count={grouped['Hired']?.length || 0} color="bg-emerald-100 text-emerald-800" />
         <StatPill label="Rejected" count={grouped['Rejected']?.length || 0} color="bg-red-100 text-red-700" />

@@ -54,19 +54,9 @@ type Candidate = {
   courses_certificates?: string;
 };
 
-// Pipeline stages
-const PIPELINE_STAGES = ['Sourced', 'Screening', 'Interview', 'Shortlisted', 'Offer', 'Hired', 'Rejected'] as const;
-type PipelineStage = typeof PIPELINE_STAGES[number];
-
-const STAGE_COLORS: Record<string, string> = {
-  Sourced:     'bg-slate-700 text-slate-100',
-  Screening:   'bg-amber-600 text-white',
-  Interview:   'bg-purple-600 text-white',
-  Shortlisted: 'bg-blue-600 text-white',
-  Offer:       'bg-green-600 text-white',
-  Hired:       'bg-emerald-700 text-white',
-  Rejected:    'bg-red-700 text-white',
-};
+// Pipeline stages — imported from shared constants (single source of truth)
+import { PIPELINE_STAGES, STAGE_COLORS } from '@/lib/constants';
+type PipelineStage = (typeof PIPELINE_STAGES)[number];
 
 // Vetting Options
 const ENGLISH_LEVELS = ['Weak', 'Acceptable', 'Good', 'Very Good', 'Excellent'];
