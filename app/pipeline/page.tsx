@@ -418,16 +418,17 @@ export default function PipelinePage() {
     const { data, error } = await supabase
       .from('candidates')
       .select('id, full_name, title, match_score, status, pipeline_stage, stage_changed_at, updated_at, created_at, linkedin_url')
-      .filter('pipeline_stage', 'not.is', null)
-      .order('match_score', { ascending: false });
+      .order('stage_changed_at', { ascending: false });
 
     if (error) {
       console.error('Error fetching candidates:', error);
     } else {
-      const enriched = (data || []).map((c: Candidate) => ({
-        ...c,
-        pipeline_stage: c.pipeline_stage,
-      }));
+      const enriched = (data || [])
+        .filter((c: Candidate) => c.pipeline_stage !== null && c.pipeline_stage !== undefined)
+        .map((c: Candidate) => ({
+          ...c,
+          pipeline_stage: c.pipeline_stage,
+        }));
       setCandidates(enriched);
     }
     setLoading(false);
