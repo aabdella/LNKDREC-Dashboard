@@ -25,6 +25,7 @@ type Candidate = {
   stage_changed_at?: string;
   created_at?: string;
   linkedin_url?: string;
+  portfolio_url?: string;
   assigned_company_name?: string;
   assigned_job_title?: string;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -156,14 +157,18 @@ function CandidateCard({
   candidate,
   index,
   onDetails,
+  onRemoveFromPipeline,
 }: {
   candidate: Candidate;
   index: number;
   onDetails: (c: Candidate) => void;
+  onRemoveFromPipeline: (id: string) => void;
 }) {
   const days = daysInStage(candidate);
   const score = candidate.match_score;
   const companyName = candidate.assigned_company_name;
+  const hasLinkedIn = !!candidate.linkedin_url;
+  const hasBehance = !!candidate.portfolio_url;
 
   return (
     <Draggable draggableId={candidate.id} index={index}>
@@ -173,17 +178,28 @@ function CandidateCard({
           {...provided.draggableProps}
           {...provided.dragHandleProps}
           className={`
-            bg-white rounded-lg border border-slate-200 p-3 mb-2 shadow-sm
-            hover:shadow-md hover:border-slate-300 transition-all cursor-grab active:cursor-grabbing select-none
+            relative bg-white rounded-lg border border-slate-200 p-3 mb-2 shadow-sm
+            hover:shadow-md hover:border-slate-300 transition-all cursor-grab active:cursor-grabbing select-none group
             ${snapshot.isDragging ? 'shadow-xl ring-2 ring-black/10 rotate-1 scale-105' : ''}
           `}
         >
+          {/* Subtle X — remove from pipeline */}
+          <button
+            onClick={(e) => { e.stopPropagation(); onRemoveFromPipeline(candidate.id); }}
+            className="absolute top-1.5 right-1.5 h-4 w-4 rounded-full flex items-center justify-center text-slate-300 hover:text-slate-500 hover:bg-slate-100 transition opacity-0 group-hover:opacity-100"
+            title="Remove from pipeline"
+          >
+            <svg className="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+
           {/* Top row: avatar + name */}
           <div className="flex items-start gap-2.5 mb-2">
             <div className="h-8 w-8 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-xs font-bold text-slate-600 shrink-0">
               {initials(candidate.full_name || '?')}
             </div>
-            <div className="flex-1 min-w-0">
+            <div className="flex-1 min-w-0 pr-4">
               <p className="font-semibold text-sm text-slate-900 leading-tight truncate">
                 {candidate.full_name}
               </p>
@@ -207,14 +223,15 @@ function CandidateCard({
             )}
           </div>
 
-          {/* Bottom row: days + linkedin + company | cv + details */}
+          {/* Bottom row: days + linkedin/behance | cv + details */}
           <div className="flex items-center justify-between gap-1 mt-1">
             <div className="flex items-center gap-2">
               <span className="flex items-center gap-0.5 text-[10px] text-slate-400">
                 <ClockIcon className="h-3 w-3" />
                 {days}d
               </span>
-              {candidate.linkedin_url && (
+              {/* LinkedIn icon — show if linkedin_url exists */}
+              {hasLinkedIn && (
                 <a
                   href={candidate.linkedin_url}
                   target="_blank"
@@ -225,6 +242,21 @@ function CandidateCard({
                 >
                   <svg className="h-3 w-3 fill-white" viewBox="0 0 24 24">
                     <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 0 1-2.063-2.065 2.064 2.064 0 1 1 2.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z" />
+                  </svg>
+                </a>
+              )}
+              {/* Behance icon — show only if portfolio_url exists and no linkedin */}
+              {!hasLinkedIn && hasBehance && (
+                <a
+                  href={candidate.portfolio_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  className="inline-flex items-center justify-center h-5 w-5 rounded bg-[#1769ff] hover:bg-[#0052cc] transition shrink-0"
+                  title="Behance Portfolio"
+                >
+                  <svg className="h-3 w-3 fill-white" viewBox="0 0 24 24">
+                    <path d="M22 7h-7V5h7v2zm1.726 10c-.442 1.297-2.029 3-5.101 3-3.074 0-5.564-1.729-5.564-5.675 0-3.91 2.325-5.92 5.466-5.92 3.082 0 4.964 1.782 5.375 4.426.078.506.109 1.188.095 2.14H15.97c.13 1.202.836 1.883 2.168 1.883.902 0 1.574-.413 1.798-1.102l2.79.273zm-5.188-4h3.954c-.07-1.03-.677-1.867-1.886-1.867-1.246 0-1.972.875-2.114 1.867zM8.207 10.5c.367-.51.602-1.154.602-1.946C8.809 6.604 7.672 5.5 5.758 5.5H0v13h6.05c2.114 0 3.561-1.222 3.561-3.233 0-1.313-.538-2.254-1.404-2.767zM2.337 7.773h2.947c.876 0 1.418.44 1.418 1.204 0 .82-.588 1.24-1.498 1.24H2.337V7.773zm3.265 8.454H2.337v-2.84h3.207c1.002 0 1.607.505 1.607 1.42 0 .944-.568 1.42-1.549 1.42z" />
                   </svg>
                 </a>
               )}
@@ -260,12 +292,14 @@ function StageColumn({
   collapsed,
   onToggleCollapse,
   onDetails,
+  onRemoveFromPipeline,
 }: {
   stage: Stage;
   candidates: Candidate[];
   collapsed: boolean;
   onToggleCollapse: () => void;
   onDetails: (c: Candidate) => void;
+  onRemoveFromPipeline: (id: string) => void;
 }) {
   return (
     <div
@@ -328,7 +362,7 @@ function StageColumn({
                 </div>
               )}
               {candidates.map((c, i) => (
-                <CandidateCard key={c.id} candidate={c} index={i} onDetails={onDetails} />
+                <CandidateCard key={c.id} candidate={c} index={i} onDetails={onDetails} onRemoveFromPipeline={onRemoveFromPipeline} />
               ))}
               {provided.placeholder}
             </div>
@@ -438,7 +472,7 @@ export default function PipelinePage() {
     setLoading(true);
     const { data, error } = await supabase
       .from('candidates')
-      .select('id, full_name, title, match_score, status, pipeline_stage, stage_changed_at, created_at, linkedin_url, applications(job_id, jobs(title, clients(name)))')
+      .select('id, full_name, title, match_score, status, pipeline_stage, stage_changed_at, created_at, linkedin_url, portfolio_url, applications(job_id, jobs(title, clients(name)))')
       .order('stage_changed_at', { ascending: false, nullsFirst: false });
 
     if (error) {
@@ -483,6 +517,26 @@ export default function PipelinePage() {
     });
     return map;
   }, [candidates]);
+
+  // ─── Drag End ─────────────────────────────────────────────────────────────────
+
+  // ─── Remove from pipeline ─────────────────────────────────────────────────────
+
+  const removeFromPipeline = useCallback(async (id: string) => {
+    // Optimistic: remove from local state immediately
+    setCandidates((prev) => prev.filter((c) => c.id !== id));
+
+    const { error } = await supabase
+      .from('candidates')
+      .update({ pipeline_stage: null, stage_changed_at: null })
+      .eq('id', id);
+
+    if (error) {
+      console.error('Error removing from pipeline:', error);
+      // Re-fetch to restore correct state
+      fetchCandidates();
+    }
+  }, [fetchCandidates]);
 
   // ─── Drag End ─────────────────────────────────────────────────────────────────
 
@@ -617,6 +671,7 @@ export default function PipelinePage() {
                   collapsed={!!collapsedStages[stage.id]}
                   onToggleCollapse={() => toggleCollapse(stage.id)}
                   onDetails={setSelectedCandidate}
+                  onRemoveFromPipeline={removeFromPipeline}
                 />
               ))}
             </div>
