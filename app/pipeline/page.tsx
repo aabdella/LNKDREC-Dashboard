@@ -44,6 +44,7 @@ type Stage = {
 
 const STAGES: Stage[] = [
   { id: 'Sourced', label: 'Sourced', color: 'bg-slate-100', textColor: 'text-slate-700', badgeColor: 'bg-slate-200 text-slate-700', borderColor: 'border-l-slate-400' },
+  { id: 'Contacted/No Reply', label: 'Contacted/No Reply', color: 'bg-indigo-50', textColor: 'text-indigo-800', badgeColor: 'bg-indigo-200 text-indigo-800', borderColor: 'border-l-indigo-400' },
   { id: 'Lnkd Interview', label: 'Lnkd Interview', color: 'bg-amber-50', textColor: 'text-amber-800', badgeColor: 'bg-amber-200 text-amber-800', borderColor: 'border-l-amber-400' },
   { id: 'Shortlisted by Lnkd', label: 'Shortlisted by Lnkd', color: 'bg-blue-50', textColor: 'text-blue-800', badgeColor: 'bg-blue-200 text-blue-800', borderColor: 'border-l-blue-400' },
   { id: 'Client Interview', label: 'Client Interview', color: 'bg-purple-50', textColor: 'text-purple-800', badgeColor: 'bg-purple-200 text-purple-800', borderColor: 'border-l-purple-400' },
@@ -502,6 +503,7 @@ export default function PipelinePage() {
         <div className="h-4 w-px bg-slate-200" />
         <StatPill label="Total" count={total} color="bg-slate-100 text-slate-700" />
         <StatPill label="Sourced" count={grouped['Sourced']?.length || 0} color="bg-slate-200 text-slate-700" />
+        <StatPill label="Contacted" count={grouped['Contacted/No Reply']?.length || 0} color="bg-indigo-100 text-indigo-800" />
         <StatPill label="Lnkd Interview" count={grouped['Lnkd Interview']?.length || 0} color="bg-amber-100 text-amber-800" />
         <StatPill label="Shortlisted by Lnkd" count={grouped['Shortlisted by Lnkd']?.length || 0} color="bg-blue-100 text-blue-800" />
         <StatPill label="Client Interview" count={grouped['Client Interview']?.length || 0} color="bg-purple-100 text-purple-800" />
