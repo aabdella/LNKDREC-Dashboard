@@ -8,7 +8,7 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "LNKD Talent Scout",
+  title: "LNKD Brain",
   description: "Advanced candidate sourcing and matching platform.",
 };
 
@@ -31,13 +31,14 @@ export default function RootLayout({
                             <Image src="/logo.jpg" alt="LNKD Logo" width={80} height={40} className="object-contain h-8 w-auto" />
                         </div>
                         <div className="h-6 w-px bg-zinc-700 mx-1 hidden sm:block"></div>
-                        <h1 className="text-xl font-semibold tracking-wide hidden sm:block group-hover:text-zinc-200 transition">Talent Scout</h1>
+                        <h1 className="text-xl font-semibold tracking-wide hidden sm:block group-hover:text-zinc-200 transition">Brain</h1>
                     </Link>
 
                     {/* Desktop Navigation */}
                     <nav className="hidden md:flex gap-6 ml-4 text-sm font-medium text-zinc-400">
                         <Link href="/" className="hover:text-white transition py-2 border-b-2 border-transparent hover:border-white">Candidates</Link>
                         <Link href="/sourcing" className="hover:text-white transition py-2 border-b-2 border-transparent hover:border-white">Sourcing</Link>
+                        <Link href="/sales" className="hover:text-white transition py-2 border-b-2 border-transparent hover:border-white">Sales</Link>
                         <Link href="/jobs" className="hover:text-white transition py-2 border-b-2 border-transparent hover:border-white">Companies/Jobs</Link>
                         <Link href="/add-candidate" className="hover:text-white transition py-2 border-b-2 border-transparent hover:border-white">Add Candidate</Link>
                         <Link href="/pipeline" className="hover:text-white transition py-2 border-b-2 border-transparent hover:border-white flex items-center gap-1.5">
@@ -55,6 +56,7 @@ export default function RootLayout({
               <nav className="md:hidden mt-3 pt-3 border-t border-zinc-800 flex gap-4 text-sm font-medium text-zinc-400 overflow-x-auto">
                 <Link href="/" className="hover:text-white transition whitespace-nowrap">Candidates</Link>
                 <Link href="/sourcing" className="hover:text-white transition whitespace-nowrap">Sourcing</Link>
+                <Link href="/sales" className="hover:text-white transition whitespace-nowrap">Sales</Link>
                 <Link href="/jobs" className="hover:text-white transition whitespace-nowrap">Companies/Jobs</Link>
                 <Link href="/add-candidate" className="hover:text-white transition whitespace-nowrap">Add Candidate</Link>
                 <Link href="/pipeline" className="hover:text-white transition whitespace-nowrap flex items-center gap-1">
