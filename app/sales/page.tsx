@@ -145,7 +145,7 @@ export default function SalesDashboard() {
       {/* Header */}
       <div className="flex justify-between items-end border-b border-slate-200 pb-8 mb-12">
         <div>
-          <h1 className="text-4xl font-bold tracking-tight text-slate-900">LNKD Brain Dashboard</h1>
+          <h1 className="text-4xl font-bold tracking-tight text-slate-900">LNKD Platform Dashboard</h1>
           <p className="text-slate-500 mt-2 font-medium">Executive Sales & Delivery Overview • Q1 2026</p>
         </div>
         <div className="text-right hidden sm:block">
@@ -163,7 +163,7 @@ export default function SalesDashboard() {
           <div className="flex justify-between items-center mb-8">
             <h2 className="text-xl font-bold tracking-tight flex items-center gap-2">
               <Cog6ToothIcon className="h-5 w-5 text-indigo-400" />
-              Brain Control Center
+              Platform Control Center
             </h2>
             <p className="text-xs text-slate-400 italic font-medium">Manage executive insights and client status</p>
           </div>
