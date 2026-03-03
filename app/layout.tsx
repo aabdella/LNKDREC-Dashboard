@@ -8,7 +8,7 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "LNKD Brain",
+  title: "LNKD Platform",
   description: "Advanced candidate sourcing and matching platform.",
 };
 
@@ -31,7 +31,7 @@ export default function RootLayout({
                             <Image src="/logo.jpg" alt="LNKD Logo" width={80} height={40} className="object-contain h-8 w-auto" />
                         </div>
                         <div className="h-6 w-px bg-zinc-700 mx-1 hidden sm:block"></div>
-                        <h1 className="text-xl font-semibold tracking-wide hidden sm:block group-hover:text-zinc-200 transition">Brain</h1>
+                        <h1 className="text-xl font-semibold tracking-wide hidden sm:block group-hover:text-zinc-200 transition">Platform</h1>
                     </Link>
 
                     {/* Desktop Navigation */}

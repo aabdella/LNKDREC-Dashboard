@@ -2,7 +2,7 @@
 
 import { supabase } from '@/lib/supabaseClient';
 import { useState, useEffect } from 'react';
-import { BriefcaseIcon, PlusIcon, MapPinIcon, XMarkIcon, PencilIcon, UserIcon } from '@heroicons/react/24/outline';
+import { BriefcaseIcon, PlusIcon, MapPinIcon, XMarkIcon, PencilIcon, UserIcon, FunnelIcon } from '@heroicons/react/24/outline';
 
 type Client = {
     id: string;
@@ -26,6 +26,7 @@ export default function JobsPage() {
     const [jobs, setJobs] = useState<Job[]>([]);
     const [clients, setClients] = useState<Client[]>([]);
     const [loading, setLoading] = useState(true);
+    const [filterClientId, setFilterClientId] = useState<string>('all');
     
     // Modals
     const [showClientModal, setShowClientModal] = useState(false);
@@ -127,26 +128,53 @@ export default function JobsPage() {
         }
     }
 
+    const filteredJobs = filterClientId === 'all' 
+        ? jobs 
+        : jobs.filter(j => j.client_id === filterClientId);
+
     return (
         <div className="max-w-7xl mx-auto px-4 py-8">
-            <div className="flex justify-between items-center mb-8">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
                 <div>
                     <h1 className="text-2xl font-bold text-slate-900">Active Jobs</h1>
                     <p className="text-slate-500">Manage clients and open positions</p>
                 </div>
-                <div className="flex gap-3">
-                    <button 
-                        onClick={() => setShowClientModal(true)}
-                        className="px-4 py-2 border border-slate-300 rounded-md text-slate-700 hover:bg-slate-50 font-medium bg-white transition shadow-sm"
-                    >
-                        + New Client
-                    </button>
-                    <button 
-                        onClick={() => setShowJobModal(true)}
-                        className="px-4 py-2 bg-black text-white rounded-md hover:bg-zinc-800 font-medium flex items-center gap-2 transition shadow-sm"
-                    >
-                        <PlusIcon className="h-5 w-5" /> Post Job
-                    </button>
+                
+                <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
+                    {/* Company Filter Dropdown */}
+                    <div className="relative w-full sm:w-64 group">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <FunnelIcon className="h-4 w-4 text-slate-400" />
+                        </div>
+                        <select 
+                            value={filterClientId}
+                            onChange={(e) => setFilterClientId(e.target.value)}
+                            className="block w-full pl-10 pr-3 py-2 border border-slate-200 rounded-lg text-sm font-semibold bg-white text-slate-700 hover:border-slate-400 focus:outline-none focus:ring-2 focus:ring-black transition shadow-sm appearance-none cursor-pointer"
+                        >
+                            <option value="all">All Companies</option>
+                            {clients.map(c => (
+                                <option key={c.id} value={c.id}>{c.name}</option>
+                            ))}
+                        </select>
+                        <div className="absolute inset-y-0 right-0 pr-2 flex items-center pointer-events-none">
+                            <svg className="h-4 w-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+                        </div>
+                    </div>
+
+                    <div className="flex gap-3 w-full sm:w-auto">
+                        <button 
+                            onClick={() => setShowClientModal(true)}
+                            className="flex-1 sm:flex-none px-4 py-2 border border-slate-300 rounded-md text-slate-700 hover:bg-slate-50 font-medium bg-white transition shadow-sm"
+                        >
+                            + New Client
+                        </button>
+                        <button 
+                            onClick={() => setShowJobModal(true)}
+                            className="flex-1 sm:flex-none px-4 py-2 bg-black text-white rounded-md hover:bg-zinc-800 font-medium flex items-center justify-center gap-2 transition shadow-sm"
+                        >
+                            <PlusIcon className="h-5 w-5" /> Post Job
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -154,8 +182,8 @@ export default function JobsPage() {
                 <div className="text-center py-20 text-slate-400 animate-pulse">Loading jobs...</div>
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {jobs.map(job => (
-                        <div key={job.id} className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 hover:shadow-md transition group relative overflow-hidden">
+                    {filteredJobs.map(job => (
+                        <div key={job.id} className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 hover:shadow-md transition group relative overflow-hidden animate-in fade-in duration-300">
                             {/* Openings Indicator */}
                             <div className="absolute top-0 right-0 p-2">
                                 <div className="flex items-center gap-1 bg-slate-50 border border-slate-100 rounded-full px-2 py-0.5 shadow-sm">
@@ -208,11 +236,11 @@ export default function JobsPage() {
                         </div>
                     ))}
                     
-                    {jobs.length === 0 && (
+                    {filteredJobs.length === 0 && (
                         <div className="col-span-full text-center py-12 bg-slate-50 rounded-lg border border-dashed border-slate-300">
-                            <h3 className="text-slate-900 font-medium mb-1">No Jobs Posted Yet</h3>
-                            <p className="text-slate-500 text-sm mb-4">Create a client and post your first job to get started.</p>
-                            <button onClick={() => setShowJobModal(true)} className="text-blue-600 hover:underline text-sm font-semibold">Post a Job now</button>
+                            <h3 className="text-slate-900 font-medium mb-1">No Jobs Found</h3>
+                            <p className="text-slate-500 text-sm mb-4">Try clearing your filters or posting a new job.</p>
+                            <button onClick={() => setFilterClientId('all')} className="text-blue-600 hover:underline text-sm font-semibold">Clear Filters</button>
                         </div>
                     )}
                 </div>
