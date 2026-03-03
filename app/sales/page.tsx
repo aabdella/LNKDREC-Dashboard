@@ -74,7 +74,8 @@ export default function SalesDashboard() {
       const { count: submissionCount, error: subError } = await supabase
         .from('candidates')
         .select('*', { count: 'exact', head: true })
-        .not('pipeline_stage', 'is', null);
+        .not('pipeline_stage', 'is', null)
+        .filter('pipeline_stage', 'not.in', '("Sourced", "Contacted/No Reply", "Rejected")');
 
       if (subError) throw subError;
 
