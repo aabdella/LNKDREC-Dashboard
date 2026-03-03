@@ -71,11 +71,12 @@ export default function SalesDashboard() {
       
       if (logError) throw logError;
 
+      const excludedStages = ["Sourced", "Contacted/No Reply", "Rejected"];
       const { count: submissionCount, error: subError } = await supabase
         .from('candidates')
         .select('*', { count: 'exact', head: true })
         .not('pipeline_stage', 'is', null)
-        .filter('pipeline_stage', 'not.in', '("Sourced", "Contacted/No Reply", "Rejected")');
+        .not('pipeline_stage', 'in', `(${excludedStages.map(s => `"${s}"`).join(',')})`);
 
       if (subError) throw subError;
 
