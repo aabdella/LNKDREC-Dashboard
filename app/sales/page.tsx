@@ -52,7 +52,7 @@ export default function SalesDashboard() {
       const { count: jobCount, error: jobError } = await supabase
         .from('jobs')
         .select('*', { count: 'exact', head: true })
-        .eq('status', 'open');
+        .ilike('status', 'open');
       
       if (jobError) throw jobError;
 
