@@ -8,7 +8,10 @@ import {
   BriefcaseIcon, 
   UserGroupIcon,
   CheckCircleIcon,
-  ArrowPathIcon
+  ArrowPathIcon,
+  Cog6ToothIcon,
+  XMarkIcon,
+  PlusIcon
 } from '@heroicons/react/24/outline';
 
 // Initialize Supabase
@@ -27,6 +30,9 @@ export default function SalesDashboard() {
   const [pivots, setPivots] = useState<any[]>([]);
   const [clients, setClients] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showAdmin, setShowAdmin] = useState(false);
+  const [editingClient, setEditingClient] = useState<any>(null);
+  const [newImpact, setNewImpact] = useState({ type: 'Success', content: '', category: 'General' });
 
   useEffect(() => {
     fetchDashboardData();
@@ -35,7 +41,6 @@ export default function SalesDashboard() {
   async function fetchDashboardData() {
     setLoading(true);
     try {
-      // 1. Fetch Clients
       const { data: clientData, error: clientError } = await supabase
         .from('clients')
         .select('*')
@@ -44,7 +49,6 @@ export default function SalesDashboard() {
       if (clientError) throw clientError;
       setClients(clientData || []);
 
-      // 2. Fetch Jobs for Delivery Pipeline count
       const { count: jobCount, error: jobError } = await supabase
         .from('jobs')
         .select('*', { count: 'exact', head: true })
@@ -52,7 +56,6 @@ export default function SalesDashboard() {
       
       if (jobError) throw jobError;
 
-      // 3. Fetch Impact Logs
       const { data: logData, error: logError } = await supabase
         .from('impact_logs')
         .select('*')
@@ -60,7 +63,6 @@ export default function SalesDashboard() {
       
       if (logError) throw logError;
 
-      // 4. Fetch Candidates for Submissions count (Vetted + Assigned)
       const { count: submissionCount, error: subError } = await supabase
         .from('candidates')
         .select('*', { count: 'exact', head: true })
@@ -68,7 +70,6 @@ export default function SalesDashboard() {
 
       if (subError) throw subError;
 
-      // Process Stats
       const active = clientData?.filter(c => c.status === 'Active Partner').length || 0;
       const leads = clientData?.filter(c => c.status === 'New Lead').length || 0;
 
@@ -89,6 +90,35 @@ export default function SalesDashboard() {
     }
   }
 
+  async function handleUpdateClient() {
+    if (!editingClient) return;
+    const { error } = await supabase
+      .from('clients')
+      .update({
+        status: editingClient.status,
+        deal_stage: editingClient.deal_stage,
+        next_step: editingClient.next_step
+      })
+      .eq('id', editingClient.id);
+
+    if (!error) {
+      setEditingClient(null);
+      fetchDashboardData();
+    }
+  }
+
+  async function handleAddImpact() {
+    if (!newImpact.content) return;
+    const { error } = await supabase
+      .from('impact_logs')
+      .insert([newImpact]);
+
+    if (!error) {
+      setNewImpact({ ...newImpact, content: '' });
+      fetchDashboardData();
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
@@ -98,7 +128,18 @@ export default function SalesDashboard() {
   }
 
   return (
-    <main className="max-w-7xl mx-auto px-4 py-12">
+    <main className="max-w-7xl mx-auto px-4 py-12 relative">
+      {/* Admin Toggle */}
+      <button 
+        onClick={() => setShowAdmin(!showAdmin)}
+        className="fixed bottom-8 right-8 bg-black text-white p-4 rounded-full shadow-2xl hover:scale-110 transition z-50 group"
+      >
+        {showAdmin ? <XMarkIcon className="h-6 w-6" /> : <Cog6ToothIcon className="h-6 w-6" />}
+        <span className="absolute right-full mr-4 bg-black text-white px-3 py-1 rounded text-xs font-bold opacity-0 group-hover:opacity-100 transition whitespace-nowrap">
+          {showAdmin ? 'Close Admin' : 'Manage Data'}
+        </span>
+      </button>
+
       {/* Header */}
       <div className="flex justify-between items-end border-b border-slate-200 pb-8 mb-12">
         <div>
@@ -113,6 +154,117 @@ export default function SalesDashboard() {
           </div>
         </div>
       </div>
+
+      {/* Admin Panel Overlay */}
+      {showAdmin && (
+        <div className="mb-12 bg-slate-900 text-white rounded-3xl p-8 shadow-2xl border border-slate-800 animate-in fade-in slide-in-from-top-4 duration-300">
+          <div className="flex justify-between items-center mb-8">
+            <h2 className="text-xl font-bold tracking-tight flex items-center gap-2">
+              <Cog6ToothIcon className="h-5 w-5 text-indigo-400" />
+              Brain Control Center
+            </h2>
+            <p className="text-xs text-slate-400 italic font-medium">Manage executive insights and client status</p>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+            {/* Impact Entry */}
+            <div>
+              <h3 className="text-xs font-bold uppercase tracking-widest text-indigo-400 mb-4">Add Executive Insight</h3>
+              <div className="space-y-4">
+                <div className="flex gap-2">
+                  <select 
+                    value={newImpact.type}
+                    onChange={(e) => setNewImpact({...newImpact, type: e.target.value})}
+                    className="bg-slate-800 border-none rounded-lg text-sm font-bold px-4 py-2 focus:ring-2 focus:ring-indigo-500"
+                  >
+                    <option value="Success">Success</option>
+                    <option value="Pivot">Pivot</option>
+                  </select>
+                  <input 
+                    type="text" 
+                    placeholder="Enter insight content..."
+                    value={newImpact.content}
+                    onChange={(e) => setNewImpact({...newImpact, content: e.target.value})}
+                    className="flex-1 bg-slate-800 border-none rounded-lg text-sm px-4 py-2 focus:ring-2 focus:ring-indigo-500"
+                  />
+                  <button 
+                    onClick={handleAddImpact}
+                    className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg text-sm font-bold transition"
+                  >
+                    Add
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Client Stage Update */}
+            <div>
+              <h3 className="text-xs font-bold uppercase tracking-widest text-indigo-400 mb-4">Update Client Status</h3>
+              <div className="space-y-4">
+                <select 
+                  onChange={(e) => {
+                    const client = clients.find(c => c.id === e.target.value);
+                    setEditingClient(client ? {...client} : null);
+                  }}
+                  className="w-full bg-slate-800 border-none rounded-lg text-sm font-bold px-4 py-2"
+                >
+                  <option value="">Select a client to edit...</option>
+                  {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+
+                {editingClient && (
+                  <div className="grid grid-cols-2 gap-4 animate-in fade-in duration-200">
+                    <div className="space-y-1">
+                      <label className="text-[10px] uppercase font-bold text-slate-500">Status</label>
+                      <select 
+                        value={editingClient.status}
+                        onChange={(e) => setEditingClient({...editingClient, status: e.target.value})}
+                        className="w-full bg-slate-700 border-none rounded-lg text-xs font-bold px-3 py-2"
+                      >
+                        <option value="Active Partner">Active Partner</option>
+                        <option value="New Lead">New Lead</option>
+                        <option value="Churned">Churned</option>
+                      </select>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] uppercase font-bold text-slate-500">Deal Stage</label>
+                      <select 
+                        value={editingClient.deal_stage}
+                        onChange={(e) => setEditingClient({...editingClient, deal_stage: e.target.value})}
+                        className="w-full bg-slate-700 border-none rounded-lg text-xs font-bold px-3 py-2"
+                      >
+                        <option value="Discovery">Discovery</option>
+                        <option value="Proposal">Proposal</option>
+                        <option value="Negotiation">Negotiation</option>
+                        <option value="Sourcing">Sourcing</option>
+                        <option value="Interviewing">Interviewing</option>
+                        <option value="Closing">Closing</option>
+                      </select>
+                    </div>
+                    <div className="col-span-2 space-y-1">
+                      <label className="text-[10px] uppercase font-bold text-slate-500">Next Step</label>
+                      <div className="flex gap-2">
+                        <input 
+                          type="text" 
+                          value={editingClient.next_step || ''}
+                          onChange={(e) => setEditingClient({...editingClient, next_step: e.target.value})}
+                          className="flex-1 bg-slate-700 border-none rounded-lg text-xs px-3 py-2"
+                        />
+                        <button 
+                          onClick={handleUpdateClient}
+                          className="bg-green-600 hover:bg-green-500 text-white px-4 py-2 rounded-lg text-xs font-bold transition"
+                        >
+                          Save
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Top Bar Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
@@ -143,7 +295,7 @@ export default function SalesDashboard() {
           </div>
           <ul className="space-y-4">
             {wins.length > 0 ? wins.map((win, idx) => (
-              <li key={idx} className="flex gap-3 text-slate-600 leading-relaxed text-sm font-medium">
+              <li key={idx} className="flex gap-3 text-slate-600 leading-relaxed text-sm font-medium animate-in fade-in duration-300">
                 <span className="text-green-500 flex-shrink-0">✓</span> {win.content}
               </li>
             )) : (
@@ -160,7 +312,7 @@ export default function SalesDashboard() {
           </div>
           <ul className="space-y-4">
             {pivots.length > 0 ? pivots.map((pivot, idx) => (
-              <li key={idx} className="flex gap-3 text-slate-600 leading-relaxed text-sm font-medium">
+              <li key={idx} className="flex gap-3 text-slate-600 leading-relaxed text-sm font-medium animate-in fade-in duration-300">
                 <span className="text-indigo-500 flex-shrink-0">→</span> {pivot.content}
               </li>
             )) : (
