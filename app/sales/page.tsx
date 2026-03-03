@@ -49,6 +49,7 @@ export default function SalesDashboard() {
       if (clientError) throw clientError;
       setClients(clientData || []);
 
+      // 2. Fetch Jobs for Delivery Pipeline (Count Job Titles)
       const { count: jobCount, error: jobError } = await supabase
         .from('jobs')
         .select('*', { count: 'exact', head: true })
