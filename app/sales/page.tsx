@@ -43,11 +43,17 @@ export default function SalesDashboard() {
     try {
       const { data: clientData, error: clientError } = await supabase
         .from('clients')
-        .select('*')
-        .order('name', { ascending: true });
+        .select('*');
       
       if (clientError) throw clientError;
-      setClients(clientData || []);
+
+      // Custom Sort: New Lead (1), Active Partner (2), Churned (3)
+      const sortedClients = clientData ? [...clientData].sort((a, b) => {
+        const order: Record<string, number> = { 'New Lead': 1, 'Active Partner': 2, 'Churned': 3 };
+        return (order[a.status] || 99) - (order[b.status] || 99);
+      }) : [];
+
+      setClients(sortedClients);
 
       // 2. Fetch Jobs for Delivery Pipeline (Sum of all openings)
       const { data: jobData, error: jobError } = await supabase
