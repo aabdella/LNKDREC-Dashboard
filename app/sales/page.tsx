@@ -333,28 +333,32 @@ export default function SalesDashboard() {
           </button>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
+          <table className="w-full text-left border-collapse table-fixed">
             <thead>
               <tr className="bg-slate-50/50">
-                <th className="px-8 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Client Name</th>
-                <th className="px-8 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Status</th>
-                <th className="px-8 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Deal Stage</th>
-                <th className="px-8 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Next Step</th>
+                <th className="w-1/4 px-8 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Client Name</th>
+                <th className="w-1/5 px-8 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">Status</th>
+                <th className="w-1/5 px-8 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Deal Stage</th>
+                <th className="w-1/3 px-8 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Next Step</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
               {clients.length > 0 ? clients.map((client, idx) => (
                 <tr key={idx} className="hover:bg-slate-50/50 transition-colors duration-150 group">
-                  <td className="px-8 py-5 font-bold text-slate-900 group-hover:text-black">{client.name}</td>
-                  <td className="px-8 py-5">
-                    <span className={`px-2.5 py-1 rounded-full text-[9px] font-bold uppercase tracking-widest ${
-                      client.status === 'Active Partner' ? 'bg-green-50 text-green-700 border border-green-100' : 'bg-blue-50 text-blue-700 border border-blue-100'
+                  <td className="px-8 py-4 font-bold text-slate-900 group-hover:text-black truncate">{client.name}</td>
+                  <td className="px-8 py-4 text-center">
+                    <span className={`inline-block whitespace-nowrap px-3 py-1 rounded-full text-[9px] font-bold uppercase tracking-widest border ${
+                      client.status === 'Active Partner' ? 'bg-green-50 text-green-700 border-green-100' : 'bg-blue-50 text-blue-700 border-blue-100'
                     }`}>
                       {client.status}
                     </span>
                   </td>
-                  <td className="px-8 py-5 text-sm font-bold text-slate-600 italic tracking-tight">{client.deal_stage}</td>
-                  <td className="px-8 py-5 text-sm font-medium text-slate-500 leading-snug">{client.next_step || '—'}</td>
+                  <td className="px-8 py-4 text-sm font-bold text-slate-600 italic tracking-tight truncate">{client.deal_stage}</td>
+                  <td className="px-8 py-4">
+                    <p className="text-xs font-medium text-slate-500 leading-snug line-clamp-2 overflow-hidden">
+                      {client.next_step || '—'}
+                    </p>
+                  </td>
                 </tr>
               )) : (
                 <tr>
