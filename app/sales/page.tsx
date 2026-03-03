@@ -49,13 +49,14 @@ export default function SalesDashboard() {
       if (clientError) throw clientError;
       setClients(clientData || []);
 
-      // 2. Fetch Jobs for Delivery Pipeline (Count Job Titles)
-      const { count: jobCount, error: jobError } = await supabase
+      // 2. Fetch Jobs for Delivery Pipeline (Sum of all openings)
+      const { data: jobData, error: jobError } = await supabase
         .from('jobs')
-        .select('*', { count: 'exact', head: true })
+        .select('total_openings')
         .ilike('status', 'open');
       
       if (jobError) throw jobError;
+      const totalVacancies = jobData?.reduce((sum, job) => sum + (job.total_openings || 1), 0) || 0;
 
       const { data: logData, error: logError } = await supabase
         .from('impact_logs')
@@ -77,7 +78,7 @@ export default function SalesDashboard() {
       setStats({
         activePortfolio: active,
         newLeads: leads,
-        deliveryPipeline: jobCount || 0,
+        deliveryPipeline: totalVacancies,
         totalSubmissions: submissionCount || 0
       });
 
