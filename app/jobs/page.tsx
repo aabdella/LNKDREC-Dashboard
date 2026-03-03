@@ -2,7 +2,7 @@
 
 import { supabase } from '@/lib/supabaseClient';
 import { useState, useEffect } from 'react';
-import { BriefcaseIcon, PlusIcon, MapPinIcon, XMarkIcon, PencilIcon } from '@heroicons/react/24/outline';
+import { BriefcaseIcon, PlusIcon, MapPinIcon, XMarkIcon, PencilIcon, UserIcon } from '@heroicons/react/24/outline';
 
 type Client = {
     id: string;
@@ -17,6 +17,7 @@ type Job = {
     location: string;
     status: string;
     description: string;
+    total_openings: number;
     clients?: Client; // joined
     application_count?: number;
 };
@@ -36,7 +37,7 @@ export default function JobsPage() {
 
     // Form Data
     const [newClient, setNewClient] = useState({ name: '', industry: '' });
-    const [newJob, setNewJob] = useState({ client_id: '', title: '', location: 'Remote', description: '', status: 'Open' });
+    const [newJob, setNewJob] = useState({ client_id: '', title: '', location: 'Remote', description: '', status: 'Open', total_openings: 1 });
 
     useEffect(() => {
         fetchData();
@@ -96,7 +97,7 @@ export default function JobsPage() {
         const { error } = await supabase.from('jobs').insert(newJob);
         if (!error) {
             setShowJobModal(false);
-            setNewJob({ client_id: '', title: '', location: 'Remote', description: '', status: 'Open' });
+            setNewJob({ client_id: '', title: '', location: 'Remote', description: '', status: 'Open', total_openings: 1 });
             fetchData();
         } else {
             alert(error.message);
@@ -113,7 +114,8 @@ export default function JobsPage() {
                 title: editingJob.title,
                 location: editingJob.location,
                 status: editingJob.status,
-                description: editingJob.description
+                description: editingJob.description,
+                total_openings: editingJob.total_openings
             })
             .eq('id', editingJob.id);
 
@@ -153,11 +155,19 @@ export default function JobsPage() {
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {jobs.map(job => (
-                        <div key={job.id} className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 hover:shadow-md transition group">
+                        <div key={job.id} className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 hover:shadow-md transition group relative overflow-hidden">
+                            {/* Openings Indicator */}
+                            <div className="absolute top-0 right-0 p-2">
+                                <div className="flex items-center gap-1 bg-slate-50 border border-slate-100 rounded-full px-2 py-0.5 shadow-sm">
+                                    <UserIcon className="h-3 w-3 text-slate-400" />
+                                    <span className="text-[10px] font-bold text-slate-600">Needs {job.total_openings || 1}</span>
+                                </div>
+                            </div>
+
                             <div className="flex justify-between items-start mb-4">
                                 <div>
                                     <div className="flex items-center gap-2">
-                                        <h3 className="font-bold text-lg text-slate-900">{job.title}</h3>
+                                        <h3 className="font-bold text-lg text-slate-900 leading-tight pr-8">{job.title}</h3>
                                         <button 
                                             onClick={() => setEditingJob({...job})}
                                             className="opacity-0 group-hover:opacity-100 transition p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-indigo-600"
@@ -278,19 +288,30 @@ export default function JobsPage() {
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium mb-1 text-slate-700">Location</label>
-                                    <select 
-                                        className="w-full border border-slate-300 p-2 rounded focus:ring-2 focus:ring-black outline-none bg-white text-sm" 
-                                        value={newJob.location} 
-                                        onChange={e => setNewJob({...newJob, location: e.target.value})}
-                                    >
-                                        <option>Remote</option>
-                                        <option>Hybrid</option>
-                                        <option>OnSite (UAE)</option>
-                                        <option>OnSite (KSA)</option>
-                                        <option>OnSite (Egypt)</option>
-                                    </select>
+                                    <label className="block text-sm font-medium mb-1 text-slate-700">Openings (Resources)</label>
+                                    <input 
+                                        type="number"
+                                        min="1"
+                                        className="w-full border border-slate-300 p-2 rounded focus:ring-2 focus:ring-black outline-none text-sm" 
+                                        value={newJob.total_openings} 
+                                        onChange={e => setNewJob({...newJob, total_openings: parseInt(e.target.value) || 1})} 
+                                        required 
+                                    />
                                 </div>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium mb-1 text-slate-700">Location</label>
+                                <select 
+                                    className="w-full border border-slate-300 p-2 rounded focus:ring-2 focus:ring-black outline-none bg-white text-sm" 
+                                    value={newJob.location} 
+                                    onChange={e => setNewJob({...newJob, location: e.target.value})}
+                                >
+                                    <option>Remote</option>
+                                    <option>Hybrid</option>
+                                    <option>OnSite (UAE)</option>
+                                    <option>OnSite (KSA)</option>
+                                    <option>OnSite (Egypt)</option>
+                                </select>
                             </div>
                             <div>
                                 <label className="block text-sm font-medium mb-1 text-slate-700">Description</label>
@@ -346,19 +367,32 @@ export default function JobsPage() {
                                     </select>
                                 </div>
                             </div>
-                            <div>
-                                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Location</label>
-                                <select 
-                                    className="w-full border border-slate-200 p-2 rounded bg-slate-50 focus:ring-2 focus:ring-black outline-none font-bold text-sm" 
-                                    value={editingJob.location} 
-                                    onChange={e => setEditingJob({...editingJob, location: e.target.value})}
-                                >
-                                    <option>Remote</option>
-                                    <option>Hybrid</option>
-                                    <option>OnSite (UAE)</option>
-                                    <option>OnSite (KSA)</option>
-                                    <option>OnSite (Egypt)</option>
-                                </select>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Location</label>
+                                    <select 
+                                        className="w-full border border-slate-200 p-2 rounded bg-slate-50 focus:ring-2 focus:ring-black outline-none font-bold text-sm" 
+                                        value={editingJob.location} 
+                                        onChange={e => setEditingJob({...editingJob, location: e.target.value})}
+                                    >
+                                        <option>Remote</option>
+                                        <option>Hybrid</option>
+                                        <option>OnSite (UAE)</option>
+                                        <option>OnSite (KSA)</option>
+                                        <option>OnSite (Egypt)</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Total Openings</label>
+                                    <input 
+                                        type="number"
+                                        min="1"
+                                        className="w-full border border-slate-200 p-2 rounded bg-slate-50 focus:ring-2 focus:ring-black outline-none font-bold text-sm" 
+                                        value={editingJob.total_openings} 
+                                        onChange={e => setEditingJob({...editingJob, total_openings: parseInt(e.target.value) || 1})} 
+                                        required 
+                                    />
+                                </div>
                             </div>
                             <div>
                                 <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Description</label>
@@ -402,7 +436,10 @@ export default function JobsPage() {
 
                             <div>
                                 <div className="flex justify-between items-center mb-4">
-                                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Matched Candidates</h3>
+                                    <div className="flex items-center gap-2">
+                                        <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Matched Candidates</h3>
+                                        <span className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full font-bold">Needs {selectedJob.total_openings}</span>
+                                    </div>
                                     <span className="text-[10px] font-bold bg-green-100 text-green-700 px-2 py-0.5 rounded-full border border-green-200">
                                         {assignedCandidates.length} Active
                                     </span>
