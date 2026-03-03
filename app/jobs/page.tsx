@@ -2,7 +2,7 @@
 
 import { supabase } from '@/lib/supabaseClient';
 import { useState, useEffect } from 'react';
-import { BriefcaseIcon, PlusIcon, MapPinIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { BriefcaseIcon, PlusIcon, MapPinIcon, XMarkIcon, PencilIcon } from '@heroicons/react/24/outline';
 
 type Client = {
     id: string;
@@ -30,12 +30,13 @@ export default function JobsPage() {
     const [showClientModal, setShowClientModal] = useState(false);
     const [showJobModal, setShowJobModal] = useState(false);
     const [selectedJob, setSelectedJob] = useState<Job | null>(null);
+    const [editingJob, setEditingJob] = useState<Job | null>(null);
     const [assignedCandidates, setAssignedCandidates] = useState<any[]>([]);
     const [loadingCandidates, setLoadingCandidates] = useState(false);
 
     // Form Data
     const [newClient, setNewClient] = useState({ name: '', industry: '' });
-    const [newJob, setNewJob] = useState({ client_id: '', title: '', location: 'Remote', description: '' });
+    const [newJob, setNewJob] = useState({ client_id: '', title: '', location: 'Remote', description: '', status: 'Open' });
 
     useEffect(() => {
         fetchData();
@@ -95,7 +96,29 @@ export default function JobsPage() {
         const { error } = await supabase.from('jobs').insert(newJob);
         if (!error) {
             setShowJobModal(false);
-            setNewJob({ client_id: '', title: '', location: 'Remote', description: '' });
+            setNewJob({ client_id: '', title: '', location: 'Remote', description: '', status: 'Open' });
+            fetchData();
+        } else {
+            alert(error.message);
+        }
+    }
+
+    async function handleUpdateJob(e: React.FormEvent) {
+        e.preventDefault();
+        if (!editingJob) return;
+
+        const { error } = await supabase
+            .from('jobs')
+            .update({
+                title: editingJob.title,
+                location: editingJob.location,
+                status: editingJob.status,
+                description: editingJob.description
+            })
+            .eq('id', editingJob.id);
+
+        if (!error) {
+            setEditingJob(null);
             fetchData();
         } else {
             alert(error.message);
@@ -112,13 +135,13 @@ export default function JobsPage() {
                 <div className="flex gap-3">
                     <button 
                         onClick={() => setShowClientModal(true)}
-                        className="px-4 py-2 border border-slate-300 rounded-md text-slate-700 hover:bg-slate-50 font-medium bg-white"
+                        className="px-4 py-2 border border-slate-300 rounded-md text-slate-700 hover:bg-slate-50 font-medium bg-white transition shadow-sm"
                     >
                         + New Client
                     </button>
                     <button 
                         onClick={() => setShowJobModal(true)}
-                        className="px-4 py-2 bg-black text-white rounded-md hover:bg-zinc-800 font-medium flex items-center gap-2"
+                        className="px-4 py-2 bg-black text-white rounded-md hover:bg-zinc-800 font-medium flex items-center gap-2 transition shadow-sm"
                     >
                         <PlusIcon className="h-5 w-5" /> Post Job
                     </button>
@@ -130,13 +153,21 @@ export default function JobsPage() {
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {jobs.map(job => (
-                        <div key={job.id} className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 hover:shadow-md transition">
+                        <div key={job.id} className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 hover:shadow-md transition group">
                             <div className="flex justify-between items-start mb-4">
                                 <div>
-                                    <h3 className="font-bold text-lg text-slate-900">{job.title}</h3>
+                                    <div className="flex items-center gap-2">
+                                        <h3 className="font-bold text-lg text-slate-900">{job.title}</h3>
+                                        <button 
+                                            onClick={() => setEditingJob({...job})}
+                                            className="opacity-0 group-hover:opacity-100 transition p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-indigo-600"
+                                        >
+                                            <PencilIcon className="h-4 w-4" />
+                                        </button>
+                                    </div>
                                     <p className="text-slate-500 text-sm font-medium">{job.clients?.name}</p>
                                 </div>
-                                <span className={`px-2 py-1 rounded-full text-xs font-bold ${job.status === 'Open' ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-600'}`}>
+                                <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${job.status.toLowerCase() === 'open' ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-600'}`}>
                                     {job.status}
                                 </span>
                             </div>
@@ -180,14 +211,14 @@ export default function JobsPage() {
             {/* Client Modal */}
             {showClientModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => setShowClientModal(false)}>
-                    <div className="bg-white p-6 rounded-xl shadow-2xl max-w-md w-full" onClick={e => e.stopPropagation()}>
+                    <div className="bg-white p-6 rounded-xl shadow-2xl max-w-md w-full animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
                         <div className="flex justify-between items-center mb-4">
                             <h2 className="text-xl font-bold">Add New Client</h2>
                             <button onClick={() => setShowClientModal(false)}><XMarkIcon className="h-6 w-6 text-slate-500" /></button>
                         </div>
                         <form onSubmit={handleCreateClient} className="space-y-4">
                             <div>
-                                <label className="block text-sm font-medium mb-1">Client Name</label>
+                                <label className="block text-sm font-medium mb-1 text-slate-700">Client Name</label>
                                 <input 
                                     className="w-full border border-slate-300 p-2 rounded focus:ring-2 focus:ring-black outline-none" 
                                     value={newClient.name} 
@@ -197,7 +228,7 @@ export default function JobsPage() {
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium mb-1">Industry</label>
+                                <label className="block text-sm font-medium mb-1 text-slate-700">Industry</label>
                                 <input 
                                     className="w-full border border-slate-300 p-2 rounded focus:ring-2 focus:ring-black outline-none" 
                                     value={newClient.industry} 
@@ -206,27 +237,27 @@ export default function JobsPage() {
                                 />
                             </div>
                             <div className="flex justify-end gap-3 mt-6">
-                                <button type="button" onClick={() => setShowClientModal(false)} className="text-slate-600 hover:bg-slate-100 px-4 py-2 rounded">Cancel</button>
-                                <button type="submit" className="bg-black text-white px-4 py-2 rounded hover:bg-zinc-800">Create Client</button>
+                                <button type="button" onClick={() => setShowClientModal(false)} className="text-slate-600 hover:bg-slate-100 px-4 py-2 rounded font-medium transition">Cancel</button>
+                                <button type="submit" className="bg-black text-white px-6 py-2 rounded hover:bg-zinc-800 font-bold shadow-sm transition">Create Client</button>
                             </div>
                         </form>
                     </div>
                 </div>
             )}
 
-            {/* Job Modal */}
+            {/* Post Job Modal */}
             {showJobModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => setShowJobModal(false)}>
-                    <div className="bg-white p-6 rounded-xl shadow-2xl max-w-lg w-full" onClick={e => e.stopPropagation()}>
+                    <div className="bg-white p-6 rounded-xl shadow-2xl max-w-lg w-full animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
                         <div className="flex justify-between items-center mb-4">
                             <h2 className="text-xl font-bold">Post New Job</h2>
                             <button onClick={() => setShowJobModal(false)}><XMarkIcon className="h-6 w-6 text-slate-500" /></button>
                         </div>
                         <form onSubmit={handleCreateJob} className="space-y-4">
                             <div>
-                                <label className="block text-sm font-medium mb-1">Client</label>
+                                <label className="block text-sm font-medium mb-1 text-slate-700">Client</label>
                                 <select 
-                                    className="w-full border border-slate-300 p-2 rounded focus:ring-2 focus:ring-black outline-none bg-white" 
+                                    className="w-full border border-slate-300 p-2 rounded focus:ring-2 focus:ring-black outline-none bg-white text-sm" 
                                     value={newJob.client_id} 
                                     onChange={e => setNewJob({...newJob, client_id: e.target.value})} 
                                     required
@@ -235,33 +266,36 @@ export default function JobsPage() {
                                     {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                                 </select>
                             </div>
-                            <div>
-                                <label className="block text-sm font-medium mb-1">Job Title</label>
-                                <input 
-                                    className="w-full border border-slate-300 p-2 rounded focus:ring-2 focus:ring-black outline-none" 
-                                    value={newJob.title} 
-                                    onChange={e => setNewJob({...newJob, title: e.target.value})} 
-                                    placeholder="e.g. Senior Graphic Designer" 
-                                    required 
-                                />
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium mb-1 text-slate-700">Job Title</label>
+                                    <input 
+                                        className="w-full border border-slate-300 p-2 rounded focus:ring-2 focus:ring-black outline-none text-sm" 
+                                        value={newJob.title} 
+                                        onChange={e => setNewJob({...newJob, title: e.target.value})} 
+                                        placeholder="e.g. Senior Graphic Designer" 
+                                        required 
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium mb-1 text-slate-700">Location</label>
+                                    <select 
+                                        className="w-full border border-slate-300 p-2 rounded focus:ring-2 focus:ring-black outline-none bg-white text-sm" 
+                                        value={newJob.location} 
+                                        onChange={e => setNewJob({...newJob, location: e.target.value})}
+                                    >
+                                        <option>Remote</option>
+                                        <option>Hybrid</option>
+                                        <option>OnSite (UAE)</option>
+                                        <option>OnSite (KSA)</option>
+                                        <option>OnSite (Egypt)</option>
+                                    </select>
+                                </div>
                             </div>
                             <div>
-                                <label className="block text-sm font-medium mb-1">Location</label>
-                                <select 
-                                    className="w-full border border-slate-300 p-2 rounded focus:ring-2 focus:ring-black outline-none bg-white" 
-                                    value={newJob.location} 
-                                    onChange={e => setNewJob({...newJob, location: e.target.value})}
-                                >
-                                    <option>Remote</option>
-                                    <option>Hybrid</option>
-                                    <option>OnSite (KSA)</option>
-                                    <option>OnSite (Egypt)</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium mb-1">Description</label>
+                                <label className="block text-sm font-medium mb-1 text-slate-700">Description</label>
                                 <textarea 
-                                    className="w-full border border-slate-300 p-2 rounded h-24 focus:ring-2 focus:ring-black outline-none" 
+                                    className="w-full border border-slate-300 p-2 rounded h-24 focus:ring-2 focus:ring-black outline-none text-sm" 
                                     value={newJob.description} 
                                     onChange={e => setNewJob({...newJob, description: e.target.value})} 
                                     placeholder="Job requirements..." 
@@ -269,8 +303,75 @@ export default function JobsPage() {
                                 />
                             </div>
                             <div className="flex justify-end gap-3 mt-6">
-                                <button type="button" onClick={() => setShowJobModal(false)} className="text-slate-600 hover:bg-slate-100 px-4 py-2 rounded">Cancel</button>
-                                <button type="submit" className="bg-black text-white px-4 py-2 rounded hover:bg-zinc-800">Post Job</button>
+                                <button type="button" onClick={() => setShowJobModal(false)} className="text-slate-600 hover:bg-slate-100 px-4 py-2 rounded font-medium transition">Cancel</button>
+                                <button type="submit" className="bg-black text-white px-6 py-2 rounded hover:bg-zinc-800 font-bold shadow-sm transition">Post Job</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Edit Job Modal */}
+            {editingJob && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => setEditingJob(null)}>
+                    <div className="bg-white p-6 rounded-xl shadow-2xl max-w-lg w-full animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
+                        <div className="flex justify-between items-center mb-6">
+                            <div>
+                                <h2 className="text-xl font-bold">Edit Job Details</h2>
+                                <p className="text-xs text-slate-500 font-medium uppercase tracking-wider">{editingJob.clients?.name}</p>
+                            </div>
+                            <button onClick={() => setEditingJob(null)}><XMarkIcon className="h-6 w-6 text-slate-500" /></button>
+                        </div>
+                        <form onSubmit={handleUpdateJob} className="space-y-4">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Job Title</label>
+                                    <input 
+                                        className="w-full border border-slate-200 p-2 rounded bg-slate-50 focus:ring-2 focus:ring-black outline-none font-bold text-sm" 
+                                        value={editingJob.title} 
+                                        onChange={e => setEditingJob({...editingJob, title: e.target.value})} 
+                                        required 
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Status</label>
+                                    <select 
+                                        className="w-full border border-slate-200 p-2 rounded bg-slate-50 focus:ring-2 focus:ring-black outline-none font-bold text-sm" 
+                                        value={editingJob.status} 
+                                        onChange={e => setEditingJob({...editingJob, status: e.target.value})}
+                                    >
+                                        <option value="Open">Open</option>
+                                        <option value="Closed">Closed</option>
+                                        <option value="On Hold">On Hold</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Location</label>
+                                <select 
+                                    className="w-full border border-slate-200 p-2 rounded bg-slate-50 focus:ring-2 focus:ring-black outline-none font-bold text-sm" 
+                                    value={editingJob.location} 
+                                    onChange={e => setEditingJob({...editingJob, location: e.target.value})}
+                                >
+                                    <option>Remote</option>
+                                    <option>Hybrid</option>
+                                    <option>OnSite (UAE)</option>
+                                    <option>OnSite (KSA)</option>
+                                    <option>OnSite (Egypt)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Description</label>
+                                <textarea 
+                                    className="w-full border border-slate-200 p-2 rounded h-32 bg-slate-50 focus:ring-2 focus:ring-black outline-none text-sm leading-relaxed" 
+                                    value={editingJob.description} 
+                                    onChange={e => setEditingJob({...editingJob, description: e.target.value})} 
+                                    required 
+                                />
+                            </div>
+                            <div className="flex justify-end gap-3 mt-8">
+                                <button type="button" onClick={() => setEditingJob(null)} className="text-slate-600 hover:bg-slate-100 px-4 py-2 rounded font-medium transition">Cancel</button>
+                                <button type="submit" className="bg-black text-white px-8 py-2 rounded hover:bg-zinc-800 font-bold shadow-md transition">Update Job</button>
                             </div>
                         </form>
                     </div>
@@ -280,7 +381,7 @@ export default function JobsPage() {
             {/* Job Details Modal */}
             {selectedJob && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => setSelectedJob(null)}>
-                    <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[85vh] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
+                    <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[85vh] overflow-hidden flex flex-col animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
                         <div className="p-6 border-b border-slate-100 flex justify-between items-center">
                             <div>
                                 <h2 className="text-xl font-bold text-slate-900">{selectedJob.title}</h2>
