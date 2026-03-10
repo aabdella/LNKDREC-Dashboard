@@ -48,7 +48,7 @@ const STAGES: Stage[] = [
   { id: 'Lnkd Interview', label: 'Lnkd Interview', color: 'bg-amber-50', textColor: 'text-amber-800', badgeColor: 'bg-amber-200 text-amber-800', borderColor: 'border-l-amber-400' },
   { id: 'Shortlisted by Lnkd', label: 'Shortlisted by Lnkd', color: 'bg-blue-50', textColor: 'text-blue-800', badgeColor: 'bg-blue-200 text-blue-800', borderColor: 'border-l-blue-400' },
   { id: 'Client Interview', label: 'Client Interview', color: 'bg-purple-50', textColor: 'text-purple-800', badgeColor: 'bg-purple-200 text-purple-800', borderColor: 'border-l-purple-400' },
-  { id: 'Offer', label: 'Offer', color: 'bg-green-50', textColor: 'text-green-800', badgeColor: 'bg-green-200 text-green-800', borderColor: 'border-l-green-400' },
+  { id: 'Offer', label: 'Pending client feedback/offer', color: 'bg-green-50', textColor: 'text-green-800', badgeColor: 'bg-green-200 text-green-800', borderColor: 'border-l-green-400' },
   { id: 'Hired', label: 'Hired', color: 'bg-emerald-100', textColor: 'text-emerald-900', badgeColor: 'bg-emerald-600 text-white', borderColor: 'border-l-emerald-600' },
   { id: 'Rejected', label: 'Rejected', color: 'bg-red-50', textColor: 'text-red-700', badgeColor: 'bg-red-200 text-red-700', borderColor: 'border-l-red-400' },
 ];
