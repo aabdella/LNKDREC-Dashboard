@@ -68,6 +68,7 @@ export default function JobsPage() {
     async function fetchData() {
         setLoading(true);
         // Fetch Jobs with Client info - added safety for nested joins
+        // Filtering out 'Closed' jobs as requested
         const { data: jobsData, error: jobsError } = await supabase
             .from('jobs')
             .select(`
@@ -78,6 +79,7 @@ export default function JobsPage() {
                     candidates (status)
                 )
             `)
+            .neq('status', 'Closed')
             .order('created_at', { ascending: false });
         
         if (jobsError) console.error('Jobs fetch error:', jobsError);
