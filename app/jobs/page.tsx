@@ -47,7 +47,7 @@ export default function JobsPage() {
 
     async function fetchAssignedCandidates(jobId: string) {
         setLoadingCandidates(true);
-        // We only want to show candidates who are NOT rejected.
+        // We only want to show candidates who are NOT rejected AND NOT hired (as they've been deducted).
         // If they are in the 'applications' table, they were assigned.
         // We join with candidates to check their 'status' or 'pipeline_stage'.
         const { data, error } = await supabase
@@ -56,10 +56,15 @@ export default function JobsPage() {
             .eq('job_id', jobId);
 
         if (data) {
-            // Filter out candidates who are already rejected (unassigned should already be gone from this table)
+            // Filter out candidates who are already rejected OR already hired (per user request)
             const formatted = data
                 .map((d: any) => d.candidates)
-                .filter((c: any) => c && c.pipeline_stage !== 'Rejected');
+                .filter((c: any) => 
+                    c && 
+                    c.pipeline_stage !== 'Rejected' && 
+                    c.pipeline_stage !== 'Hired' &&
+                    c.status !== 'Hired'
+                );
             setAssignedCandidates(formatted);
         }
         setLoadingCandidates(false);

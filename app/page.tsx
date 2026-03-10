@@ -1249,7 +1249,15 @@ function CandidateCard({
                 Contacted {new Date(candidate.last_interaction_at).toLocaleDateString([], { month: 'short', day: 'numeric' })}
               </span>
             )}
-            {isAssigned ? (
+            {candidate.status === 'Hired' ? (
+              <span className="text-xs font-bold px-3 py-1.5 rounded-full bg-emerald-600 text-white border border-emerald-700 shrink-0 flex items-center gap-1 shadow-sm uppercase tracking-wider">
+                  <CheckBadgeIcon className="h-3 w-3" /> Hired
+              </span>
+            ) : candidate.status === 'Offer' ? (
+              <span className="text-xs font-bold px-3 py-1.5 rounded-full bg-indigo-100 text-indigo-700 border border-indigo-200 shrink-0 flex items-center gap-1 uppercase tracking-wider">
+                  <DocumentArrowDownIcon className="h-3 w-3" /> Offer
+              </span>
+            ) : isAssigned ? (
               <div className="flex flex-col items-end">
                 <span className="text-xs font-bold px-2 py-1 rounded-full border bg-green-100 text-green-700 border-green-200 shrink-0 flex items-center gap-1">
                     <BriefcaseIcon className="h-3 w-3" /> Matched
