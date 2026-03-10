@@ -139,17 +139,12 @@ export async function POST(req: NextRequest) {
       work_history:  workHistory.slice(0, 3),
     };
 
-    const { data: unvettedRow, error: unvettedError } = await supabase
-      .from('unvetted').insert(extractedData).select().single();
-
-    if (unvettedError) {
-      const { data: candidateRow, error: candidateError } = await supabase
-        .from('candidates').insert({ ...extractedData, status: 'Unvetted' }).select().single();
-      if (candidateError) return NextResponse.json({ error: 'DB insert failed: ' + candidateError.message }, { status: 500 });
-      return NextResponse.json({ success: true, candidate: candidateRow, table: 'candidates' });
-    }
-
-    return NextResponse.json({ success: true, candidate: unvettedRow, table: 'unvetted' });
+    return NextResponse.json({ 
+      success: true, 
+      candidate: extractedData, 
+      table: 'none',
+      extracted_only: true 
+    });
 
   } catch (err: any) {
     console.error('Server Error:', err);

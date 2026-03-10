@@ -436,19 +436,43 @@ export default function PipelinePage() {
       const updates: Promise<unknown>[] = [];
 
       if (!isSameStage) {
-        const newStatus = statusForStage(newStage);
+        let newStatus = statusForStage(newStage);
+        if (newStage === 'Offer') newStatus = 'Offer';
+        if (newStage === 'Hired') newStatus = 'Hired';
+
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const payload: Record<string, any> = { pipeline_stage: newStage, stage_changed_at: new Date().toISOString() };
         if (newStatus !== null) payload.status = newStatus;
         updates.push(
           Promise.resolve(
-            supabase.from('candidates').update(payload).eq('id', draggableId).then(({ error }) => {
+            supabase.from('candidates').update(payload).eq('id', draggableId).then(async ({ error }) => {
               if (error) {
                 const msg = error.message || '';
                 if (msg.includes('pipeline_stage') || msg.includes('column') || error.code === '42703') {
                   setMigrationNotice(true);
                 } else {
                   console.error('Stage update error:', error);
+                }
+              } else {
+                // Side effects for special stages
+                const cand = candidates.find(c => c.id === draggableId);
+                if (!cand) return;
+
+                if (newStage === 'Rejected') {
+                  const firstApp = Array.isArray(cand.applications) ? cand.applications[0] : cand.applications;
+                  const jobId = firstApp?.job_id;
+                  const jobTitle = firstApp?.jobs?.title || 'assigned job';
+
+                  if (jobId) {
+                    // 1. Unassign from vacancy
+                    await supabase.from('applications').delete().eq('candidate_id', cand.id).eq('job_id', jobId);
+                    // 2. Log feedback interaction
+                    await supabase.from('candidate_interactions').insert({
+                      candidate_id: cand.id,
+                      type: 'Feedback',
+                      content: `Rejected from ${jobTitle} vacancy`
+                    });
+                  }
                 }
               }
             })
