@@ -18,6 +18,7 @@ type Job = {
     status: string;
     description: string;
     total_openings: number;
+    remaining_openings?: number;
     clients?: Client; // joined
     application_count?: number;
 };
