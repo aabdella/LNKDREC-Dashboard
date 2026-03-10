@@ -46,13 +46,19 @@ export default function JobsPage() {
 
     async function fetchAssignedCandidates(jobId: string) {
         setLoadingCandidates(true);
+        // We only want to show candidates who are NOT rejected.
+        // If they are in the 'applications' table, they were assigned.
+        // We join with candidates to check their 'status' or 'pipeline_stage'.
         const { data, error } = await supabase
             .from('applications')
-            .select('candidates(id, full_name, title, location, status)')
+            .select('candidate_id, candidates(id, full_name, title, location, status, pipeline_stage)')
             .eq('job_id', jobId);
 
         if (data) {
-            const formatted = data.map((d: any) => d.candidates);
+            // Filter out candidates who are already rejected (unassigned should already be gone from this table)
+            const formatted = data
+                .map((d: any) => d.candidates)
+                .filter((c: any) => c && c.pipeline_stage !== 'Rejected');
             setAssignedCandidates(formatted);
         }
         setLoadingCandidates(false);
@@ -63,7 +69,7 @@ export default function JobsPage() {
         // Fetch Jobs with Client info
         const { data: jobsData } = await supabase
             .from('jobs')
-            .select('*, clients(name, industry), applications(count)')
+            .select('*, clients(name, industry), applications(count, candidates(status))')
             .order('created_at', { ascending: false });
         
         // Fetch Clients for dropdown
@@ -71,10 +77,17 @@ export default function JobsPage() {
 
         if (jobsData) {
             // Map count correctly
-            const mappedJobs = jobsData.map((j: any) => ({
-                ...j,
-                application_count: j.applications ? j.applications[0]?.count : 0
-            }));
+            const mappedJobs = jobsData.map((j: any) => {
+                // Deduct hired candidates from total_openings for the "Needs" count
+                const hiredCount = j.applications?.filter((a: any) => a.candidates?.status === 'Hired').length || 0;
+                const remainingOpenings = Math.max(0, (j.total_openings || 1) - hiredCount);
+
+                return {
+                    ...j,
+                    application_count: j.applications ? j.applications.length : 0,
+                    remaining_openings: remainingOpenings
+                };
+            });
             setJobs(mappedJobs);
         }
         if (clientsData) setClients(clientsData);
@@ -188,7 +201,7 @@ export default function JobsPage() {
                             <div className="absolute top-0 right-0 p-2">
                                 <div className="flex items-center gap-1 bg-slate-50 border border-slate-100 rounded-full px-2 py-0.5 shadow-sm">
                                     <UserIcon className="h-3 w-3 text-slate-400" />
-                                    <span className="text-[10px] font-bold text-slate-600">Needs {job.total_openings || 1}</span>
+                                    <span className="text-[10px] font-bold text-slate-600">Needs {job.remaining_openings !== undefined ? job.remaining_openings : (job.total_openings || 1)}</span>
                                 </div>
                             </div>
 

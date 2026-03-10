@@ -13,6 +13,25 @@
 
 ### 📝 Lessons Learned
 - **CSS Neutrality:** Default browser elements (like select menus) often carry "silver" or "gray" shading that can clash with a high-end clean aesthetic. Always use `appearance-none` for a more custom-tailored look.
+- **Data Integrity:** Capitalization mismatches in database lookups (e.g., 'Open' vs 'open') can break aggregate counts; always use case-insensitive queries (`ilike`) or standardizing helpers.
+
+## Mar 3, 2026 - Sales Dashboard & Platform Rebrand
+
+### ✅ Accomplishments
+- **Rebranding:** Renamed "LNKD Brain" → "LNKD Platform" across navigation, metadata, and page titles.
+- **Sales Dashboard Deployed (`/sales`):**
+    - Live metrics for Active Portfolio, New Leads, Delivery Pipeline (sum of vacancies), and Submissions.
+    - Added "Impact Logs" to track Executive Insights (Successes/Pivots).
+    - Client Roster: Condensed table with custom sorting (New Lead > Active Partner > Churned) and `line-clamp-2` for next steps.
+- **Platform Control Center:** Floating gear icon on Sales page allows live management of client statuses and executive insights.
+- **Jobs Engine Enhancements:**
+    - Integrated `total_openings` support.
+    - Added searchable company funnel filter and inline Job Editor modal (title, status, location, openings).
+- **Delivery Logic Fix:** Updated pipeline count to be case-insensitive and sum the `total_openings` for all "Open" jobs.
+
+### 🧠 Decision Log
+- **Why `/sales`?** To separate recruiter-focused sourcing from executive-focused client management.
+- **Case Sensitivity:** Discovered that job status counts were failing because some were 'Open' and others 'open'. Standardized to sum all variations.
 
 ### 🏗️ Backlog
 - [ ] Implement "Point 1" from Arscontexta: Automatic PRD extraction from chats.
