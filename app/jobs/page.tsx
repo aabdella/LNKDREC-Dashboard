@@ -67,25 +67,40 @@ export default function JobsPage() {
 
     async function fetchData() {
         setLoading(true);
-        // Fetch Jobs with Client info
-        const { data: jobsData } = await supabase
+        // Fetch Jobs with Client info - added safety for nested joins
+        const { data: jobsData, error: jobsError } = await supabase
             .from('jobs')
-            .select('*, clients(name, industry), applications(count, candidates(status))')
+            .select(`
+                *,
+                clients (name, industry),
+                applications (
+                    candidate_id,
+                    candidates (status)
+                )
+            `)
             .order('created_at', { ascending: false });
         
+        if (jobsError) console.error('Jobs fetch error:', jobsError);
+
         // Fetch Clients for dropdown
         const { data: clientsData } = await supabase.from('clients').select('*').order('name');
 
         if (jobsData) {
             // Map count correctly
             const mappedJobs = jobsData.map((j: any) => {
+                // Ensure applications is an array
+                const apps = Array.isArray(j.applications) ? j.applications : [];
+                
                 // Deduct hired candidates from total_openings for the "Needs" count
-                const hiredCount = j.applications?.filter((a: any) => a.candidates?.status === 'Hired').length || 0;
+                const hiredCount = apps.filter((a: any) => 
+                    a.candidates && (a.candidates.status === 'Hired' || a.candidates.status === 'Assigned')
+                ).length;
+                
                 const remainingOpenings = Math.max(0, (j.total_openings || 1) - hiredCount);
 
                 return {
                     ...j,
-                    application_count: j.applications ? j.applications.length : 0,
+                    application_count: apps.length,
                     remaining_openings: remainingOpenings
                 };
             });
