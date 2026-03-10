@@ -93,9 +93,10 @@ export default function JobsPage() {
                 // Ensure applications is an array
                 const apps = Array.isArray(j.applications) ? j.applications : [];
                 
-                // Deduct hired candidates from total_openings for the "Needs" count
+                // ONLY deduct candidates who are actually HIRED. 
+                // "Assigned" or "Vetted" candidates in the pipeline should NOT reduce the 'Needs' count.
                 const hiredCount = apps.filter((a: any) => 
-                    a.candidates && (a.candidates.status === 'Hired' || a.candidates.status === 'Assigned')
+                    a.candidates && a.candidates.status === 'Hired'
                 ).length;
                 
                 const remainingOpenings = Math.max(0, (j.total_openings || 1) - hiredCount);
