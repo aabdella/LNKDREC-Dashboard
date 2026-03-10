@@ -462,6 +462,7 @@ export default function PipelinePage() {
                   const firstApp = Array.isArray(cand.applications) ? cand.applications[0] : cand.applications;
                   const jobId = firstApp?.job_id;
                   const jobTitle = firstApp?.jobs?.title || 'assigned job';
+                  const clientName = firstApp?.jobs?.clients?.name || 'client';
 
                   if (jobId) {
                     // 1. Unassign from vacancy
@@ -470,7 +471,7 @@ export default function PipelinePage() {
                     await supabase.from('candidate_interactions').insert({
                       candidate_id: cand.id,
                       type: 'Feedback',
-                      content: `Rejected from ${jobTitle} vacancy`
+                      content: `Rejected from ${jobTitle} vacancy at ${clientName}`
                     });
                   }
                 }
