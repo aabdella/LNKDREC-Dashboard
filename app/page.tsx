@@ -270,7 +270,7 @@ function DashboardInner() {
       };
       setVettingData(defaultState);
 
-      if (candidate.status === 'Vetted' || candidate.status === 'Assigned') {
+      if (candidate.status === 'Vetted' || candidate.status === 'Assigned' || !!candidate.assigned_job_title) {
           const { data, error } = await supabase
             .from('vettings')
             .select('*')
@@ -324,7 +324,7 @@ function DashboardInner() {
       setSubmittingVetting(false);
       return;
     }
-    if (vettingCandidate.status !== 'Vetted') {
+    if (vettingCandidate.status !== 'Vetted' && !vettingCandidate.assigned_job_title) {
         await supabase.from('candidates').update({ status: 'Vetted' }).eq('id', vettingCandidate.id);
     }
     await logActivity('candidate_vetted', vettingCandidate.full_name, {
@@ -339,7 +339,7 @@ function DashboardInner() {
   }
 
   async function toggleAssignment(candidate: Candidate) {
-      if (candidate.status === 'Assigned') {
+      if (candidate.status === 'Assigned' || !!candidate.assigned_job_title) {
           const { error: appError } = await supabase.from('applications').delete().eq('candidate_id', candidate.id);
           if (appError) {
               alert('Error removing application: ' + appError.message);
@@ -552,7 +552,7 @@ function DashboardInner() {
           <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="sticky top-0 bg-white border-b border-slate-100 p-6 flex justify-between items-center z-10">
               <div>
-                <h2 className="text-xl font-bold text-slate-900">{vettingCandidate.status === 'Vetted' || vettingCandidate.status === 'Assigned' ? 'Edit Vetting' : 'Vet Candidate'}: {vettingCandidate.full_name}</h2>
+                <h2 className="text-xl font-bold text-slate-900">{vettingCandidate.status === 'Vetted' || vettingCandidate.status === 'Assigned' || !!vettingCandidate.assigned_job_title ? 'Edit Vetting' : 'Vet Candidate'}: {vettingCandidate.full_name}</h2>
                 <p className="text-sm text-slate-500">{vettingCandidate.title}</p>
               </div>
               <button onClick={() => setVettingCandidate(null)} className="p-2 hover:bg-slate-100 rounded-full transition"><XMarkIcon className="h-6 w-6 text-slate-500" /></button>
@@ -664,7 +664,7 @@ function DashboardInner() {
 
 function CandidateRow({ candidate, isSelected, onToggleSelect, onViewDetails, onVetCandidate, onToggleAssign, onGenerateCV, onToggleHighlight }: any) {
   const isVetted = candidate.status === 'Vetted';
-  const isAssigned = candidate.status === 'Assigned';
+  const isAssigned = !!candidate.assigned_job_title;
   const initials = candidate.full_name?.split(' ').slice(0, 2).map((p: any) => p[0]).join('').toUpperCase() || '?';
 
   let healthScore = 0;
@@ -699,10 +699,12 @@ function CandidateRow({ candidate, isSelected, onToggleSelect, onViewDetails, on
       </td>
       <td className="px-4 py-3 flex justify-end gap-1.5">
           <button onClick={onViewDetails} className="px-2.5 py-1 text-xs font-semibold bg-white border border-slate-200 text-slate-700 rounded hover:bg-slate-50 transition">Details</button>
-          <button onClick={onVetCandidate} className={`px-2.5 py-1 text-xs font-semibold rounded transition ${isVetted || isAssigned ? 'bg-green-600 text-white hover:bg-green-700' : 'bg-black text-white hover:bg-zinc-800'}`}>{isVetted || isAssigned ? 'Edit Vetting' : 'Vet'}</button>
-          {(isVetted || isAssigned) && (
-            <button onClick={onToggleAssign} className={`px-2.5 py-1 text-xs font-semibold text-white rounded transition flex items-center gap-1 ${isAssigned ? 'bg-red-600 hover:bg-red-700' : 'bg-blue-600 hover:bg-blue-700'}`}>{isAssigned ? <><XMarkIcon className="h-3 w-3" /> Unmatch</> : <><BriefcaseIcon className="h-3 w-3" /> Assign</>}</button>
-          )}
+          <button onClick={onVetCandidate} className={`px-2.5 py-1 text-xs font-semibold rounded transition ${isVetted || isAssigned || !!candidate.assigned_job_title ? 'bg-green-600 text-white hover:bg-green-700' : 'bg-black text-white hover:bg-zinc-800'}`}>{isVetted || isAssigned || !!candidate.assigned_job_title ? 'Edit Vetting' : 'Vet'}</button>
+          {isAssigned ? (
+            <button onClick={onToggleAssign} className="px-2.5 py-1 text-xs font-semibold text-white bg-red-600 rounded transition flex items-center gap-1 hover:bg-red-700"><XMarkIcon className="h-3 w-3" /> Unmatch</button>
+          ) : isVetted ? (
+            <button onClick={onToggleAssign} className="px-2.5 py-1 text-xs font-semibold text-white bg-blue-600 rounded transition flex items-center gap-1 hover:bg-blue-700"><BriefcaseIcon className="h-3 w-3" /> Assign</button>
+          ) : null}
           <button onClick={onGenerateCV} className="px-2.5 py-1 text-xs font-semibold bg-indigo-50 border border-indigo-200 text-indigo-700 rounded hover:bg-indigo-100 transition flex items-center gap-1"><DocumentArrowDownIcon className="h-3 w-3" /> CV</button>
       </td>
     </tr>
@@ -711,7 +713,7 @@ function CandidateRow({ candidate, isSelected, onToggleSelect, onViewDetails, on
 
 function CandidateCard({ candidate, onViewDetails, onVetCandidate, onToggleAssign, onGenerateCV, onToggleHighlight }: any) {
   const isVetted = candidate.status === 'Vetted';
-  const isAssigned = candidate.status === 'Assigned';
+  const isAssigned = !!candidate.assigned_job_title;
   const healthScore = 0; // (Simplified for layout)
   
   return (
@@ -738,7 +740,11 @@ function CandidateCard({ candidate, onViewDetails, onVetCandidate, onToggleAssig
               ) : isAssigned ? (
                 <div className="flex flex-col items-end">
                   <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-green-100 text-green-700 border-green-200 flex items-center gap-1"><BriefcaseIcon className="h-2.5 w-2.5" /> Matched</span>
-                  {candidate.assigned_company_name && <span className="text-[9px] font-bold text-slate-400 truncate max-w-[80px]">{candidate.assigned_company_name}</span>}
+                  {candidate.assigned_company_name && (
+                    <span className="text-[9px] font-bold text-slate-500 mt-1 text-right leading-tight max-w-[100px] truncate">
+                      {candidate.assigned_company_name}
+                    </span>
+                  )}
                 </div>
               ) : isVetted ? (
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-blue-100 text-blue-700 border-blue-200 flex items-center gap-1 uppercase tracking-wider">Vetted</span>
@@ -762,10 +768,16 @@ function CandidateCard({ candidate, onViewDetails, onVetCandidate, onToggleAssig
 
         <div className="px-4 py-3 border-t border-slate-100 flex gap-2 bg-slate-50/50">
             <button onClick={onViewDetails} className="flex-1 bg-white border border-slate-200 text-slate-700 text-[11px] font-bold py-1.5 rounded hover:bg-slate-50 transition">Details</button>
-            <button onClick={onVetCandidate} className={`flex-1 text-[11px] font-bold py-1.5 rounded transition ${isVetted || isAssigned ? 'bg-green-600 text-white hover:bg-green-700' : 'bg-black text-white hover:bg-zinc-800'}`}>{isVetted || isAssigned ? 'Edit' : 'Vet'}</button>
-            {(isVetted || isAssigned) && (
-              <button onClick={onToggleAssign} className={`flex-1 text-white text-[11px] font-bold py-1.5 rounded transition flex items-center justify-center gap-1 ${isAssigned ? 'bg-red-600 hover:bg-red-700' : 'bg-blue-600 hover:bg-blue-700'}`}>{isAssigned ? 'Unmatch' : 'Assign'}</button>
-            )}
+            <button onClick={onVetCandidate} className={`flex-1 text-[11px] font-bold py-1.5 rounded transition ${isVetted || isAssigned || !!candidate.assigned_job_title ? 'bg-green-600 text-white hover:bg-green-700' : 'bg-black text-white hover:bg-zinc-800'}`}>{isVetted || isAssigned || !!candidate.assigned_job_title ? 'Edit' : 'Vet'}</button>
+            {isAssigned ? (
+              <button onClick={onToggleAssign} className="flex-1 bg-red-600 text-white text-[11px] font-bold py-1.5 rounded hover:bg-red-700 transition flex items-center justify-center gap-1">
+                <XMarkIcon className="h-3 w-3" /> Unmatch
+              </button>
+            ) : isVetted ? (
+              <button onClick={onToggleAssign} className="flex-1 bg-blue-600 text-white text-[11px] font-bold py-1.5 rounded hover:bg-blue-700 transition flex items-center justify-center gap-1">
+                <BriefcaseIcon className="h-3 w-3" /> Assign
+              </button>
+            ) : null}
             <button onClick={onGenerateCV} className="px-2 py-1.5 bg-indigo-50 text-indigo-700 rounded border border-indigo-100 hover:bg-indigo-100 transition"><DocumentArrowDownIcon className="h-3.5 w-3.5" /></button>
         </div>
         <div className={`h-1 w-full transition-all duration-300 ${candidate.is_highlighted ? 'bg-amber-400 opacity-100' : 'bg-black opacity-0 group-hover:opacity-100'}`}></div>
@@ -948,6 +960,7 @@ function CVExportModal({
                 <div className="flex min-h-[160px] select-none">
                   {/* Sidebar */}
                   <div className="w-1/3 bg-slate-900 p-2 text-white text-[7px] leading-tight">
+
                     <div className="w-8 h-5 bg-slate-700 rounded flex items-center justify-center text-[5px] text-slate-400 mb-1.5 font-bold">LOGO</div>
                     <div className="h-8 w-8 rounded-full bg-indigo-500 flex items-center justify-center text-[8px] font-black mb-1.5 mx-auto">{initials}</div>
                     <div className="font-black text-[8px] text-center leading-none text-white mb-0.5">{candidate.full_name}</div>
