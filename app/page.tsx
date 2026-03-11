@@ -16,13 +16,14 @@ import {
   ListBulletIcon, 
   DocumentArrowDownIcon, 
   TrashIcon,
-  StarIcon as StarOutline
+  StarIcon as StarOutline,
+  ClockIcon
 } from '@heroicons/react/24/outline';
 import { StarIcon as StarSolid } from '@heroicons/react/24/solid';
 import { useRouter } from 'next/navigation';
 import { useSearchParams } from 'next/navigation';
 
-// Types (Mirrored for local use in helpers)
+// Types
 type Tool = { name: string; years: number };
 type Technology = { name: string; years: number };
 type WorkHistory = { 
@@ -383,11 +384,6 @@ function DashboardInner() {
     const { error } = await supabase.from('candidates').update({ is_highlighted: !currentStatus }).eq('id', candidate.id);
     if (!error) {
         setCandidates(prev => prev.map(c => c.id === candidate.id ? { ...c, is_highlighted: !currentStatus } : c));
-    } else {
-        // If column doesn't exist yet, we'll get an error 42703
-        if (error.code === '42703') {
-           alert('Database migration needed. Run this in Supabase SQL Editor: ALTER TABLE candidates ADD COLUMN IF NOT EXISTS is_highlighted BOOLEAN DEFAULT false;');
-        }
     }
   }
 
@@ -710,68 +706,63 @@ function CandidateRow({ candidate, isSelected, onToggleSelect, onViewDetails, on
 function CandidateCard({ candidate, onViewDetails, onVetCandidate, onToggleAssign, onGenerateCV, onToggleHighlight }: any) {
   const isVetted = candidate.status === 'Vetted';
   const isAssigned = candidate.status === 'Assigned';
-  let healthScore = 0;
-  if (candidate.full_name && candidate.title) healthScore += 20;
-  if (candidate.email) healthScore += 20;
-  if (candidate.phone) healthScore += 20;
-  if (candidate.skills?.length || candidate.tools?.length || candidate.technologies?.length) healthScore += 20;
-  if (candidate.linkedin_url || candidate.portfolio_url) healthScore += 20;
-  const healthColor = healthScore >= 80 ? 'text-green-600 bg-green-50 border-green-200' : healthScore >= 50 ? 'text-yellow-600 bg-yellow-50 border-yellow-200' : 'text-red-600 bg-red-50 border-red-200';
-
+  const healthScore = 0; // (Simplified for layout)
+  
   return (
-    <div className={`bg-white rounded-xl shadow-sm border overflow-hidden hover:shadow-md transition group flex flex-col h-full relative ${candidate.is_highlighted ? 'border-amber-400 ring-1 ring-amber-400' : 'border-slate-200 hover:border-black/20'}`}>
-        <button onClick={onToggleHighlight} className="absolute top-3 right-3 z-10 p-1.5 rounded-full bg-white/80 backdrop-blur shadow-sm border border-slate-100 transition transform hover:scale-110 active:scale-125">
-             {candidate.is_highlighted ? <StarSolid className="h-5 w-5 text-amber-400" /> : <StarOutline className="h-5 w-5 text-slate-300 hover:text-amber-400" />}
+    <div className={`bg-white rounded-xl shadow-sm border overflow-hidden hover:shadow-md transition group flex flex-col h-full relative ${candidate.is_highlighted ? 'border-amber-400 ring-1 ring-amber-400' : 'border-slate-200 hover:border-black/10'}`}>
+        <button onClick={onToggleHighlight} className="absolute top-2.5 right-2.5 z-10 p-1 rounded-full bg-white/50 backdrop-blur shadow-sm hover:bg-white transition">
+             {candidate.is_highlighted ? <StarSolid className="h-4 w-4 text-amber-400" /> : <StarOutline className="h-4 w-4 text-slate-300 hover:text-amber-400" />}
         </button>
 
-        <div className="p-6 flex-grow">
-          <div className="flex justify-between items-start mb-4">
-            <div className="flex gap-4">
-              <div className="h-12 w-12 rounded-full bg-slate-100 flex items-center justify-center text-xl shrink-0 border border-slate-200">👤</div>
-              <div className="min-w-0 pr-4">
-                <h3 className="font-bold text-lg text-slate-900 group-hover:text-black transition line-clamp-1">{candidate.full_name}</h3>
-                <p className="text-sm text-slate-500 line-clamp-1">{candidate.title}</p>
-                <p className="text-xs text-slate-400">📍 {candidate.location}</p>
+        <div className="p-4 flex-grow flex flex-col">
+          <div className="flex gap-3 mb-3">
+              <div className="h-10 w-10 rounded-full bg-slate-100 flex items-center justify-center text-lg shrink-0 border border-slate-200">👤</div>
+              <div className="min-w-0 flex-1">
+                <h3 className="font-bold text-base text-slate-900 line-clamp-1">{candidate.full_name}</h3>
+                <p className="text-[11px] text-slate-500 truncate">{candidate.title} · {candidate.location}</p>
               </div>
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-2 mb-4">
-              {candidate.status === 'Hired' ? (
-                <span className="text-[10px] font-bold px-2 py-1 rounded-full bg-emerald-600 text-white flex items-center gap-1 uppercase tracking-wider"><CheckBadgeIcon className="h-2.5 w-2.5" /> Hired</span>
-              ) : candidate.status === 'Offer' ? (
-                <span className="text-[10px] font-bold px-2 py-1 rounded-full bg-indigo-100 text-indigo-700 border border-indigo-200 flex items-center gap-1 uppercase tracking-wider"><DocumentArrowDownIcon className="h-2.5 w-2.5" /> Offer</span>
-              ) : isAssigned ? (
-                <span className="text-[10px] font-bold px-2 py-1 rounded-full border bg-green-100 text-green-700 border-green-200 flex items-center gap-1"><BriefcaseIcon className="h-2.5 w-2.5" /> Matched</span>
-              ) : isVetted ? (
-                <span className="text-[10px] font-bold px-2 py-1 rounded-full border bg-blue-100 text-blue-700 border-blue-200 flex items-center gap-1"><CheckBadgeIcon className="h-2.5 w-2.5" /> Vetted</span>
-              ) : (
-                <div className={`text-[10px] font-bold px-2 py-0.5 rounded border ${healthColor} flex items-center gap-1`}><span className="w-1.5 h-1.5 rounded-full bg-current"></span> {healthScore}% Data</div>
-              )}
-              {candidate.is_highlighted && <span className="text-[10px] font-bold px-2 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200 flex items-center gap-1 uppercase tracking-wider">🌟 Top Match</span>}
           </div>
 
-          <div className="mb-4 space-y-3">
-            <div className="flex flex-wrap gap-2 text-xs text-slate-700">
-               <span className="bg-slate-100 px-2 py-1 rounded border border-slate-200 font-medium">{candidate.years_experience_total || 0}+ Years</span>
-               {(candidate.technologies?.slice(0, 2) || candidate.skills?.slice(0, 2))?.map((t: any, i: number) => (
-                 <span key={i} className="bg-slate-50 px-2 py-1 rounded border border-slate-100 text-slate-600">{typeof t === 'string' ? t : t.name}</span>
-               ))}
+          <div className="flex items-center justify-between mb-4">
+              <span className="text-xs font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">{candidate.years_experience_total || 0}+ Years Exp</span>
+              {candidate.status === 'Hired' ? (
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-600 text-white flex items-center gap-1 uppercase tracking-wider"><CheckBadgeIcon className="h-2.5 w-2.5" /> Hired</span>
+              ) : candidate.status === 'Offer' ? (
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 border border-indigo-200 flex items-center gap-1 uppercase tracking-wider"><DocumentArrowDownIcon className="h-2.5 w-2.5" /> Offer</span>
+              ) : isAssigned ? (
+                <div className="flex flex-col items-end">
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-green-100 text-green-700 border-green-200 flex items-center gap-1"><BriefcaseIcon className="h-2.5 w-2.5" /> Matched</span>
+                  {candidate.assigned_company_name && <span className="text-[9px] font-bold text-slate-400 truncate max-w-[80px]">{candidate.assigned_company_name}</span>}
+                </div>
+              ) : isVetted ? (
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-blue-100 text-blue-700 border-blue-200 flex items-center gap-1 uppercase tracking-wider">Vetted</span>
+              ) : (
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-slate-50 text-slate-400 border-slate-200 uppercase tracking-wider">New</span>
+              )}
+          </div>
+
+          <div className="flex-grow">
+            <div className="bg-slate-50/80 p-2.5 rounded-lg border border-slate-100 relative mb-2">
+              <p className="text-[13px] text-slate-600 line-clamp-2 leading-snug">{candidate.match_reason}</p>
             </div>
-            <div className="bg-slate-50 p-3 rounded-md border border-slate-100 relative">
-              <div className="absolute -top-2.5 right-2 bg-white px-2 py-0.5 text-[10px] font-bold text-slate-500 border border-slate-200 rounded-full shadow-sm">Match: {candidate.match_score}%</div>
-              <p className="text-sm text-slate-600 line-clamp-3 leading-relaxed">{candidate.match_reason}</p>
-            </div>
+            {candidate.last_interaction_at && (
+              <div className="flex items-center gap-1 text-[10px] font-bold text-purple-600 px-1">
+                <ClockIcon className="h-3 w-3" />
+                <span>Last Contact: {new Date(candidate.last_interaction_at).toLocaleDateString([], { month: 'short', day: 'numeric' })}</span>
+              </div>
+            )}
           </div>
         </div>
-        <div className="px-6 py-4 border-t border-slate-100 flex gap-2 bg-slate-50/50 mt-auto">
-            <button onClick={onViewDetails} className="flex-1 bg-white border border-slate-200 text-slate-700 text-xs font-semibold py-2 rounded hover:bg-slate-50 transition">Details</button>
-            <button onClick={onVetCandidate} className={`flex-1 text-xs font-semibold py-2 rounded transition ${isVetted || isAssigned ? 'bg-green-600 text-white hover:bg-green-700' : 'bg-black text-white hover:bg-zinc-800'}`}>{isVetted || isAssigned ? 'Edit Vetting' : 'Vet'}</button>
+
+        <div className="px-4 py-3 border-t border-slate-100 flex gap-2 bg-slate-50/50">
+            <button onClick={onViewDetails} className="flex-1 bg-white border border-slate-200 text-slate-700 text-[11px] font-bold py-1.5 rounded hover:bg-slate-50 transition">Details</button>
+            <button onClick={onVetCandidate} className={`flex-1 text-[11px] font-bold py-1.5 rounded transition ${isVetted || isAssigned ? 'bg-green-600 text-white hover:bg-green-700' : 'bg-black text-white hover:bg-zinc-800'}`}>{isVetted || isAssigned ? 'Edit' : 'Vet'}</button>
             {(isVetted || isAssigned) && (
-              <button onClick={onToggleAssign} className={`flex-1 text-white text-xs font-semibold py-2 rounded transition flex items-center justify-center gap-1 ${isAssigned ? 'bg-red-600 hover:bg-red-700' : 'bg-blue-600 hover:bg-blue-700'}`}>{isAssigned ? <><XMarkIcon className="h-3 w-3" /> Unmatch</> : <><BriefcaseIcon className="h-3 w-3" /> Assign</>}</button>
+              <button onClick={onToggleAssign} className={`flex-1 text-white text-[11px] font-bold py-1.5 rounded transition flex items-center justify-center gap-1 ${isAssigned ? 'bg-red-600 hover:bg-red-700' : 'bg-blue-600 hover:bg-blue-700'}`}>{isAssigned ? 'Unmatch' : 'Assign'}</button>
             )}
-            <button onClick={onGenerateCV} className="px-2 py-2 text-xs font-semibold bg-indigo-50 border border-indigo-200 text-indigo-700 rounded hover:bg-indigo-100 transition"><DocumentArrowDownIcon className="h-4 w-4" /></button>
+            <button onClick={onGenerateCV} className="px-2 py-1.5 bg-indigo-50 text-indigo-700 rounded border border-indigo-100 hover:bg-indigo-100 transition"><DocumentArrowDownIcon className="h-3.5 w-3.5" /></button>
         </div>
-        <div className={`h-1 w-full transform origin-left scale-x-0 group-hover:scale-x-100 transition-transform duration-300 ${candidate.is_highlighted ? 'bg-amber-400' : 'bg-black'}`}></div>
+        <div className={`h-1 w-full transition-all duration-300 ${candidate.is_highlighted ? 'bg-amber-400 opacity-100' : 'bg-black opacity-0 group-hover:opacity-100'}`}></div>
     </div>
   );
 }
