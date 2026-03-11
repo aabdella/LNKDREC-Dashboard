@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import { supabase } from '@/lib/supabaseClient';
+import CandidateDetailsModal, { Candidate } from '@/components/CandidateDetailsModal';
 import {
   ClockIcon,
   ChevronDownIcon,
@@ -256,63 +257,6 @@ function StageColumn({
           )}
         </Droppable>
       )}
-      {collapsed && (
-        <Droppable droppableId={stage.id}>
-          {(provided) => (
-            <div ref={provided.innerRef} {...provided.droppableProps} className="flex-1">{provided.placeholder}</div>
-          )}
-        </Droppable>
-      )}
-    </div>
-  );
-}
-
-// ─── Details Mini-Modal ───────────────────────────────────────────────────────
-
-function DetailsModal({ candidate, onClose }: { candidate: Candidate; onClose: () => void }) {
-  return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={onClose}>
-      <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-start gap-4 mb-4">
-          <div className="h-14 w-14 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-xl font-bold text-slate-600 shrink-0">
-            {initials(candidate.full_name || '?')}
-          </div>
-          <div>
-            <h2 className="text-xl font-bold text-slate-900">{candidate.full_name}</h2>
-            <p className="text-slate-500 text-sm">{candidate.title || 'No title'}</p>
-          </div>
-        </div>
-        <div className="space-y-2 text-sm text-slate-700">
-          <div className="flex items-center gap-2">
-            <span className="font-medium w-28 text-slate-500">Pipeline Stage:</span>
-            <span className="font-semibold">{candidate.pipeline_stage || deriveStage(candidate)}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="font-medium w-28 text-slate-500">Status:</span>
-            <span>{candidate.status || '—'}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="font-medium w-28 text-slate-500">Match Score:</span>
-            <span className={`font-bold px-2 py-0.5 rounded-full text-xs ${scoreChipClass(candidate.match_score)}`}>
-              {candidate.match_score !== undefined ? `${candidate.match_score}%` : '—'}
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="font-medium w-28 text-slate-500">Days in Stage:</span>
-            <span>{daysInStage(candidate)}d</span>
-          </div>
-          {candidate.linkedin_url && (
-            <div className="flex items-center gap-2">
-              <span className="font-medium w-28 text-slate-500">LinkedIn:</span>
-              <a href={candidate.linkedin_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline truncate">View Profile</a>
-            </div>
-          )}
-        </div>
-        <div className="mt-6 flex justify-between items-center">
-          <a href={`/?candidate=${candidate.id}`} className="text-xs text-slate-500 hover:text-slate-800 underline">Open full profile →</a>
-          <button onClick={onClose} className="px-4 py-2 bg-black text-white text-sm font-semibold rounded-lg hover:bg-zinc-800 transition">Close</button>
-        </div>
-      </div>
     </div>
   );
 }
@@ -332,7 +276,7 @@ export default function PipelinePage() {
     setLoading(true);
     const { data, error } = await supabase
       .from('candidates')
-      .select('id, full_name, title, match_score, status, pipeline_stage, pipeline_order, stage_changed_at, created_at, linkedin_url, portfolio_url, applications(job_id, jobs(title, clients(name)))')
+      .select('*, applications(job_id, jobs(title, clients(name)))')
       .order('pipeline_order', { ascending: true, nullsFirst: false });
 
     if (error) {
@@ -510,6 +454,13 @@ export default function PipelinePage() {
 
   return (
     <div className="flex flex-col h-[calc(100vh-68px)] bg-white">
+      {selectedCandidate && (
+        <CandidateDetailsModal 
+          candidate={selectedCandidate} 
+          onClose={() => setSelectedCandidate(null)} 
+          onUpdate={fetchCandidates}
+        />
+      )}
       {migrationNotice && (
         <div className="bg-amber-50 border-b border-amber-200 px-4 py-2.5 flex items-start gap-2">
           <ExclamationTriangleIcon className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
@@ -565,9 +516,6 @@ export default function PipelinePage() {
         </DragDropContext>
       )}
 
-      {selectedCandidate && (
-        <DetailsModal candidate={selectedCandidate} onClose={() => setSelectedCandidate(null)} />
-      )}
     </div>
   );
 }

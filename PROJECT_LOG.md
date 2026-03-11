@@ -34,6 +34,7 @@
 - **Case Sensitivity:** Discovered that job status counts were failing because some were 'Open' and others 'open'. Standardized to sum all variations.
 
 ### 🏗️ Backlog
+- [ ] **Universal Activity Logging:** Expand `activity_log` to track *all* database additions, edits, and deletions (Add `actor`/`user_id` column once Auth/Roles are implemented).
 - [ ] Implement "Point 1" from Arscontexta: Automatic PRD extraction from chats.
 - [ ] Replace basic dropdown with Segmented Pills for better "Vibe."
 - [ ] Add tooltips for Match Score details.
