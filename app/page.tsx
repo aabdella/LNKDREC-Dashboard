@@ -15,8 +15,10 @@ import {
   Squares2X2Icon, 
   ListBulletIcon, 
   DocumentArrowDownIcon, 
-  TrashIcon 
+  TrashIcon,
+  StarIcon as StarOutline
 } from '@heroicons/react/24/outline';
+import { StarIcon as StarSolid } from '@heroicons/react/24/solid';
 import { useRouter } from 'next/navigation';
 import { useSearchParams } from 'next/navigation';
 
@@ -375,6 +377,20 @@ function DashboardInner() {
       setSubmittingAssignment(false);
   }
 
+  async function toggleHighlight(candidate: Candidate) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const currentStatus = (candidate as any).is_highlighted;
+    const { error } = await supabase.from('candidates').update({ is_highlighted: !currentStatus }).eq('id', candidate.id);
+    if (!error) {
+        setCandidates(prev => prev.map(c => c.id === candidate.id ? { ...c, is_highlighted: !currentStatus } : c));
+    } else {
+        // If column doesn't exist yet, we'll get an error 42703
+        if (error.code === '42703') {
+           alert('Database migration needed. Run this in Supabase SQL Editor: ALTER TABLE candidates ADD COLUMN IF NOT EXISTS is_highlighted BOOLEAN DEFAULT false;');
+        }
+    }
+  }
+
   const toggleBenefit = (benefit: string) => {
     setVettingData(prev => ({
       ...prev,
@@ -470,6 +486,7 @@ function DashboardInner() {
                 onVetCandidate={() => openVettingModal(candidate)}
                 onToggleAssign={() => toggleAssignment(candidate)}
                 onGenerateCV={() => setCvCandidate(candidate)}
+                onToggleHighlight={() => toggleHighlight(candidate)}
               />
             ))}
           </div>
@@ -517,6 +534,7 @@ function DashboardInner() {
                               onVetCandidate={() => openVettingModal(c)} 
                               onToggleAssign={() => toggleAssignment(c)} 
                               onGenerateCV={() => setCvCandidate(c)} 
+                              onToggleHighlight={() => toggleHighlight(c)}
                             />
                         ))}
                     </tbody>
@@ -642,7 +660,7 @@ function DashboardInner() {
   );
 }
 
-function CandidateRow({ candidate, isSelected, onToggleSelect, onViewDetails, onVetCandidate, onToggleAssign, onGenerateCV }: any) {
+function CandidateRow({ candidate, isSelected, onToggleSelect, onViewDetails, onVetCandidate, onToggleAssign, onGenerateCV, onToggleHighlight }: any) {
   const isVetted = candidate.status === 'Vetted';
   const isAssigned = candidate.status === 'Assigned';
   const initials = candidate.full_name?.split(' ').slice(0, 2).map((p: any) => p[0]).join('').toUpperCase() || '?';
@@ -658,7 +676,14 @@ function CandidateRow({ candidate, isSelected, onToggleSelect, onViewDetails, on
   return (
     <tr className={`border-b border-slate-100 hover:bg-slate-50 transition-colors ${isSelected ? 'bg-red-50/40' : ''}`}>
       <td className="px-4 py-3 w-10"><input type="checkbox" checked={isSelected} onChange={onToggleSelect} className="rounded border-slate-300" /></td>
-      <td className="px-4 py-3 font-semibold text-slate-900">{candidate.full_name}</td>
+      <td className="px-4 py-3">
+        <div className="flex items-center gap-2">
+          <button onClick={onToggleHighlight} className="transition transform active:scale-125">
+             {candidate.is_highlighted ? <StarSolid className="h-4 w-4 text-amber-400" /> : <StarOutline className="h-4 w-4 text-slate-300 hover:text-slate-400" />}
+          </button>
+          <span className="font-semibold text-slate-900">{candidate.full_name}</span>
+        </div>
+      </td>
       <td className="px-4 py-3 text-slate-500 max-w-[180px] truncate">{candidate.title || '—'}</td>
       <td className="px-4 py-3 text-slate-700">{candidate.years_experience_total || 0} yrs</td>
       <td className="px-4 py-3">
@@ -682,7 +707,7 @@ function CandidateRow({ candidate, isSelected, onToggleSelect, onViewDetails, on
   );
 }
 
-function CandidateCard({ candidate, onViewDetails, onVetCandidate, onToggleAssign, onGenerateCV }: any) {
+function CandidateCard({ candidate, onViewDetails, onVetCandidate, onToggleAssign, onGenerateCV, onToggleHighlight }: any) {
   const isVetted = candidate.status === 'Vetted';
   const isAssigned = candidate.status === 'Assigned';
   let healthScore = 0;
@@ -694,34 +719,37 @@ function CandidateCard({ candidate, onViewDetails, onVetCandidate, onToggleAssig
   const healthColor = healthScore >= 80 ? 'text-green-600 bg-green-50 border-green-200' : healthScore >= 50 ? 'text-yellow-600 bg-yellow-50 border-yellow-200' : 'text-red-600 bg-red-50 border-red-200';
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden hover:shadow-md transition group flex flex-col h-full hover:border-black/20 relative">
+    <div className={`bg-white rounded-xl shadow-sm border overflow-hidden hover:shadow-md transition group flex flex-col h-full relative ${candidate.is_highlighted ? 'border-amber-400 ring-1 ring-amber-400' : 'border-slate-200 hover:border-black/20'}`}>
+        <button onClick={onToggleHighlight} className="absolute top-3 right-3 z-10 p-1.5 rounded-full bg-white/80 backdrop-blur shadow-sm border border-slate-100 transition transform hover:scale-110 active:scale-125">
+             {candidate.is_highlighted ? <StarSolid className="h-5 w-5 text-amber-400" /> : <StarOutline className="h-5 w-5 text-slate-300 hover:text-amber-400" />}
+        </button>
+
         <div className="p-6 flex-grow">
           <div className="flex justify-between items-start mb-4">
             <div className="flex gap-4">
               <div className="h-12 w-12 rounded-full bg-slate-100 flex items-center justify-center text-xl shrink-0 border border-slate-200">👤</div>
-              <div>
+              <div className="min-w-0 pr-4">
                 <h3 className="font-bold text-lg text-slate-900 group-hover:text-black transition line-clamp-1">{candidate.full_name}</h3>
                 <p className="text-sm text-slate-500 line-clamp-1">{candidate.title}</p>
                 <p className="text-xs text-slate-400">📍 {candidate.location}</p>
               </div>
             </div>
-            <div className="flex flex-col items-end gap-1">
+          </div>
+          <div className="flex flex-wrap gap-2 mb-4">
               {candidate.status === 'Hired' ? (
-                <span className="text-xs font-bold px-3 py-1.5 rounded-full bg-emerald-600 text-white flex items-center gap-1 uppercase tracking-wider"><CheckBadgeIcon className="h-3 w-3" /> Hired</span>
+                <span className="text-[10px] font-bold px-2 py-1 rounded-full bg-emerald-600 text-white flex items-center gap-1 uppercase tracking-wider"><CheckBadgeIcon className="h-2.5 w-2.5" /> Hired</span>
               ) : candidate.status === 'Offer' ? (
-                <span className="text-xs font-bold px-3 py-1.5 rounded-full bg-indigo-100 text-indigo-700 border border-indigo-200 flex items-center gap-1 uppercase tracking-wider"><DocumentArrowDownIcon className="h-3 w-3" /> Offer</span>
+                <span className="text-[10px] font-bold px-2 py-1 rounded-full bg-indigo-100 text-indigo-700 border border-indigo-200 flex items-center gap-1 uppercase tracking-wider"><DocumentArrowDownIcon className="h-2.5 w-2.5" /> Offer</span>
               ) : isAssigned ? (
-                <div className="flex flex-col items-end">
-                  <span className="text-xs font-bold px-2 py-1 rounded-full border bg-green-100 text-green-700 border-green-200 flex items-center gap-1"><BriefcaseIcon className="h-3 w-3" /> Matched</span>
-                  {candidate.assigned_company_name && <span className="text-[10px] font-bold text-slate-500 mt-1 text-right">{candidate.assigned_company_name}</span>}
-                </div>
+                <span className="text-[10px] font-bold px-2 py-1 rounded-full border bg-green-100 text-green-700 border-green-200 flex items-center gap-1"><BriefcaseIcon className="h-2.5 w-2.5" /> Matched</span>
               ) : isVetted ? (
-                <span className="text-xs font-bold px-2 py-1 rounded-full border bg-blue-100 text-blue-700 border-blue-200 flex items-center gap-1"><CheckBadgeIcon className="h-3 w-3" /> Vetted</span>
+                <span className="text-[10px] font-bold px-2 py-1 rounded-full border bg-blue-100 text-blue-700 border-blue-200 flex items-center gap-1"><CheckBadgeIcon className="h-2.5 w-2.5" /> Vetted</span>
               ) : (
                 <div className={`text-[10px] font-bold px-2 py-0.5 rounded border ${healthColor} flex items-center gap-1`}><span className="w-1.5 h-1.5 rounded-full bg-current"></span> {healthScore}% Data</div>
               )}
-            </div>
+              {candidate.is_highlighted && <span className="text-[10px] font-bold px-2 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200 flex items-center gap-1 uppercase tracking-wider">🌟 Top Match</span>}
           </div>
+
           <div className="mb-4 space-y-3">
             <div className="flex flex-wrap gap-2 text-xs text-slate-700">
                <span className="bg-slate-100 px-2 py-1 rounded border border-slate-200 font-medium">{candidate.years_experience_total || 0}+ Years</span>
@@ -743,7 +771,7 @@ function CandidateCard({ candidate, onViewDetails, onVetCandidate, onToggleAssig
             )}
             <button onClick={onGenerateCV} className="px-2 py-2 text-xs font-semibold bg-indigo-50 border border-indigo-200 text-indigo-700 rounded hover:bg-indigo-100 transition"><DocumentArrowDownIcon className="h-4 w-4" /></button>
         </div>
-        <div className="h-1 bg-black w-full transform origin-left scale-x-0 group-hover:scale-x-100 transition-transform duration-300"></div>
+        <div className={`h-1 w-full transform origin-left scale-x-0 group-hover:scale-x-100 transition-transform duration-300 ${candidate.is_highlighted ? 'bg-amber-400' : 'bg-black'}`}></div>
     </div>
   );
 }
