@@ -394,11 +394,17 @@ function DashboardInner() {
     }));
   };
 
+  // Filter Logic
   const filteredCandidates = candidates.filter(c => {
     const q = search.toLowerCase();
+
+    // 1. Status Filter
     if (filter !== 'All') {
       if (filter === 'UnVetted') {
-        if (c.status === 'Vetted' || c.status === 'Assigned') return false;
+        if (c.status === 'Vetted' || c.status === 'Assigned' || !!c.assigned_job_title) return false;
+      } else if (filter === 'Assigned') {
+        // "Assigned Only" should show anyone with an active job assignment
+        if (!c.assigned_job_title) return false;
       } else {
         if (c.status !== filter) return false;
       }
