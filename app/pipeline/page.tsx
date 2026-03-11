@@ -12,38 +12,9 @@ import {
   BuildingOfficeIcon,
 } from '@heroicons/react/24/outline';
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// ─── Stage Config
 
-type Candidate = {
-  id: string;
-  full_name: string;
-  title?: string;
-  match_score?: number;
-  status?: string;
-  pipeline_stage?: string;
-  pipeline_order?: number | null;
-  stage_changed_at?: string;
-  created_at?: string;
-  linkedin_url?: string;
-  portfolio_url?: string;
-  assigned_company_name?: string;
-  assigned_job_title?: string;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  applications?: any[];
-};
-
-type Stage = {
-  id: string;
-  label: string;
-  color: string;
-  textColor: string;
-  badgeColor: string;
-  borderColor: string;
-};
-
-// ─── Stage Config ─────────────────────────────────────────────────────────────
-
-const STAGES: Stage[] = [
+const STAGES: any[] = [
   { id: 'Sourced', label: 'Sourced', color: 'bg-slate-100', textColor: 'text-slate-700', badgeColor: 'bg-slate-200 text-slate-700', borderColor: 'border-l-slate-400' },
   { id: 'Contacted/No Reply', label: 'Contacted/No Reply', color: 'bg-indigo-50', textColor: 'text-indigo-800', badgeColor: 'bg-indigo-200 text-indigo-800', borderColor: 'border-l-indigo-400' },
   { id: 'Lnkd Interview', label: 'Lnkd Interview', color: 'bg-amber-50', textColor: 'text-amber-800', badgeColor: 'bg-amber-200 text-amber-800', borderColor: 'border-l-amber-400' },
@@ -204,7 +175,7 @@ function CandidateCard({
 function StageColumn({
   stage, candidates, collapsed, onToggleCollapse, onDetails, onRemoveFromPipeline,
 }: {
-  stage: Stage;
+  stage: any;
   candidates: Candidate[];
   collapsed: boolean;
   onToggleCollapse: () => void;
