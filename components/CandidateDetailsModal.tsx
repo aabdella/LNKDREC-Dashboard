@@ -50,6 +50,9 @@ export type Candidate = {
   candidate_interactions?: any[];
   applications?: any[];
   pipeline_stage?: string;
+  pipeline_order?: number | null;
+  stage_changed_at?: string;
+  created_at?: string;
   brief?: string;
   education?: string;
   courses_certificates?: string;
@@ -80,6 +83,12 @@ export default function CandidateDetailsModal({
 
     useEffect(() => {
         if (candidate) {
+            setFormData({
+                ...candidate,
+                work_history: Array.isArray(candidate.work_history) ? candidate.work_history : [],
+                technologies: Array.isArray(candidate.technologies) ? candidate.technologies : [],
+                tools: Array.isArray(candidate.tools) ? candidate.tools : []
+            });
             fetchInteractions();
         }
     }, [candidate]);
@@ -253,7 +262,7 @@ export default function CandidateDetailsModal({
                                 <input 
                                     type="text" 
                                     className="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-black outline-none"
-                                    value={formData.title}
+                                    value={formData.title || ''}
                                     onChange={e => handleChange('title', e.target.value)}
                                 />
                             </div>
@@ -280,7 +289,7 @@ export default function CandidateDetailsModal({
                                 <input 
                                     type="text" 
                                     className="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-black outline-none"
-                                    value={formData.location}
+                                    value={formData.location || ''}
                                     onChange={e => handleChange('location', e.target.value)}
                                 />
                             </div>
