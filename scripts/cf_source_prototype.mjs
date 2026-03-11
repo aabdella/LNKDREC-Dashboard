@@ -25,10 +25,12 @@ async function cfRequest(method, path, body = null) {
   
   const resp = await fetch(url, options);
   const data = await resp.json();
+  
+  // Handle 1001 "Crawl job not found" as a retryable state
   if (!resp.ok || !data.success) {
-    throw new Error(`Cloudflare Error: ${JSON.stringify(data.errors || data)}`);
+    return { error: true, data: data.errors || data };
   }
-  return data.result;
+  return { error: false, result: data.result };
 }
 
 // ─── MAIN EXECUTION ──────────────────────────────────────────────────────────
@@ -37,90 +39,90 @@ async function runPrototype(startUrl) {
     console.log(`🦞 [Cloudflare] Initiating deep crawl for: ${startUrl}`);
     
     // 1. Start Crawl Job
-    // We limit to 5 pages for the prototype to save credits/time
-    const jobId = await cfRequest('POST', 'crawl', {
+    const postRes = await cfRequest('POST', 'crawl', {
       url: startUrl,
       limit: 5,
       depth: 1,
-      formats: ["markdown"],
-      options: {
-        includePatterns: ["**/behance.net/*"]
-      }
+      formats: ["markdown"]
     });
     
+    if (postRes.error) throw new Error(`Create failed: ${JSON.stringify(postRes.data)}`);
+    const jobId = postRes.result;
     console.log(`⏳ [Cloudflare] Crawl Job ID: ${jobId}. Polling for completion...`);
 
-    // 2. Poll for Completion
+    // 2. Poll for Completion with Retry Logic
     let jobStatus = 'running';
     let result = null;
-    while (jobStatus === 'running') {
-      await sleep(5000);
-      result = await cfRequest('GET', `crawl/${jobId}?limit=1`);
+    let retries = 0;
+    
+    while (jobStatus === 'running' && retries < 20) {
+      await sleep(10000); // 10s delay between checks
+      const getRes = await cfRequest('GET', `crawl/${jobId}?limit=1`);
+      
+      if (getRes.error) {
+        console.log(`   Waiting for job to propogate... (${retries}/20)`);
+        retries++;
+        continue;
+      }
+      
+      result = getRes.result;
       jobStatus = result.status;
       console.log(`   Status: ${jobStatus} (${result.finished || 0}/${result.total || 0} pages)`);
     }
 
     if (jobStatus !== 'completed') {
-      throw new Error(`Crawl failed with status: ${jobStatus}`);
+      throw new Error(`Crawl timed out or failed with status: ${jobStatus}`);
     }
 
-    // 3. Fetch Full Results
-    console.log(`✅ [Cloudflare] Crawl complete. Extracting candidate details...`);
-    const fullResult = await cfRequest('GET', `crawl/${jobId}?status=completed`);
-    const records = fullResult.records || [];
+    // 3. Extract and Ingest
+    console.log(`✅ [Cloudflare] Crawl complete. Fetching records...`);
+    const fullRes = await cfRequest('GET', `crawl/${jobId}?status=completed`);
+    const records = fullRes.result.records || [];
 
     for (const record of records) {
       if (!record.url.includes('/behance.net/') || record.url.includes('/search')) continue;
       
-      console.log(`🔍 [Cloudflare AI] Analyzing profile: ${record.url}`);
+      console.log(`🔍 [Cloudflare AI] Analyzing: ${record.url}`);
       
-      // 4. Use /json endpoint for structured extraction from the markdown content
-      // Note: We send the markdown directly to Cloudflare's AI extraction
-      try {
-        const extracted = await cfRequest('POST', 'json', {
-          url: record.url,
-          prompt: "Extract the person's full name, their professional title, their location in Egypt, and a summary of their Saudi market experience or top design skills.",
-          response_format: {
-            type: "json_schema",
-            json_schema: {
-              name: "candidate",
-              properties: {
-                full_name: { type: "string" },
-                title: { type: "string" },
-                location: { type: "string" },
-                match_reason: { type: "string" },
-                match_score: { type: "number" }
-              }
+      // Note: Cloudflare's /json can also be called separately
+      const extractRes = await cfRequest('POST', 'json', {
+        url: record.url,
+        prompt: "Extract Name, Professional Title, and Location.",
+        response_format: {
+          type: "json_schema",
+          json_schema: {
+            name: "c",
+            properties: {
+              full_name: { type: "string" },
+              title: { type: "string" },
+              location: { type: "string" }
             }
           }
-        });
-
-        if (extracted && extracted.full_name) {
-          console.log(`📥 [Supabase] Staging: ${extracted.full_name} (${extracted.match_score || 80}%)`);
-          
-          await supabase.from('unvetted').insert({
-            full_name: extracted.full_name,
-            title: extracted.title || "Graphic Designer",
-            location: extracted.location || "Egypt",
-            portfolio_url: record.url,
-            source: 'Cloudflare',
-            match_score: extracted.match_score || 85,
-            match_reason: extracted.match_reason || "Extracted via Cloudflare AI Browser Rendering.",
-            status: 'New',
-            uploaded_at: new Date().toISOString()
-          });
         }
-      } catch (e) {
-        console.warn(`⚠️ Failed to extract from ${record.url}: ${e.message}`);
+      });
+
+      if (!extractRes.error && extractRes.result) {
+        const c = extractRes.result;
+        console.log(`📥 [Supabase] Staging: ${c.full_name}`);
+        await supabase.from('unvetted').insert({
+          full_name: c.full_name,
+          title: c.title || "Graphic Designer",
+          location: c.location || "Egypt",
+          portfolio_url: record.url,
+          source: 'Cloudflare',
+          match_score: 85,
+          match_reason: "Deep-crawled via Cloudflare Browser Rendering API.",
+          status: 'New',
+          uploaded_at: new Date().toISOString()
+        });
       }
     }
 
-    console.log('🏁 [Cloudflare] Prototype run finished.');
+    console.log('🏁 Prototype run finished.');
   } catch (err) {
     console.error('❌ Prototype Error:', err.message);
   }
 }
 
-// Test with a specific search URL
 const testUrl = "https://www.behance.net/search/users?search=Graphic%20Designer&country=EG";
 runPrototype(testUrl);
