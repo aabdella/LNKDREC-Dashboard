@@ -796,6 +796,12 @@ function CVExportModal({
 
   const initials = candidate.full_name ? candidate.full_name.split(' ').slice(0, 2).map((p: string) => p[0]).join('').toUpperCase() : '??';
 
+  const allSkills = [
+    ...(candidate.technologies?.map((t: any) => t.name) || []),
+    ...(candidate.tools?.map((t: any) => t.name) || []),
+    ...(candidate.skills || []),
+  ].slice(0, 12);
+
   const handleDownload = async () => {
     setGenerating(true);
     try {
@@ -854,13 +860,94 @@ function CVExportModal({
           <div>
             <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wider mb-3">Templates</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div onClick={() => setSelectedTemplate('A')} className={`border-2 rounded-xl p-4 cursor-pointer transition ${selectedTemplate === 'A' ? 'border-indigo-500 bg-indigo-50 shadow-lg' : 'border-slate-200 hover:border-slate-300'}`}>
-                 <div className="font-bold text-slate-800 mb-1">Template A — Clean Minimal</div>
-                 <div className="bg-white h-32 w-full border border-slate-100 rounded flex items-center justify-center text-[10px] text-slate-400">Preview Layout A</div>
+              {/* Template A Preview */}
+              <div
+                onClick={() => setSelectedTemplate('A')}
+                className={`border-2 rounded-xl overflow-hidden cursor-pointer transition-all ${
+                  selectedTemplate === 'A'
+                    ? 'border-indigo-500 shadow-lg shadow-indigo-100'
+                    : 'border-slate-200 hover:border-slate-300'
+                }`}
+              >
+                <div className="bg-slate-50 px-3 py-2 flex items-center justify-between border-b border-slate-200">
+                  <span className="text-xs font-bold text-slate-700">A — Clean Minimal</span>
+                  {selectedTemplate === 'A' && (
+                    <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">Selected</span>
+                  )}
+                </div>
+                {/* Mini preview of Template A */}
+                <div className="bg-white p-3 text-[7px] leading-tight min-h-[160px] select-none">
+                  <div className="flex justify-between items-start mb-2">
+                    <div>
+                      <div className="font-black text-[11px] text-slate-900 leading-none">{candidate.full_name}</div>
+                      <div className="text-slate-500 text-[8px] mt-0.5">{candidate.title}</div>
+                    </div>
+                    <div className="w-8 h-6 bg-slate-200 rounded flex items-center justify-center text-[6px] text-slate-400 font-bold">LOGO</div>
+                  </div>
+                  <div className="border-t border-slate-200 my-1.5"></div>
+                  <div className="flex gap-2 text-slate-500 mb-2 flex-wrap">
+                    <span className="bg-slate-100 px-1.5 py-0.5 rounded">📍 {candidate.location || '—'}</span>
+                    <span className="bg-slate-100 px-1.5 py-0.5 rounded">🗓 {candidate.years_experience_total || 0} yrs</span>
+                  </div>
+                  <div className="font-bold text-slate-700 mb-1">SKILLS</div>
+                  <div className="flex flex-wrap gap-1 mb-2">
+                    {allSkills.slice(0, 6).map((s, i) => (
+                      <span key={i} className="bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded font-bold">{s}</span>
+                    ))}
+                  </div>
+                  <div className="border-t border-slate-100 mt-2 pt-1 text-center text-slate-300 text-[6px]">Presented by LNKDREC.ai</div>
+                </div>
+                <div className={`py-2 text-center text-xs font-bold transition ${
+                  selectedTemplate === 'A' ? 'bg-indigo-500 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}>
+                  {selectedTemplate === 'A' ? '✓ Selected' : 'Select Template A'}
+                </div>
               </div>
-              <div onClick={() => setSelectedTemplate('B')} className={`border-2 rounded-xl p-4 cursor-pointer transition ${selectedTemplate === 'B' ? 'border-indigo-500 bg-indigo-50 shadow-lg' : 'border-slate-200 hover:border-slate-300'}`}>
-                 <div className="font-bold text-slate-800 mb-1">Template B — Modern Two-Column</div>
-                 <div className="bg-white h-32 w-full border border-slate-100 rounded flex items-center justify-center text-[10px] text-slate-400">Preview Layout B</div>
+
+              {/* Template B Preview */}
+              <div
+                onClick={() => setSelectedTemplate('B')}
+                className={`border-2 rounded-xl overflow-hidden cursor-pointer transition-all ${
+                  selectedTemplate === 'B'
+                    ? 'border-indigo-500 shadow-lg shadow-indigo-100'
+                    : 'border-slate-200 hover:border-slate-300'
+                }`}
+              >
+                <div className="bg-slate-50 px-3 py-2 flex items-center justify-between border-b border-slate-200">
+                  <span className="text-xs font-bold text-slate-700">B — Modern Two-Column</span>
+                  {selectedTemplate === 'B' && (
+                    <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">Selected</span>
+                  )}
+                </div>
+                {/* Mini preview of Template B */}
+                <div className="flex min-h-[160px] select-none">
+                  {/* Sidebar */}
+                  <div className="w-1/3 bg-slate-900 p-2 text-white text-[7px] leading-tight">
+                    <div className="w-8 h-5 bg-slate-700 rounded flex items-center justify-center text-[5px] text-slate-400 mb-1.5 font-bold">LOGO</div>
+                    <div className="h-8 w-8 rounded-full bg-indigo-500 flex items-center justify-center text-[8px] font-black mb-1.5 mx-auto">{initials}</div>
+                    <div className="font-black text-[8px] text-center leading-none text-white mb-0.5">{candidate.full_name}</div>
+                    <div className="text-slate-400 text-[6px] text-center mb-2">{candidate.title}</div>
+                    <div className="text-slate-300 font-bold mb-1 mt-1.5 text-[6px]">SKILLS</div>
+                    {allSkills.slice(0, 4).map((s, i) => (
+                      <div key={i} className="text-slate-300 mb-0.5 font-bold">• {s}</div>
+                    ))}
+                  </div>
+                  {/* Content */}
+                  <div className="flex-1 bg-white p-2 text-[7px]">
+                    <div className="text-indigo-600 font-black text-[8px] tracking-widest mb-2 uppercase">Candidate Profile</div>
+                    <div className="flex flex-wrap gap-1 mb-2">
+                      <span className="bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded font-bold">{candidate.years_experience_total || 0} yrs exp</span>
+                    </div>
+                    <div className="font-bold text-slate-700 mb-1">MATCH REASON</div>
+                    <div className="bg-slate-50 p-1.5 rounded border border-slate-100 text-slate-500 leading-tight">High relevance to role requirements...</div>
+                    <div className="border-t border-slate-100 mt-auto pt-1 text-center text-slate-300 text-[6px]">Presented by LNKDREC.ai</div>
+                  </div>
+                </div>
+                <div className={`py-2 text-center text-xs font-bold transition ${
+                  selectedTemplate === 'B' ? 'bg-indigo-500 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}>
+                  {selectedTemplate === 'B' ? '✓ Selected' : 'Select Template B'}
+                </div>
               </div>
             </div>
           </div>
