@@ -120,11 +120,6 @@ function CandidateCard({
                 </p>
               )}
             </div>
-            {score !== undefined && score !== null && (
-              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0 ${scoreChipClass(score)}`}>
-                {score}%
-              </span>
-            )}
           </div>
 
           {/* Bottom row */}
