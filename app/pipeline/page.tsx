@@ -354,6 +354,7 @@ export default function PipelinePage() {
         let newStatus = statusForStage(newStage);
         if (newStage === 'Offer') newStatus = 'Offer';
         if (newStage === 'Hired') newStatus = 'Hired';
+        if (newStage === 'Rejected') newStatus = 'Vetted'; // Ensure they stay Vetted when Rejected
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const payload: Record<string, any> = { pipeline_stage: newStage, stage_changed_at: new Date().toISOString() };

@@ -33,8 +33,23 @@
 - **Why `/sales`?** To separate recruiter-focused sourcing from executive-focused client management.
 - **Case Sensitivity:** Discovered that job status counts were failing because some were 'Open' and others 'open'. Standardized to sum all variations.
 
+## Mar 11, 2026 - Component Unification & Feature Expansion
+
+### ✅ Accomplishments
+- **Unified Candidate Details:** Created `@/components/CandidateDetailsModal.tsx` as a single source of truth for viewing and editing candidates. Replaced inline modals in `Dashboard` and `Pipeline` with this component.
+- **Enhanced Pipeline Page:** Clicking "Details" in the Kanban board now shows the full interaction timeline, tech stack, and work history.
+- **Candidate Highlighting:** Added a "Star" toggle to highlight top-tier candidates. Implemented `is_highlighted` column in Supabase and Amber glow styling on cards.
+- **Filter Stabilization:** Patched "Assigned Only" filter to include candidates in `Offer` or `Hired` stages who still have active job assignments.
+- **Restored Design System:** Reverted UI tweaks to match the user's preferred high-contrast status badge colors and high-end button styling.
+
+### 🧠 Decision Log
+- **Shared Component:** Moving to a shared component was necessary for maintainability as the details form became more complex (Education, Brief, Timeline).
+- **Highlighting Logic:** Chose an amber border and "🌟 Top Match" badge for highlighted candidates to ensure they pop against the white/slate aesthetic.
+
 ### 🏗️ Backlog
 - [ ] **Universal Activity Logging:** Expand `activity_log` to track *all* database additions, edits, and deletions (Add `actor`/`user_id` column once Auth/Roles are implemented).
 - [ ] Implement "Point 1" from Arscontexta: Automatic PRD extraction from chats.
 - [ ] Replace basic dropdown with Segmented Pills for better "Vibe."
 - [ ] Add tooltips for Match Score details.
+- [ ] WhatsApp Integration (High Priority).
+- [ ] Client Portal (High Priority).
