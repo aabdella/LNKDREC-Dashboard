@@ -1,153 +1,115 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-// ─── Supabase Configuration ──────────────────────────────────────────────────
+// ─── Configuration ───────────────────────────────────────────────────────────
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://clrzajerliyyddfyvggd.supabase.co';
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// ─── Cloudflare Configuration ────────────────────────────────────────────────
+const BRAVE_API_KEY = 'BSAkO1bNAF5QCq4K_b3UCuQlR8FNKEP';
 const CF_ACCOUNT_ID = '51aee885fbff69595ec806189f5de591';
 const CF_API_TOKEN = 'L4a0dJChoKZGpChtCcIJAWMQjLcbLAtyiuD7yGs4';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
-const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-async function cfRequest(method: string, path: string, body: any = null) {
-  const url = `https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/browser-rendering/${path}`;
-  const options: any = {
-    method,
+async function cfExtract(url: string, jd: string) {
+  const endpoint = `https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/browser-rendering/json`;
+  const resp = await fetch(endpoint, {
+    method: 'POST',
     headers: {
       'Authorization': `Bearer ${CF_API_TOKEN}`,
       'Content-Type': 'application/json'
-    }
-  };
-  if (body) options.body = JSON.stringify(body);
-  
-  const resp = await fetch(url, options);
+    },
+    body: JSON.stringify({
+      url,
+      prompt: `Analyze this candidate profile against this JD: "${jd.substring(0, 800)}". 
+               Extract: full_name, professional title, location (in Egypt), match_reason (focus on AI tools and target markets like Saudi/GCC), and match_score (0-100).`,
+      response_format: {
+        type: "json_schema",
+        json_schema: {
+          name: "candidate",
+          properties: {
+            full_name: { type: "string" },
+            title: { type: "string" },
+            location: { type: "string" },
+            match_reason: { type: "string" },
+            match_score: { type: "number" }
+          }
+        }
+      }
+    })
+  });
   const data = await resp.json();
-  if (!resp.ok || !data.success) return { error: true, data: data.errors || data };
-  return { error: false, result: data.result };
+  if (!resp.ok || !data.success) return null;
+  return data.result;
 }
 
-// ─── Main Post Handler ───────────────────────────────────────────────────────
+async function searchProfiles(query: string) {
+  const url = `https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(query)}&count=15`;
+  const resp = await fetch(url, {
+    headers: { 'X-Subscription-Token': BRAVE_API_KEY, 'Accept': 'application/json' }
+  });
+  const data = await resp.json();
+  return (data.web?.results || [])
+    .map((r: any) => r.url)
+    .filter((u: string) => 
+      (u.includes('behance.net/') && u.split('/').length === 4) || 
+      (u.includes('linkedin.com/in/'))
+    );
+}
+
+// ─── Main Handler ────────────────────────────────────────────────────────────
+
 export async function POST(req: NextRequest) {
   try {
-    const { jd, limit = 5 } = await req.json();
+    const { jd } = await req.json();
+    if (!jd) return NextResponse.json({ error: 'JD required' }, { status: 400 });
 
-    if (!jd || jd.length < 20) {
-      return NextResponse.json({ error: 'Please provide a valid JD.' }, { status: 400 });
-    }
-
-    // 1. Identify Search URL (Heuristic)
     const titleLine = jd.split('\n')[0].replace(/[()&]/g, ' ').trim();
-    const isCreative = /designer|graphic|art|creative|visual/i.test(jd);
-    const searchUrl = isCreative 
-       ? `https://www.behance.net/search/users?search=${encodeURIComponent(titleLine)}&country=EG`
-       : `https://www.google.com/search?q=site:linkedin.com/in+${encodeURIComponent(titleLine)}+Egypt`;
+    
+    // Step 1: Discovery (Brave API)
+    console.log(`🦞 [Deep Source] Discovering profiles for: ${titleLine}`);
+    const queries = [
+      `site:behance.net "${titleLine}" Egypt`,
+      `site:linkedin.com/in "${titleLine}" Egypt Saudi market`
+    ];
+    
+    const profileUrls = Array.from(new Set((await Promise.all(queries.map(searchProfiles))).flat()));
+    console.log(`🦞 [Deep Source] Found ${profileUrls.length} candidate URLs.`);
 
-    console.log(`🦞 [Deep Crawl] Initiating for cleaned query: ${titleLine}`);
-    console.log(`🦞 [Deep Crawl] URL: ${searchUrl}`);
-
-    // 2. Start Cloudflare Crawl
-    const crawlRes = await cfRequest('POST', 'crawl', {
-      url: searchUrl,
-      limit: 20,
-      depth: 1,
-      formats: ["markdown", "html"]
-    });
-
-    if (crawlRes.error) throw new Error(`Crawl failed: ${JSON.stringify(crawlRes.data)}`);
-    const jobId = crawlRes.result;
-
-    // 3. Poll for Completion
-    let status = 'running';
-    let jobResult: any = null;
-    let attempts = 0;
-    while (status === 'running' && attempts < 15) {
-      await sleep(10000); // 10s wait
-      const statusRes = await cfRequest('GET', `crawl/${jobId}?limit=1`);
-      if (!statusRes.error) {
-        status = statusRes.result.status;
-        jobResult = statusRes.result;
-      }
-      attempts++;
+    if (profileUrls.length === 0) {
+      return NextResponse.json({ success: true, sourced: 0, message: 'No profiles found during discovery.' });
     }
 
-    if (status !== 'completed') {
-      return NextResponse.json({ error: 'Deep crawl timed out. It might still be running in the background.' }, { status: 202 });
-    }
-
-    // 4. Fetch Full Records and Extract
-    const recordsRes = await cfRequest('GET', `crawl/${jobId}?status=completed`);
-    const records = recordsRes.result.records || [];
+    // Step 2: Hydration (Cloudflare AI)
+    // We process top 8 in parallel to stay within reasonable time/rate limits
+    const targets = profileUrls.slice(0, 8);
     let sourcedCount = 0;
 
-    console.log(`🦞 [Deep Crawl] Found ${records.length} records. Filtering for profiles...`);
+    const extractions = await Promise.all(targets.map(url => cfExtract(url, jd)));
 
-    for (const record of records) {
-       const url = record.url.split('?')[0];
-       const isBehanceProfile = url.includes('behance.net/') && url.split('/').length === 4; 
-       
-       if (!isBehanceProfile || url.includes('/search')) continue;
-
-       console.log(`🦞 [Deep Crawl] Sourcing profile: ${url}`);
-
-       const extractRes = await cfRequest('POST', 'json', {
-         url: record.url,
-         prompt: `
-            Analyze this candidate profile against the following Job Description:
-            "${jd.substring(0, 1000)}"
-
-            MANDATORY EXTRACTION RULES:
-            1. FULL NAME: The candidate's real name.
-            2. TITLE: Their current professional title.
-            3. LOCATION: Must be in Egypt (check for Cairo, Giza, Alexandria, etc.).
-            4. MATCH REASON: Be specific about their experience with:
-               - AI design tools (Midjourney, ChatGPT, Kling, Firefly, etc.)
-               - Target markets mentioned in JD (e.g. Saudi/GCC, UAE, or local Egypt)
-               - Social media/campaign specific work.
-            5. MATCH SCORE: 0-100. 
-               - Above 80: Has BOTH target market exp AND AI tool exp.
-               - 60-80: Has one of the two but strong social media work.
-               - Below 50: Missing both or not based in Egypt.
-         `,
-         response_format: {
-           type: "json_schema",
-           json_schema: {
-             name: "c",
-             properties: {
-               full_name: { type: "string" },
-               title: { type: "string" },
-               location: { type: "string" },
-               match_reason: { type: "string" },
-               match_score: { type: "number" }
-             }
-           }
-         }
-       });
-
-       if (!extractRes.error && extractRes.result) {
-         const c = extractRes.result;
-         await supabase.from('unvetted').insert({
-            full_name: c.full_name,
-            title: c.title || "Professional",
-            location: c.location || "Egypt",
-            portfolio_url: record.url,
-            source: 'Cloudflare',
-            match_score: c.match_score || 85,
-            match_reason: c.match_reason || "Deep-crawled via Cloudflare AI.",
-            status: 'New',
-            uploaded_at: new Date().toISOString()
-         });
-         sourcedCount++;
-       }
+    for (let i = 0; i < extractions.length; i++) {
+      const c = extractions[i];
+      if (c && c.full_name && c.match_score > 40) {
+        await supabase.from('unvetted').insert({
+          full_name: c.full_name,
+          title: c.title || "Professional",
+          location: c.location || "Egypt",
+          portfolio_url: targets[i],
+          source: 'Deep Source',
+          match_score: c.match_score,
+          match_reason: c.match_reason,
+          status: 'New',
+          uploaded_at: new Date().toISOString()
+        });
+        sourcedCount++;
+      }
     }
 
     return NextResponse.json({ success: true, sourced: sourcedCount });
 
   } catch (err: any) {
-    console.error('Deep Crawl Error:', err);
+    console.error('Deep Source Error:', err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
