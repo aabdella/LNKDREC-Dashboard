@@ -41,12 +41,14 @@ export async function POST(req: NextRequest) {
 
     // 1. Identify Search URL (Heuristic)
     // For now we target Behance as it's the most high-value for Cloudflare deep crawls
+    const titleLine = jd.split('\n')[0].replace(/[()&]/g, ' ').trim();
     const isCreative = /designer|graphic|art|creative|visual/i.test(jd);
     const searchUrl = isCreative 
-       ? `https://www.behance.net/search/users?search=${encodeURIComponent(jd.split('\n')[0])}&country=EG`
-       : `https://www.google.com/search?q=site:linkedin.com/in+${encodeURIComponent(jd.split('\n')[0])}+Egypt`;
+       ? `https://www.behance.net/search/users?search=${encodeURIComponent(titleLine)}&country=EG`
+       : `https://www.google.com/search?q=site:linkedin.com/in+${encodeURIComponent(titleLine)}+Egypt`;
 
-    console.log(`🦞 [Deep Crawl] Initiating for: ${searchUrl}`);
+    console.log(`🦞 [Deep Crawl] Initiating for cleaned query: ${titleLine}`);
+    console.log(`🦞 [Deep Crawl] URL: ${searchUrl}`);
 
     // 2. Start Cloudflare Crawl
     const crawlRes = await cfRequest('POST', 'crawl', {
@@ -83,13 +85,14 @@ export async function POST(req: NextRequest) {
     let sourcedCount = 0;
 
     for (const record of records) {
-       // Filter for profile pages only
-       if (!record.url.includes('/behance.net/') || record.url.includes('/search')) continue;
+       // Filter for profile pages only (broader regex for Behance localized domains)
+       const isBehanceProfile = /behance\.net\/([^/]+)$/.test(record.url.split('?')[0]);
+       if (!isBehanceProfile || record.url.includes('/search')) continue;
 
        // Use AI Extraction
        const extractRes = await cfRequest('POST', 'json', {
          url: record.url,
-         prompt: `Extract full name, professional title, location in Egypt, and match reason based on this JD: ${jd.substring(0, 500)}`,
+         prompt: `Extract full name, professional title, location in Egypt, and a match reason explaining their experience with AI tools and the Saudi/GCC market based on this JD: ${jd.substring(0, 1000)}`,
          response_format: {
            type: "json_schema",
            json_schema: {
