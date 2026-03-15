@@ -53,9 +53,9 @@ export async function POST(req: NextRequest) {
     // 2. Start Cloudflare Crawl
     const crawlRes = await cfRequest('POST', 'crawl', {
       url: searchUrl,
-      limit: 10,
+      limit: 20,
       depth: 1,
-      formats: ["markdown"]
+      formats: ["markdown", "html"]
     });
 
     if (crawlRes.error) throw new Error(`Crawl failed: ${JSON.stringify(crawlRes.data)}`);
@@ -84,13 +84,21 @@ export async function POST(req: NextRequest) {
     const records = recordsRes.result.records || [];
     let sourcedCount = 0;
 
-    for (const record of records) {
-       // Filter for profile pages only (broader regex for Behance localized domains)
-       const isBehanceProfile = /behance\.net\/([^/]+)$/.test(record.url.split('?')[0]);
-       if (!isBehanceProfile || record.url.includes('/search')) continue;
+    // 4. Fetch Full Records and Extract
+    const recordsRes = await cfRequest('GET', `crawl/${jobId}?status=completed`);
+    const records = recordsRes.result.records || [];
+    let sourcedCount = 0;
 
-       // Use AI Extraction
-       const extractRes = await cfRequest('POST', 'json', {
+    console.log(`🦞 [Deep Crawl] Found ${records.length} records. Filtering for profiles...`);
+
+    for (const record of records) {
+       // Filter for profile pages only (looser check to catch localized and varying structures)
+       const url = record.url.split('?')[0];
+       const isBehanceProfile = url.includes('behance.net/') && url.split('/').length === 4; 
+       
+       if (!isBehanceProfile || url.includes('/search')) continue;
+
+       console.log(`🦞 [Deep Crawl] Sourcing profile: ${url}`);
          url: record.url,
          prompt: `Extract full name, professional title, location in Egypt, and a match reason explaining their experience with AI tools and the Saudi/GCC market based on this JD: ${jd.substring(0, 1000)}`,
          response_format: {
