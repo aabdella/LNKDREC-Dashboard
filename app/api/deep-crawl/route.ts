@@ -95,7 +95,23 @@ export async function POST(req: NextRequest) {
 
        const extractRes = await cfRequest('POST', 'json', {
          url: record.url,
-         prompt: `Extract full name, professional title, location, and match reason explaining their experience with AI tools and target markets based on this JD: ${jd.substring(0, 1000)}`,
+         prompt: `
+            Analyze this candidate profile against the following Job Description:
+            "${jd.substring(0, 1000)}"
+
+            MANDATORY EXTRACTION RULES:
+            1. FULL NAME: The candidate's real name.
+            2. TITLE: Their current professional title.
+            3. LOCATION: Must be in Egypt (check for Cairo, Giza, Alexandria, etc.).
+            4. MATCH REASON: Be specific about their experience with:
+               - AI design tools (Midjourney, ChatGPT, Kling, Firefly, etc.)
+               - Target markets mentioned in JD (e.g. Saudi/GCC, UAE, or local Egypt)
+               - Social media/campaign specific work.
+            5. MATCH SCORE: 0-100. 
+               - Above 80: Has BOTH target market exp AND AI tool exp.
+               - 60-80: Has one of the two but strong social media work.
+               - Below 50: Missing both or not based in Egypt.
+         `,
          response_format: {
            type: "json_schema",
            json_schema: {
