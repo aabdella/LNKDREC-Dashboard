@@ -40,7 +40,6 @@ export async function POST(req: NextRequest) {
     }
 
     // 1. Identify Search URL (Heuristic)
-    // For now we target Behance as it's the most high-value for Cloudflare deep crawls
     const titleLine = jd.split('\n')[0].replace(/[()&]/g, ' ').trim();
     const isCreative = /designer|graphic|art|creative|visual/i.test(jd);
     const searchUrl = isCreative 
@@ -61,7 +60,7 @@ export async function POST(req: NextRequest) {
     if (crawlRes.error) throw new Error(`Crawl failed: ${JSON.stringify(crawlRes.data)}`);
     const jobId = crawlRes.result;
 
-    // 3. Poll for Completion (with timeout logic)
+    // 3. Poll for Completion
     let status = 'running';
     let jobResult: any = null;
     let attempts = 0;
@@ -84,23 +83,19 @@ export async function POST(req: NextRequest) {
     const records = recordsRes.result.records || [];
     let sourcedCount = 0;
 
-    // 4. Fetch Full Records and Extract
-    const recordsRes = await cfRequest('GET', `crawl/${jobId}?status=completed`);
-    const records = recordsRes.result.records || [];
-    let sourcedCount = 0;
-
     console.log(`🦞 [Deep Crawl] Found ${records.length} records. Filtering for profiles...`);
 
     for (const record of records) {
-       // Filter for profile pages only (looser check to catch localized and varying structures)
        const url = record.url.split('?')[0];
        const isBehanceProfile = url.includes('behance.net/') && url.split('/').length === 4; 
        
        if (!isBehanceProfile || url.includes('/search')) continue;
 
        console.log(`🦞 [Deep Crawl] Sourcing profile: ${url}`);
+
+       const extractRes = await cfRequest('POST', 'json', {
          url: record.url,
-         prompt: `Extract full name, professional title, location in Egypt, and a match reason explaining their experience with AI tools and the Saudi/GCC market based on this JD: ${jd.substring(0, 1000)}`,
+         prompt: `Extract full name, professional title, location, and match reason explaining their experience with AI tools and target markets based on this JD: ${jd.substring(0, 1000)}`,
          response_format: {
            type: "json_schema",
            json_schema: {
