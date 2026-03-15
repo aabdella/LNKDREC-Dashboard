@@ -10,6 +10,7 @@ import {
   ChevronRightIcon,
   ExclamationTriangleIcon,
   BuildingOfficeIcon,
+  XMarkIcon,
 } from '@heroicons/react/24/outline';
 
 // ─── Stage Config
@@ -234,6 +235,7 @@ export default function PipelinePage() {
   const [loading, setLoading] = useState(true);
   const [migrationNotice, setMigrationNotice] = useState(false);
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
+  const [rejectionContext, setRejectionContext] = useState<{ candidate: Candidate; stage: string } | null>(null);
   const [collapsedStages, setCollapsedStages] = useState<Record<string, boolean>>({ Rejected: true });
 
   // ─── Fetch ───────────────────────────────────────────────────────────────────
@@ -346,6 +348,14 @@ export default function PipelinePage() {
       const updates: Promise<unknown>[] = [];
 
       if (!isSameStage) {
+        if (newStage === 'Rejected') {
+          const cand = candidates.find(c => c.id === draggableId);
+          if (cand) {
+            setRejectionContext({ candidate: cand, stage: newStage });
+            return; // Modal will handle the update
+          }
+        }
+
         let newStatus = statusForStage(newStage);
         if (newStage === 'Offer') newStatus = 'Offer';
         if (newStage === 'Hired') newStatus = 'Hired';
@@ -414,6 +424,47 @@ export default function PipelinePage() {
     setCollapsedStages((prev) => ({ ...prev, [stageId]: !prev[stageId] }));
   };
 
+  const handleRejectionFeedback = async (reason: string, customNote: string) => {
+    if (!rejectionContext) return;
+    const { candidate, stage } = rejectionContext;
+    const finalNote = reason === 'Other' ? customNote : `${reason}${customNote ? `: ${customNote}` : ''}`;
+
+    // Optimistic Update
+    setCandidates((prev) =>
+      prev.map((c) =>
+        c.id === candidate.id
+          ? { ...c, pipeline_stage: stage, stage_changed_at: new Date().toISOString(), status: 'Vetted' }
+          : c
+      )
+    );
+
+    const firstApp = Array.isArray(candidate.applications) ? candidate.applications[0] : candidate.applications;
+    const jobId = firstApp?.job_id;
+    const jobTitle = firstApp?.jobs?.title || 'assigned job';
+    const clientName = firstApp?.jobs?.clients?.name || 'client';
+
+    // 1. Update Candidate Stage
+    await supabase.from('candidates').update({
+      pipeline_stage: stage,
+      stage_changed_at: new Date().toISOString(),
+      status: 'Vetted'
+    }).eq('id', candidate.id);
+
+    if (jobId) {
+      // 2. Unassign from vacancy
+      await supabase.from('applications').delete().eq('candidate_id', candidate.id).eq('job_id', jobId);
+      // 3. Log feedback interaction
+      await supabase.from('candidate_interactions').insert({
+        candidate_id: candidate.id,
+        type: 'Feedback',
+        content: `Rejected from ${jobTitle} at ${clientName}. Reason: ${finalNote}`
+      });
+    }
+
+    setRejectionContext(null);
+    fetchCandidates();
+  };
+
   // ─── Render ───────────────────────────────────────────────────────────────────
 
   const grouped = stageMap();
@@ -426,6 +477,16 @@ export default function PipelinePage() {
           candidate={selectedCandidate} 
           onClose={() => setSelectedCandidate(null)} 
           onUpdate={fetchCandidates}
+        />
+      )}
+      {rejectionContext && (
+        <RejectionFeedbackModal 
+          candidate={rejectionContext.candidate}
+          onClose={() => {
+            setRejectionContext(null);
+            fetchCandidates(); // Reset to original position
+          }}
+          onSave={handleRejectionFeedback}
         />
       )}
       {migrationNotice && (
@@ -483,6 +544,78 @@ export default function PipelinePage() {
         </DragDropContext>
       )}
 
+    </div>
+  );
+}
+
+// ─── Rejection Feedback Modal ──────────────────────────────────────────────────
+
+function RejectionFeedbackModal({ 
+  candidate, onClose, onSave 
+}: { 
+  candidate: Candidate; 
+  onClose: () => void; 
+  onSave: (reason: string, note: string) => void 
+}) {
+  const [reason, setReason] = useState('');
+  const [note, setNote] = useState('');
+
+  const REASONS = ['Salary Expectation', 'Technical Skills', 'Cultural Fit', 'Seniority', 'Ghosted/No Reply', 'Other'];
+
+  return (
+    <div className="fixed inset-0 z-[250] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-[2px]" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-2xl border border-slate-200 max-w-md w-full p-6" onClick={e => e.stopPropagation()}>
+        <div className="flex justify-between items-start mb-4">
+          <div>
+            <h3 className="text-lg font-bold text-slate-900">Rejection Feedback</h3>
+            <p className="text-xs text-slate-500 mt-0.5">Why was {candidate.full_name} rejected?</p>
+          </div>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition">
+            <XMarkIcon className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="flex flex-wrap gap-2 mb-4">
+          {REASONS.map(r => (
+            <button
+              key={r}
+              onClick={() => setReason(r)}
+              className={`
+                px-3 py-1.5 rounded-full text-[11px] font-semibold border transition-all
+                ${reason === r 
+                  ? 'bg-slate-900 border-slate-900 text-white shadow-sm' 
+                  : 'bg-white border-slate-200 text-slate-600 hover:border-slate-400'}
+              `}
+            >
+              {r}
+            </button>
+          ))}
+        </div>
+
+        <textarea
+          rows={3}
+          placeholder="Additional notes (optional)..."
+          className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-slate-900 outline-none transition appearance-none"
+          value={note}
+          onChange={e => setNote(e.target.value)}
+        />
+
+        <div className="flex gap-3 mt-6">
+          <button 
+            onClick={onClose}
+            className="flex-1 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 rounded-lg transition"
+          >
+            Cancel
+          </button>
+          <button 
+            disabled={!reason}
+            onClick={() => onSave(reason, note)}
+            className="flex-1 px-4 py-2 text-sm font-semibold bg-red-600 text-white rounded-lg hover:bg-red-700 transition disabled:opacity-50 disabled:bg-slate-300"
+          >
+            Confirm Rejection
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
