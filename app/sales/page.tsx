@@ -434,9 +434,9 @@ export default function SalesDashboard() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
         {[
           { label: 'Active Portfolio', value: stats.activePortfolio, key: 'activePortfolio', detail: 'Engaged Partners', icon: BuildingOfficeIcon },
-          { label: 'New Leads', value: stats.newLeads, key: 'newLeads', detail: 'Contract Initiated', icon: RocketLaunchIcon },
+          { label: 'New Leads', value: stats.newLeads, key: 'newLeads', detail: 'Contact Initiated', icon: RocketLaunchIcon },
           { label: 'Delivery Pipeline', value: stats.deliveryPipeline, key: 'deliveryPipeline', detail: 'Active Vacancies', icon: BriefcaseIcon },
-          { label: 'Total Submissions', value: stats.totalSubmissions, key: 'totalSubmissions', detail: 'Vetted Talent Sent', icon: UserGroupIcon },
+          { label: 'Total Submissions (Vetted Talents)', value: stats.totalSubmissions, key: 'totalSubmissions', detail: 'Vetted Talent Sent', icon: UserGroupIcon },
         ].map((item, idx) => (
           <div key={idx} className="bg-white border border-slate-200 p-6 rounded-2xl shadow-sm transition hover:shadow-md">
             <div className="flex justify-between items-start mb-4">
