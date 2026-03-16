@@ -21,6 +21,15 @@ type Candidate = {
 };
 
 type SourcingAlert = { type: 'success' | 'error'; message: string } | null;
+type DeepSearchDebug = {
+  titleLine?: string;
+  targetMarket?: string;
+  queries?: string[];
+  discovered?: string[];
+  extractedCount?: number;
+  failedCount?: number;
+  failed?: any[];
+} | null;
 
 export default function SourcingPage() {
   const [jd, setJd] = useState('');
@@ -32,6 +41,7 @@ export default function SourcingPage() {
   const [isMatching, setIsMatching] = useState(false);
   const [activeTab, setActiveTab] = useState<'internal' | 'sourced'>('internal');
   const [sourcingAlert, setSourcingAlert] = useState<SourcingAlert>(null);
+  const [deepSearchDebug, setDeepSearchDebug] = useState<DeepSearchDebug>(null);
 
   useEffect(() => {
     fetchSourcedQueue();
@@ -87,6 +97,7 @@ export default function SourcingPage() {
     }
     setIsDeepCrawling(true);
     setSourcingAlert(null);
+    setDeepSearchDebug(null);
     setSelectedIds([]);
     try {
       const res = await fetch('/api/deep-crawl', {
@@ -96,8 +107,10 @@ export default function SourcingPage() {
       });
       const data = await res.json();
       if (!res.ok || !data.success) {
+        setDeepSearchDebug(data.debug || null);
         setSourcingAlert({ type: 'error', message: data.error || 'Deep search failed.' });
       } else {
+        setDeepSearchDebug(data.debug || null);
         setSourcingAlert({
           type: 'success',
           message: `Deep Search complete! Sourced ${data.sourced} candidates.${data.debug?.discovered ? ` Discovery found ${data.debug.discovered.length} profile URLs.` : ''}`,
@@ -168,6 +181,82 @@ export default function SourcingPage() {
         }`}>
           <span>{sourcingAlert.message}</span>
           <button onClick={() => setSourcingAlert(null)}>×</button>
+        </div>
+      )}
+
+      {deepSearchDebug && (
+        <div className="mb-6 bg-slate-900 text-slate-100 rounded-xl border border-slate-800 shadow-sm overflow-hidden">
+          <div className="px-5 py-4 border-b border-slate-800 flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-bold">Deep Search Debug</h3>
+              <p className="text-[11px] text-slate-400 mt-1">Use this to inspect discovery before changing backend logic again.</p>
+            </div>
+            <button onClick={() => setDeepSearchDebug(null)} className="text-slate-400 hover:text-white">×</button>
+          </div>
+
+          <div className="p-5 space-y-4 text-xs">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div className="bg-slate-950 rounded-lg p-3 border border-slate-800">
+                <div className="text-slate-400 mb-1">Parsed Title</div>
+                <div className="font-semibold text-slate-100 break-words">{deepSearchDebug.titleLine || '—'}</div>
+              </div>
+              <div className="bg-slate-950 rounded-lg p-3 border border-slate-800">
+                <div className="text-slate-400 mb-1">Target Market</div>
+                <div className="font-semibold text-slate-100">{deepSearchDebug.targetMarket || '—'}</div>
+              </div>
+              <div className="bg-slate-950 rounded-lg p-3 border border-slate-800">
+                <div className="text-slate-400 mb-1">Discovery Count</div>
+                <div className="font-semibold text-slate-100">{deepSearchDebug.discovered?.length || 0}</div>
+              </div>
+            </div>
+
+            <div>
+              <div className="text-slate-300 font-semibold mb-2">Queries</div>
+              <div className="space-y-2">
+                {(deepSearchDebug.queries || []).map((query, index) => (
+                  <div key={index} className="bg-slate-950 rounded-lg p-3 border border-slate-800 break-words text-slate-200">
+                    {query}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <div className="text-slate-300 font-semibold mb-2">Discovered URLs</div>
+              <div className="max-h-72 overflow-auto space-y-2 pr-1">
+                {(deepSearchDebug.discovered || []).length > 0 ? (
+                  (deepSearchDebug.discovered || []).map((url, index) => (
+                    <a
+                      key={index}
+                      href={url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block bg-slate-950 rounded-lg p-3 border border-slate-800 break-all text-indigo-300 hover:text-indigo-200 hover:border-slate-700 transition"
+                    >
+                      {url}
+                    </a>
+                  ))
+                ) : (
+                  <div className="bg-slate-950 rounded-lg p-3 border border-slate-800 text-slate-500">No URLs discovered.</div>
+                )}
+              </div>
+            </div>
+
+            {!!deepSearchDebug.failed?.length && (
+              <div>
+                <div className="text-slate-300 font-semibold mb-2">Failures</div>
+                <div className="max-h-56 overflow-auto space-y-2 pr-1">
+                  {deepSearchDebug.failed.map((item, index) => (
+                    <div key={index} className="bg-slate-950 rounded-lg p-3 border border-slate-800 text-slate-300">
+                      <div><span className="text-slate-500">Phase:</span> {item.phase || 'unknown'}</div>
+                      <div className="break-all"><span className="text-slate-500">URL:</span> {item.url || '—'}</div>
+                      <div className="break-all"><span className="text-slate-500">Error:</span> {typeof item.error === 'string' ? item.error : JSON.stringify(item.error)}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
