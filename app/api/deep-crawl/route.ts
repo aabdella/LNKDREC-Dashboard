@@ -142,8 +142,15 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const targets = discovered.slice(0, 5); // Increased to 5 for better batch test
-    const extractionResults = await Promise.all(targets.map((url) => cfExtract(url, jd, targetMarket)));
+    const targets = discovered.slice(0, 5);
+    const extractionResults: any[] = [];
+    
+    // Sequential extraction to avoid Cloudflare rate limits/concurrency caps
+    for (const url of targets) {
+      console.log(`🦞 [Deep Search] Extracting: ${url}`);
+      const result = await cfExtract(url, jd, targetMarket);
+      extractionResults.push(result);
+    }
 
     const extracted: any[] = [];
     const failed: any[] = [];
