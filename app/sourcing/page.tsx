@@ -26,6 +26,7 @@ type DeepSearchDebug = {
   titleLine?: string;
   targetMarket?: string;
   queries?: string[];
+  discoveryRuns?: any[];
   discovered?: string[];
   targets?: string[];
   extractedCount?: number;
@@ -223,6 +224,31 @@ export default function SourcingPage() {
                 ))}
               </div>
             </div>
+
+            {!!deepSearchDebug.discoveryRuns?.length && (
+              <div>
+                <div className="text-slate-300 font-semibold mb-2">Discovery Runs</div>
+                <div className="max-h-[32rem] overflow-auto space-y-3 pr-1">
+                  {deepSearchDebug.discoveryRuns.map((run, index) => (
+                    <div key={index} className="bg-slate-950 rounded-lg p-3 border border-slate-800 text-slate-300">
+                      <div className="mb-2 break-words"><span className="text-slate-500">Query:</span> {run.query}</div>
+                      <div className="mb-2"><span className="text-slate-500">HTTP:</span> {run.status} · <span className="text-slate-500">Raw:</span> {run.rawCount} · <span className="text-slate-500">Filtered:</span> {run.filteredUrls?.length || 0}</div>
+                      {!!run.rawUrls?.length && (
+                        <div className="space-y-2 mt-3">
+                          <div className="text-slate-400">Raw Brave Results</div>
+                          {run.rawUrls.slice(0, 10).map((item: any, i: number) => (
+                            <div key={i} className="border border-slate-800 rounded p-2">
+                              <div className="text-slate-200">{item.title || 'Untitled'}</div>
+                              <div className="text-indigo-300 break-all">{item.url}</div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div>
               <div className="text-slate-300 font-semibold mb-2">Discovered URLs</div>
