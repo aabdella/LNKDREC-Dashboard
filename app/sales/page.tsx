@@ -103,11 +103,12 @@ export default function SalesDashboard() {
         const totalVacancies = jobData?.reduce((sum, job) => sum + (job.total_openings || 1), 0) || 0;
 
         // Total Submissions
-        const includedStages = ["Lnkd Interview", "Shortlisted by Lnkd", "Client Interview", "Pending client feedback/offer", "Offer"];
+        const excludedStages = ["Sourced", "Contacted/No Reply", "Rejected", "Hired"];
         const { count: submissionCount } = await supabase
           .from('candidates')
           .select('*', { count: 'exact', head: true })
-          .in('pipeline_stage', includedStages)
+          .not('pipeline_stage', 'is', null)
+          .not('pipeline_stage', 'in', `(${excludedStages.map(s => `"${s}"`).join(',')})`)
           .gte('created_at', p.start.toISOString())
           .lte('created_at', p.end.toISOString());
 
