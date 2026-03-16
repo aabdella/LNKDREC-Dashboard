@@ -103,7 +103,7 @@ export default function SalesDashboard() {
         const totalVacancies = jobData?.reduce((sum, job) => sum + (job.total_openings || 1), 0) || 0;
 
         // Total Submissions
-        const includedStages = ["Lnkd Interview", "Shortlisted by Lnkd", "Client Interview", "Pending client feedback/offer"];
+        const includedStages = ["Lnkd Interview", "Shortlisted by Lnkd", "Client Interview", "Pending client feedback/offer", "Offer"];
         const { count: submissionCount } = await supabase
           .from('candidates')
           .select('*', { count: 'exact', head: true })
