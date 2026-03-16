@@ -142,14 +142,16 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const targets = discovered.slice(0, 5);
+    const targets = discovered.slice(0, 3); // Dropping to 3 to stay under limits
     const extractionResults: any[] = [];
     
-    // Sequential extraction to avoid Cloudflare rate limits/concurrency caps
+    // Sequential extraction with a sleep delay to clear Cloudflare sessions
     for (const url of targets) {
       console.log(`🦞 [Deep Search] Extracting: ${url}`);
       const result = await cfExtract(url, jd, targetMarket);
       extractionResults.push(result);
+      // Wait 2 seconds before next request
+      await new Promise(resolve => setTimeout(resolve, 2000));
     }
 
     const extracted: any[] = [];
