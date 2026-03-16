@@ -97,10 +97,21 @@ export default function SalesDashboard() {
         // Delivery Pipeline
         const { data: jobData } = await supabase
           .from('jobs')
-          .select('total_openings')
+          .select('id, total_openings')
           .ilike('status', 'open')
           .lte('created_at', p.end.toISOString());
-        const totalVacancies = jobData?.reduce((sum, job) => sum + (job.total_openings || 1), 0) || 0;
+        
+        // Fetch Hired candidates for these jobs
+        const { data: appData } = await supabase
+          .from('applications')
+          .select('job_id, candidate_id(pipeline_stage)')
+          .in('job_id', jobData?.map(j => j.id) || []);
+
+        const totalVacancies = jobData?.reduce((sum, job) => {
+          const hiredForJob = appData?.filter(a => a.job_id === job.id && (a.candidate_id as any)?.pipeline_stage === 'Hired').length || 0;
+          const remaining = Math.max(0, (job.total_openings || 1) - hiredForJob);
+          return sum + remaining;
+        }, 0) || 0;
 
         // Total Submissions
         const excludedStages = ["Sourced", "Contacted/No Reply", "Rejected", "Hired"];
