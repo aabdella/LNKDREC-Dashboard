@@ -447,7 +447,7 @@ export default function SalesDashboard() {
           { label: 'Active Portfolio', value: stats.activePortfolio, key: 'activePortfolio', detail: 'Engaged Partners', icon: BuildingOfficeIcon },
           { label: 'New Leads', value: stats.newLeads, key: 'newLeads', detail: 'Contact Initiated', icon: RocketLaunchIcon },
           { label: 'Delivery Pipeline', value: stats.deliveryPipeline, key: 'deliveryPipeline', detail: 'Active Vacancies', icon: BriefcaseIcon },
-          { label: 'Total Submissions (Vetted Talents)', value: stats.totalSubmissions, key: 'totalSubmissions', detail: 'Vetted Talent Sent', icon: UserGroupIcon },
+          { label: 'Total Submissions', value: stats.totalSubmissions, key: 'totalSubmissions', detail: 'Vetted Talent Sent', icon: UserGroupIcon },
         ].map((item, idx) => (
           <div key={idx} className="bg-white border border-slate-200 p-6 rounded-2xl shadow-sm transition hover:shadow-md">
             <div className="flex justify-between items-start mb-4">
@@ -460,8 +460,8 @@ export default function SalesDashboard() {
               />
             </div>
             <h3 className="text-4xl font-bold text-slate-900 tracking-tighter">{item.value.toString().padStart(2, '0')}</h3>
-            <p className="text-xs font-bold text-slate-800 mt-1 uppercase tracking-widest">{item.key === 'totalSubmissions' ? 'Total Submissions (Vetted Talents)' : item.label}</p>
-            <p className="text-[10px] text-slate-400 mt-1 font-medium italic">{item.detail}</p>
+            <p className="text-xs font-bold text-slate-800 mt-1 uppercase tracking-widest">{item.label}</p>
+            <p className="text-[10px] text-slate-400 mt-1 font-medium italic">{item.key === 'totalSubmissions' ? 'Vetted Talent' : item.detail}</p>
           </div>
         ))}
       </div>
