@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { 
   BuildingOfficeIcon, 
@@ -11,13 +11,19 @@ import {
   ArrowPathIcon,
   Cog6ToothIcon,
   XMarkIcon,
-  PlusIcon
+  PlusIcon,
+  PencilIcon,
+  TrashIcon,
+  ChevronDownIcon
 } from '@heroicons/react/24/outline';
+import { format, startOfDay, addDays, isWithinInterval, subDays } from 'date-fns';
 
 // Initialize Supabase
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+const BASE_DATE = new Date(2026, 2, 3); // March 3, 2026 (0-indexed month)
 
 export default function SalesDashboard() {
   const [stats, setStats] = useState({
@@ -26,72 +32,108 @@ export default function SalesDashboard() {
     deliveryPipeline: 0,
     totalSubmissions: 0
   });
-  const [wins, setWins] = useState<any[]>([]);
-  const [pivots, setPivots] = useState<any[]>([]);
+  const [prevStats, setPrevStats] = useState<any>(null);
+  const [allLogs, setAllLogs] = useState<any[]>([]);
   const [clients, setClients] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAdmin, setShowAdmin] = useState(false);
   const [editingClient, setEditingClient] = useState<any>(null);
   const [newImpact, setNewImpact] = useState({ type: 'Success', content: '', category: 'General' });
+  const [editingImpact, setEditingImpact] = useState<any>(null);
+  
+  // Period Selection
+  const [selectedPeriodIdx, setSelectedPeriodIdx] = useState(0);
+
+  const periods = useMemo(() => {
+    const p = [];
+    let current = startOfDay(BASE_DATE);
+    const now = new Date();
+    
+    // Generate periods until 2 months ahead for planning
+    for (let i = 0; i < 12; i++) {
+      const start = current;
+      const end = addDays(current, 13);
+      p.push({
+        label: `P${i + 1}: ${format(start, 'MMM d')} - ${format(end, 'MMM d')}`,
+        start,
+        end
+      });
+      current = addDays(current, 14);
+      if (start > now && i > 4) break; 
+    }
+    return p;
+  }, []);
 
   useEffect(() => {
     fetchDashboardData();
-  }, []);
+  }, [selectedPeriodIdx]);
 
   async function fetchDashboardData() {
     setLoading(true);
     try {
+      const period = periods[selectedPeriodIdx];
+      const prevPeriod = selectedPeriodIdx > 0 ? periods[selectedPeriodIdx - 1] : null;
+
+      // 1. Clients (Not period dependent for now, but shown in roster)
       const { data: clientData, error: clientError } = await supabase
         .from('clients')
         .select('*');
       
       if (clientError) throw clientError;
-
-      // Custom Sort: New Lead (1), Active Partner (2), Churned (3)
       const sortedClients = clientData ? [...clientData].sort((a, b) => {
         const order: Record<string, number> = { 'New Lead': 1, 'Active Partner': 2, 'Churned': 3 };
         return (order[a.status] || 99) - (order[b.status] || 99);
       }) : [];
-
       setClients(sortedClients);
 
-      // 2. Fetch Jobs for Delivery Pipeline (Sum of all openings)
-      const { data: jobData, error: jobError } = await supabase
-        .from('jobs')
-        .select('total_openings')
-        .ilike('status', 'open');
-      
-      if (jobError) throw jobError;
-      const totalVacancies = jobData?.reduce((sum, job) => sum + (job.total_openings || 1), 0) || 0;
+      // 2. Main Stats (Calculate for current period vs previous)
+      const fetchStatsForPeriod = async (p: any) => {
+        if (!p) return null;
+        
+        // Active Portfolio & Leads (count at end of period)
+        const activeCount = clientData?.filter(c => c.status === 'Active Partner' && new Date(c.created_at || 0) <= p.end).length || 0;
+        const leadCount = clientData?.filter(c => c.status === 'New Lead' && new Date(c.created_at || 0) <= p.end).length || 0;
 
+        // Delivery Pipeline
+        const { data: jobData } = await supabase
+          .from('jobs')
+          .select('total_openings')
+          .ilike('status', 'open')
+          .lte('created_at', p.end.toISOString());
+        const totalVacancies = jobData?.reduce((sum, job) => sum + (job.total_openings || 1), 0) || 0;
+
+        // Total Submissions
+        const excludedStages = ["Sourced", "Contacted/No Reply", "Rejected"];
+        const { count: submissionCount } = await supabase
+          .from('candidates')
+          .select('*', { count: 'exact', head: true })
+          .not('pipeline_stage', 'is', null)
+          .not('pipeline_stage', 'in', `(${excludedStages.map(s => `"${s}"`).join(',')})`)
+          .gte('created_at', p.start.toISOString())
+          .lte('created_at', p.end.toISOString());
+
+        return {
+          activePortfolio: activeCount,
+          newLeads: leadCount,
+          deliveryPipeline: totalVacancies,
+          totalSubmissions: submissionCount || 0
+        };
+      };
+
+      const currentStats = await fetchStatsForPeriod(period);
+      const pastStats = prevPeriod ? await fetchStatsForPeriod(prevPeriod) : null;
+
+      if (currentStats) setStats(currentStats);
+      setPrevStats(pastStats);
+
+      // 3. Impact Logs
       const { data: logData, error: logError } = await supabase
         .from('impact_logs')
         .select('*')
         .order('created_at', { ascending: false });
       
       if (logError) throw logError;
-
-      const excludedStages = ["Sourced", "Contacted/No Reply", "Rejected"];
-      const { count: submissionCount, error: subError } = await supabase
-        .from('candidates')
-        .select('*', { count: 'exact', head: true })
-        .not('pipeline_stage', 'is', null)
-        .not('pipeline_stage', 'in', `(${excludedStages.map(s => `"${s}"`).join(',')})`);
-
-      if (subError) throw subError;
-
-      const active = clientData?.filter(c => c.status === 'Active Partner').length || 0;
-      const leads = clientData?.filter(c => c.status === 'New Lead').length || 0;
-
-      setStats({
-        activePortfolio: active,
-        newLeads: leads,
-        deliveryPipeline: totalVacancies,
-        totalSubmissions: submissionCount || 0
-      });
-
-      setWins(logData?.filter(l => l.type === 'Success').slice(0, 5) || []);
-      setPivots(logData?.filter(l => l.type === 'Pivot').slice(0, 5) || []);
+      setAllLogs(logData || []);
 
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
@@ -99,6 +141,17 @@ export default function SalesDashboard() {
       setLoading(false);
     }
   }
+
+  const filteredLogs = useMemo(() => {
+    const period = periods[selectedPeriodIdx];
+    return allLogs.filter(log => {
+      const date = new Date(log.created_at);
+      return isWithinInterval(date, { start: period.start, end: period.end });
+    });
+  }, [allLogs, selectedPeriodIdx, periods]);
+
+  const wins = filteredLogs.filter(l => l.type === 'Success');
+  const pivots = filteredLogs.filter(l => l.type === 'Pivot');
 
   async function handleUpdateClient() {
     if (!editingClient) return;
@@ -119,15 +172,56 @@ export default function SalesDashboard() {
 
   async function handleAddImpact() {
     if (!newImpact.content) return;
+    const period = periods[selectedPeriodIdx];
+    
+    // If adding to a past period, use a timestamp within that period
+    const createdAt = isWithinInterval(new Date(), { start: period.start, end: period.end }) 
+      ? new Date().toISOString() 
+      : period.end.toISOString();
+
     const { error } = await supabase
       .from('impact_logs')
-      .insert([newImpact]);
+      .insert([{ ...newImpact, created_at: createdAt }]);
 
     if (!error) {
       setNewImpact({ ...newImpact, content: '' });
       fetchDashboardData();
     }
   }
+
+  async function handleDeleteImpact(id: string) {
+    if (!window.confirm('Delete this insight?')) return;
+    const { error } = await supabase.from('impact_logs').delete().eq('id', id);
+    if (!error) fetchDashboardData();
+  }
+
+  async function handleUpdateImpact() {
+    if (!editingImpact) return;
+    const { error } = await supabase
+      .from('impact_logs')
+      .update({ content: editingImpact.content, type: editingImpact.type })
+      .eq('id', editingImpact.id);
+    
+    if (!error) {
+      setEditingImpact(null);
+      fetchDashboardData();
+    }
+  }
+
+  const DeltaBadge = ({ current, previous }: { current: number, previous: number | null }) => {
+    if (previous === null || previous === 0) return null;
+    const diff = current - previous;
+    const pct = Math.round((diff / previous) * 100);
+    if (pct === 0) return null;
+
+    return (
+      <span className={`ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded-md ${
+        pct > 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'
+      }`}>
+        {pct > 0 ? '+' : ''}{pct}%
+      </span>
+    );
+  };
 
   if (loading) {
     return (
@@ -151,16 +245,27 @@ export default function SalesDashboard() {
       </button>
 
       {/* Header */}
-      <div className="flex justify-between items-end border-b border-slate-200 pb-8 mb-12">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-end border-b border-slate-200 pb-8 mb-12 gap-6">
         <div>
           <h1 className="text-4xl font-bold tracking-tight text-slate-900">LNKD Platform Dashboard</h1>
           <p className="text-slate-500 mt-2 font-medium">Executive Sales & Delivery Overview • Q1 2026</p>
         </div>
-        <div className="text-right hidden sm:block">
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">System Status</p>
-          <div className="flex items-center gap-2 mt-1 justify-end">
-            <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse"></span>
-            <p className="text-sm font-semibold text-slate-700 uppercase tracking-tight">Live</p>
+        
+        <div className="flex flex-col items-end gap-3 w-full md:w-auto">
+          <div className="relative group w-full md:w-64">
+            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1.5 text-right">Reporting Period</label>
+            <div className="relative">
+              <select 
+                value={selectedPeriodIdx}
+                onChange={(e) => setSelectedPeriodIdx(parseInt(e.target.value))}
+                className="w-full appearance-none bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition cursor-pointer shadow-sm"
+              >
+                {periods.map((p, i) => (
+                  <option key={i} value={i}>{p.label}</option>
+                ))}
+              </select>
+              <ChevronDownIcon className="h-4 w-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            </div>
           </div>
         </div>
       </div>
@@ -179,13 +284,13 @@ export default function SalesDashboard() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
             {/* Impact Entry */}
             <div>
-              <h3 className="text-xs font-bold uppercase tracking-widest text-indigo-400 mb-4">Add Executive Insight</h3>
+              <h3 className="text-xs font-bold uppercase tracking-widest text-indigo-400 mb-4">Add Executive Insight ({periods[selectedPeriodIdx].label})</h3>
               <div className="space-y-4">
                 <div className="flex gap-2">
                   <select 
                     value={newImpact.type}
                     onChange={(e) => setNewImpact({...newImpact, type: e.target.value})}
-                    className="bg-slate-800 border-none rounded-lg text-sm font-bold px-4 py-2 focus:ring-2 focus:ring-indigo-500"
+                    className="appearance-none bg-slate-800 border-none rounded-lg text-sm font-bold px-4 py-2 focus:ring-2 focus:ring-indigo-500"
                   >
                     <option value="Success">Success</option>
                     <option value="Pivot">Pivot</option>
@@ -195,7 +300,7 @@ export default function SalesDashboard() {
                     placeholder="Enter insight content..."
                     value={newImpact.content}
                     onChange={(e) => setNewImpact({...newImpact, content: e.target.value})}
-                    className="flex-1 bg-slate-800 border-none rounded-lg text-sm px-4 py-2 focus:ring-2 focus:ring-indigo-500"
+                    className="flex-1 bg-slate-800 border-none rounded-lg text-sm px-4 py-2 focus:ring-2 focus:ring-indigo-500 outline-none"
                   />
                   <button 
                     onClick={handleAddImpact}
@@ -216,7 +321,7 @@ export default function SalesDashboard() {
                     const client = clients.find(c => c.id === e.target.value);
                     setEditingClient(client ? {...client} : null);
                   }}
-                  className="w-full bg-slate-800 border-none rounded-lg text-sm font-bold px-4 py-2"
+                  className="appearance-none w-full bg-slate-800 border-none rounded-lg text-sm font-bold px-4 py-2"
                 >
                   <option value="">Select a client to edit...</option>
                   {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -229,7 +334,7 @@ export default function SalesDashboard() {
                       <select 
                         value={editingClient.status}
                         onChange={(e) => setEditingClient({...editingClient, status: e.target.value})}
-                        className="w-full bg-slate-700 border-none rounded-lg text-xs font-bold px-3 py-2"
+                        className="appearance-none w-full bg-slate-700 border-none rounded-lg text-xs font-bold px-3 py-2"
                       >
                         <option value="Active Partner">Active Partner</option>
                         <option value="New Lead">New Lead</option>
@@ -241,7 +346,7 @@ export default function SalesDashboard() {
                       <select 
                         value={editingClient.deal_stage}
                         onChange={(e) => setEditingClient({...editingClient, deal_stage: e.target.value})}
-                        className="w-full bg-slate-700 border-none rounded-lg text-xs font-bold px-3 py-2"
+                        className="appearance-none w-full bg-slate-700 border-none rounded-lg text-xs font-bold px-3 py-2"
                       >
                         <option value="Discovery">Discovery</option>
                         <option value="Proposal">Proposal</option>
@@ -258,7 +363,7 @@ export default function SalesDashboard() {
                           type="text" 
                           value={editingClient.next_step || ''}
                           onChange={(e) => setEditingClient({...editingClient, next_step: e.target.value})}
-                          className="flex-1 bg-slate-700 border-none rounded-lg text-xs px-3 py-2"
+                          className="flex-1 bg-slate-700 border-none rounded-lg text-xs px-3 py-2 outline-none"
                         />
                         <button 
                           onClick={handleUpdateClient}
@@ -276,17 +381,72 @@ export default function SalesDashboard() {
         </div>
       )}
 
+      {/* Edit Impact Modal */}
+      {editingImpact && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl border border-slate-100 animate-in zoom-in-95 duration-200">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-bold text-slate-900 tracking-tight">Edit Insight</h2>
+              <button onClick={() => setEditingImpact(null)} className="p-2 hover:bg-slate-50 rounded-full transition">
+                <XMarkIcon className="h-5 w-5 text-slate-400" />
+              </button>
+            </div>
+            <div className="space-y-5">
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Type</label>
+                <select 
+                  value={editingImpact.type}
+                  onChange={(e) => setEditingImpact({...editingImpact, type: e.target.value})}
+                  className="w-full appearance-none bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                >
+                  <option value="Success">Success</option>
+                  <option value="Pivot">Pivot</option>
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Content</label>
+                <textarea 
+                  value={editingImpact.content}
+                  onChange={(e) => setEditingImpact({...editingImpact, content: e.target.value})}
+                  className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm font-medium text-slate-600 h-32 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                />
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button 
+                  onClick={() => handleDeleteImpact(editingImpact.id)}
+                  className="px-6 py-3 rounded-xl border border-rose-100 text-rose-600 text-sm font-bold hover:bg-rose-50 transition"
+                >
+                  Delete
+                </button>
+                <button 
+                  onClick={handleUpdateImpact}
+                  className="flex-1 bg-slate-900 text-white px-6 py-3 rounded-xl text-sm font-bold hover:bg-black transition"
+                >
+                  Save Changes
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Top Bar Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
         {[
-          { label: 'Active Portfolio', value: stats.activePortfolio, detail: 'Engaged Partners', icon: BuildingOfficeIcon },
-          { label: 'New Leads', value: stats.newLeads, detail: 'Contract Initiated', icon: RocketLaunchIcon },
-          { label: 'Delivery Pipeline', value: stats.deliveryPipeline, detail: 'Active Vacancies', icon: BriefcaseIcon },
-          { label: 'Total Submissions', value: stats.totalSubmissions, detail: 'Vetted Talent Sent', icon: UserGroupIcon },
+          { label: 'Active Portfolio', value: stats.activePortfolio, key: 'activePortfolio', detail: 'Engaged Partners', icon: BuildingOfficeIcon },
+          { label: 'New Leads', value: stats.newLeads, key: 'newLeads', detail: 'Contract Initiated', icon: RocketLaunchIcon },
+          { label: 'Delivery Pipeline', value: stats.deliveryPipeline, key: 'deliveryPipeline', detail: 'Active Vacancies', icon: BriefcaseIcon },
+          { label: 'Total Submissions', value: stats.totalSubmissions, key: 'totalSubmissions', detail: 'Vetted Talent Sent', icon: UserGroupIcon },
         ].map((item, idx) => (
           <div key={idx} className="bg-white border border-slate-200 p-6 rounded-2xl shadow-sm transition hover:shadow-md">
-            <div className="p-2 bg-slate-50 rounded-lg w-fit mb-4">
-              <item.icon className="h-5 w-5 text-slate-600" />
+            <div className="flex justify-between items-start mb-4">
+              <div className="p-2 bg-slate-50 rounded-lg">
+                <item.icon className="h-5 w-5 text-slate-600" />
+              </div>
+              <DeltaBadge 
+                current={item.value} 
+                previous={prevStats ? prevStats[item.key as keyof typeof stats] : null} 
+              />
             </div>
             <h3 className="text-4xl font-bold text-slate-900 tracking-tighter">{item.value.toString().padStart(2, '0')}</h3>
             <p className="text-xs font-bold text-slate-800 mt-1 uppercase tracking-widest">{item.label}</p>
@@ -298,35 +458,53 @@ export default function SalesDashboard() {
       {/* Middle Section: Insights */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-12">
         {/* Successes */}
-        <div className="bg-white border border-slate-200 rounded-3xl p-8 shadow-sm">
+        <div className="bg-white border border-slate-200 rounded-3xl p-8 shadow-sm group">
           <div className="flex items-center gap-2 mb-6">
             <CheckCircleIcon className="h-5 w-5 text-green-500" />
             <h2 className="text-sm font-bold uppercase tracking-widest text-slate-800">Successes (What Went Well)</h2>
           </div>
           <ul className="space-y-4">
             {wins.length > 0 ? wins.map((win, idx) => (
-              <li key={idx} className="flex gap-3 text-slate-600 leading-relaxed text-sm font-medium animate-in fade-in duration-300">
-                <span className="text-green-500 flex-shrink-0">✓</span> {win.content}
+              <li key={idx} className="flex items-start justify-between group/item p-2 -mx-2 rounded-xl hover:bg-slate-50 transition animate-in fade-in duration-300">
+                <div className="flex gap-3 text-slate-600 leading-relaxed text-sm font-medium">
+                  <span className="text-green-500 flex-shrink-0 mt-0.5">✓</span> 
+                  {win.content}
+                </div>
+                <button 
+                  onClick={() => setEditingImpact(win)}
+                  className="p-1.5 opacity-0 group-hover/item:opacity-100 text-slate-400 hover:text-slate-900 transition"
+                >
+                  <PencilIcon className="h-4 w-4" />
+                </button>
               </li>
             )) : (
-              <li className="text-slate-400 text-sm italic font-medium">No successes logged for this period.</li>
+              <li className="text-slate-400 text-sm italic font-medium px-2">No successes logged for this period.</li>
             )}
           </ul>
         </div>
 
         {/* Pivots */}
-        <div className="bg-white border border-slate-200 rounded-3xl p-8 shadow-sm">
+        <div className="bg-white border border-slate-200 rounded-3xl p-8 shadow-sm group">
           <div className="flex items-center gap-2 mb-6">
             <ArrowPathIcon className="h-5 w-5 text-indigo-500" />
             <h2 className="text-sm font-bold uppercase tracking-widest text-slate-800">Pivots (What Didn't Work)</h2>
           </div>
           <ul className="space-y-4">
             {pivots.length > 0 ? pivots.map((pivot, idx) => (
-              <li key={idx} className="flex gap-3 text-slate-600 leading-relaxed text-sm font-medium animate-in fade-in duration-300">
-                <span className="text-indigo-500 flex-shrink-0">→</span> {pivot.content}
+              <li key={idx} className="flex items-start justify-between group/item p-2 -mx-2 rounded-xl hover:bg-slate-50 transition animate-in fade-in duration-300">
+                <div className="flex gap-3 text-slate-600 leading-relaxed text-sm font-medium">
+                  <span className="text-indigo-500 flex-shrink-0 mt-0.5">→</span> 
+                  {pivot.content}
+                </div>
+                <button 
+                  onClick={() => setEditingImpact(pivot)}
+                  className="p-1.5 opacity-0 group-hover/item:opacity-100 text-slate-400 hover:text-slate-900 transition"
+                >
+                  <PencilIcon className="h-4 w-4" />
+                </button>
               </li>
             )) : (
-              <li className="text-slate-400 text-sm italic font-medium">No pivots logged for this period.</li>
+              <li className="text-slate-400 text-sm italic font-medium px-2">No pivots logged for this period.</li>
             )}
           </ul>
         </div>
