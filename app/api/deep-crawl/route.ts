@@ -114,32 +114,31 @@ export async function POST(req: NextRequest) {
     console.log(`🦞 [Deep Search] Discovering profiles for: ${titleLine}`);
 
     const queries = [
-      `site:behance.net "${titleLine}" Egypt`,
-      `site:behance.net "${titleLine}" ${targetMarket} Egypt`,
-      `site:linkedin.com/in "${titleLine}" Egypt ${targetMarket}`,
+      `site:behance.net ${titleLine} Egypt`,
+      `site:behance.net ${titleLine} ${targetMarket} Egypt`,
+      `site:linkedin.com/in ${titleLine} Egypt ${targetMarket}`,
     ].filter((q, i, arr) => q.trim() && arr.indexOf(q) === i);
 
     const discoveryRuns = await Promise.all(queries.map(searchProfiles));
     const discovered = Array.from(
       new Set(
-        discoveryRuns.flatMap((run) => run.filteredUrls.map((r: any) => r.url))
+        discoveryRuns.flatMap((run) => run.filteredUrls?.map((r: any) => r.url) || [])
       )
     );
-    console.log(`🦞 [Deep Search] Found ${discovered.length} candidate URLs.`);
+    console.log(`🦞 [Deep Search] Found ${discovered.length} candidate URLs from ${discoveryRuns.length} runs.`);
 
     if (discovered.length === 0) {
       return NextResponse.json({
         success: true,
         sourced: 0,
         debug: {
-          mode: 'debug-no-insert',
+          mode: 'production-no-hits',
           titleLine,
           targetMarket,
           queries,
           discoveryRuns,
           discovered: [],
         },
-        message: 'No profiles found during discovery.',
       });
     }
 
