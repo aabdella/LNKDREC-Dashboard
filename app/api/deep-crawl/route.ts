@@ -121,10 +121,9 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const targets = discovered.slice(0, 10);
+    const targets = discovered.slice(0, 3);
     const extractionResults = await Promise.all(targets.map((url) => cfExtract(url, jd, targetMarket)));
 
-    let sourcedCount = 0;
     const extracted: any[] = [];
     const failed: any[] = [];
 
@@ -137,42 +136,21 @@ export async function POST(req: NextRequest) {
         continue;
       }
 
-      const c = item.result;
-      extracted.push({ url: targetUrl, candidate: c });
-
-      if (c && c.full_name && Number(c.match_score) > 40) {
-        const payload: any = {
-          full_name: c.full_name,
-          title: c.title || 'Professional',
-          location: c.location || 'Egypt',
-          source: 'Deep Search',
-          match_score: c.match_score,
-          match_reason: c.match_reason || 'Deep Search match.',
-          status: 'New',
-          uploaded_at: new Date().toISOString(),
-        };
-
-        if (targetUrl.includes('behance.net')) payload.portfolio_url = targetUrl;
-        if (targetUrl.includes('linkedin.com/in/')) payload.linkedin_url = targetUrl;
-
-        const { error } = await supabase.from('unvetted').insert(payload);
-        if (error) {
-          failed.push({ url: targetUrl, phase: 'insert', error: error.message });
-          continue;
-        }
-        sourcedCount++;
-      }
+      extracted.push({ url: targetUrl, candidate: item.result });
     }
 
     return NextResponse.json({
       success: true,
-      sourced: sourcedCount,
+      sourced: 0,
       debug: {
+        mode: 'debug-no-insert',
         titleLine,
         targetMarket,
         queries,
         discovered,
+        targets,
         extractedCount: extracted.length,
+        extracted,
         failedCount: failed.length,
         failed,
       },

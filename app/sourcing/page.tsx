@@ -22,11 +22,14 @@ type Candidate = {
 
 type SourcingAlert = { type: 'success' | 'error'; message: string } | null;
 type DeepSearchDebug = {
+  mode?: string;
   titleLine?: string;
   targetMarket?: string;
   queries?: string[];
   discovered?: string[];
+  targets?: string[];
   extractedCount?: number;
+  extracted?: any[];
   failedCount?: number;
   failed?: any[];
 } | null;
@@ -241,6 +244,22 @@ export default function SourcingPage() {
                 )}
               </div>
             </div>
+
+            {!!deepSearchDebug.extracted?.length && (
+              <div>
+                <div className="text-slate-300 font-semibold mb-2">Raw Extraction Results</div>
+                <div className="max-h-[32rem] overflow-auto space-y-3 pr-1">
+                  {deepSearchDebug.extracted.map((item, index) => (
+                    <div key={index} className="bg-slate-950 rounded-lg p-3 border border-slate-800 text-slate-300">
+                      <div className="mb-2 break-all">
+                        <span className="text-slate-500">URL:</span> {item.url}
+                      </div>
+                      <pre className="text-[11px] leading-5 whitespace-pre-wrap break-words text-slate-200">{JSON.stringify(item.candidate, null, 2)}</pre>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {!!deepSearchDebug.failed?.length && (
               <div>
