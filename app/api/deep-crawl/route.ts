@@ -143,11 +143,12 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const targets = discovered.slice(0, 3);
+    const targets = discovered.slice(0, 5); // Increased to 5 for better batch test
     const extractionResults = await Promise.all(targets.map((url) => cfExtract(url, jd, targetMarket)));
 
     const extracted: any[] = [];
     const failed: any[] = [];
+    const toInsert: any[] = [];
 
     for (let i = 0; i < extractionResults.length; i++) {
       const item = extractionResults[i];
@@ -158,14 +159,37 @@ export async function POST(req: NextRequest) {
         continue;
       }
 
-      extracted.push({ url: targetUrl, candidate: item.result });
+      const res = item.result;
+      if (!res.full_name) {
+        failed.push({ url: targetUrl, phase: 'validation', error: 'Missing full_name' });
+        continue;
+      }
+
+      extracted.push({ url: targetUrl, candidate: res });
+
+      toInsert.push({
+        full_name: res.full_name,
+        title: res.title || titleLine,
+        location: res.location || 'Egypt',
+        match_score: res.match_score || 0,
+        match_reason: res.match_reason || '',
+        linkedin_url: targetUrl.includes('linkedin.com') ? targetUrl : null,
+        portfolio_url: targetUrl.includes('behance.net') ? targetUrl : null,
+        source: 'Deep Sourced',
+        status: 'Unvetted'
+      });
+    }
+
+    let insertResult = null;
+    if (toInsert.length > 0) {
+      insertResult = await supabase.from('unvetted').insert(toInsert).select();
     }
 
     return NextResponse.json({
       success: true,
-      sourced: 0,
+      sourced: toInsert.length,
       debug: {
-        mode: 'debug-no-insert',
+        mode: 'production',
         titleLine,
         targetMarket,
         queries,
@@ -176,6 +200,7 @@ export async function POST(req: NextRequest) {
         extracted,
         failedCount: failed.length,
         failed,
+        insertResult
       },
     });
   } catch (err: any) {
