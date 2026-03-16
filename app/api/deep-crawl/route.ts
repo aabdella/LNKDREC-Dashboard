@@ -19,15 +19,16 @@ function extractTargetMarket(jd: string): string {
 }
 
 function isLikelyCandidateProfile(rawUrl: string): boolean {
-  const url = rawUrl.split('?')[0].toLowerCase();
+  const url = rawUrl.toLowerCase();
 
   if (url.includes('linkedin.com/in/')) return true;
 
   if (!url.includes('behance.net/')) return false;
-  const blocked = ['/search', '/followers', '/following', '/appreciated', '/collections', '/galleries', '/moodboards', '/projects'];
+
+  const blocked = ['/search', '/projects', '/joblist', '/assets', '/hire/', '/services/'];
   if (blocked.some((part) => url.includes(part))) return false;
 
-  return /^https:\/\/www[.]behance[.]net\/[^/]+$/.test(url) || /^https:\/\/behance[.]net\/[^/]+$/.test(url);
+  return true;
 }
 
 async function cfExtract(url: string, jd: string, targetMarket: string) {
@@ -84,8 +85,17 @@ async function searchProfiles(query: string) {
   });
 
   const data = await resp.json();
-  const urls = (data.web?.results || []).map((r: any) => r.url);
-  return urls.filter(isLikelyCandidateProfile);
+  const rawResults = data.web?.results || [];
+  const rawUrls = rawResults.map((r: any) => ({ title: r.title, url: r.url }));
+  const filteredUrls = rawUrls.filter((r: any) => isLikelyCandidateProfile(r.url));
+
+  return {
+    query,
+    status: resp.status,
+    rawCount: rawResults.length,
+    rawUrls,
+    filteredUrls,
+  };
 }
 
 export async function POST(req: NextRequest) {
@@ -109,14 +119,26 @@ export async function POST(req: NextRequest) {
       `site:linkedin.com/in "${titleLine}" Egypt ${targetMarket}`,
     ].filter((q, i, arr) => q.trim() && arr.indexOf(q) === i);
 
-    const discovered = Array.from(new Set((await Promise.all(queries.map(searchProfiles))).flat()));
+    const discoveryRuns = await Promise.all(queries.map(searchProfiles));
+    const discovered = Array.from(
+      new Set(
+        discoveryRuns.flatMap((run) => run.filteredUrls.map((r: any) => r.url))
+      )
+    );
     console.log(`🦞 [Deep Search] Found ${discovered.length} candidate URLs.`);
 
     if (discovered.length === 0) {
       return NextResponse.json({
         success: true,
         sourced: 0,
-        debug: { titleLine, targetMarket, queries, discovered: [] },
+        debug: {
+          mode: 'debug-no-insert',
+          titleLine,
+          targetMarket,
+          queries,
+          discoveryRuns,
+          discovered: [],
+        },
         message: 'No profiles found during discovery.',
       });
     }
@@ -147,6 +169,7 @@ export async function POST(req: NextRequest) {
         titleLine,
         targetMarket,
         queries,
+        discoveryRuns,
         discovered,
         targets,
         extractedCount: extracted.length,
