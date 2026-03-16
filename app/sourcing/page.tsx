@@ -96,18 +96,18 @@ export default function SourcingPage() {
       });
       const data = await res.json();
       if (!res.ok || !data.success) {
-        setSourcingAlert({ type: 'error', message: data.error || 'Deep crawl failed.' });
+        setSourcingAlert({ type: 'error', message: data.error || 'Deep search failed.' });
       } else {
         setSourcingAlert({
           type: 'success',
-          message: `Deep Crawl complete! Sourced ${data.sourced} candidates using Cloudflare AI.`,
+          message: `Deep Search complete! Sourced ${data.sourced} candidates.${data.debug?.discovered ? ` Discovery found ${data.debug.discovered.length} profile URLs.` : ''}`,
         });
-        await logActivity('sourcing_triggered', 'Deep Crawl Run', { candidates_found: data.sourced }, 'sourcing');
+        await logActivity('sourcing_triggered', 'Deep Search Run', { candidates_found: data.sourced }, 'sourcing');
         setActiveTab('sourced');
         await fetchSourcedQueue();
       }
     } catch {
-      setSourcingAlert({ type: 'error', message: 'Network error during deep crawl.' });
+      setSourcingAlert({ type: 'error', message: 'Network error during deep search.' });
     } finally {
       setIsDeepCrawling(false);
     }
@@ -205,7 +205,7 @@ export default function SourcingPage() {
                 disabled={isDeepCrawling || isSourcing || !jd.trim()}
                 className="w-full bg-indigo-600 text-white py-3 rounded-lg font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-100 transition disabled:opacity-50 flex items-center justify-center gap-2"
               >
-                {isDeepCrawling ? 'Deep Crawling...' : <><SparklesIcon className="h-5 w-5" /> Deep Crawl (Cloudflare AI)</>}
+                {isDeepCrawling ? 'Deep Searching...' : <><SparklesIcon className="h-5 w-5" /> Deep Search</>}
               </button>
             </div>
           </div>
