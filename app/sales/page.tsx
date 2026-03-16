@@ -30,7 +30,9 @@ export default function SalesDashboard() {
     activePortfolio: 0,
     newLeads: 0,
     deliveryPipeline: 0,
-    totalSubmissions: 0
+    deliveryTotal: 0,
+    totalSubmissions: 0,
+    submissionsTotal: 0
   });
   const [prevStats, setPrevStats] = useState<any>(null);
   const [allLogs, setAllLogs] = useState<any[]>([]);
@@ -87,51 +89,65 @@ export default function SalesDashboard() {
       setClients(sortedClients);
 
       // 2. Main Stats (Calculate for current period vs previous)
-      const fetchStatsForPeriod = async (p: any) => {
+      const fetchStatsForPeriod = async (p: any, isCurrent = false) => {
         if (!p) return null;
         
         // Active Portfolio & Leads (count at end of period)
         const activeCount = clientData?.filter(c => c.status === 'Active Partner' && new Date(c.created_at || 0) <= p.end).length || 0;
         const leadCount = clientData?.filter(c => c.status === 'New Lead' && new Date(c.created_at || 0) <= p.end).length || 0;
 
-        // Delivery Pipeline
+        // Delivery Pipeline - Total vs Period
         const { data: jobData } = await supabase
           .from('jobs')
-          .select('id, total_openings')
+          .select('id, total_openings, created_at')
           .ilike('status', 'open')
           .lte('created_at', p.end.toISOString());
         
-        // Fetch Hired candidates for these jobs
         const { data: appData } = await supabase
           .from('applications')
           .select('job_id, candidate_id(pipeline_stage)')
           .in('job_id', jobData?.map(j => j.id) || []);
 
-        const totalVacancies = jobData?.reduce((sum, job) => {
+        const calculateNet = (jobs: any[]) => jobs.reduce((sum, job) => {
           const hiredForJob = appData?.filter(a => a.job_id === job.id && (a.candidate_id as any)?.pipeline_stage === 'Hired').length || 0;
-          const remaining = Math.max(0, (job.total_openings || 1) - hiredForJob);
-          return sum + remaining;
-        }, 0) || 0;
+          return sum + Math.max(0, (job.total_openings || 1) - hiredForJob);
+        }, 0);
 
-        // Total Submissions
+        const totalVacancies = calculateNet(jobData || []);
+        const periodVacancies = calculateNet(jobData?.filter(j => 
+          isWithinInterval(new Date(j.created_at), { start: p.start, end: p.end })
+        ) || []);
+
+        // Total Submissions - Total vs Period
         const excludedStages = ["Sourced", "Contacted/No Reply", "Rejected", "Hired"];
-        const { count: submissionCount } = await supabase
-          .from('candidates')
-          .select('*', { count: 'exact', head: true })
-          .not('pipeline_stage', 'is', null)
-          .not('pipeline_stage', 'in', `(${excludedStages.map(s => `"${s}"`).join(',')})`)
-          .gte('created_at', p.start.toISOString())
-          .lte('created_at', p.end.toISOString());
+        
+        const fetchSubCount = async (start: string | null, end: string) => {
+          let query = supabase
+            .from('candidates')
+            .select('*', { count: 'exact', head: true })
+            .not('pipeline_stage', 'is', null)
+            .not('pipeline_stage', 'in', `(${excludedStages.map(s => `"${s}"`).join(',')})`)
+            .lte('created_at', end);
+          
+          if (start) query = query.gte('created_at', start);
+          const { count } = await query;
+          return count || 0;
+        };
+
+        const periodSubmissions = await fetchSubCount(p.start.toISOString(), p.end.toISOString());
+        const totalSubmissions = await fetchSubCount(null, p.end.toISOString());
 
         return {
           activePortfolio: activeCount,
           newLeads: leadCount,
-          deliveryPipeline: totalVacancies,
-          totalSubmissions: submissionCount || 0
+          deliveryPipeline: periodVacancies,
+          deliveryTotal: totalVacancies,
+          totalSubmissions: periodSubmissions,
+          submissionsTotal: totalSubmissions
         };
       };
 
-      const currentStats = await fetchStatsForPeriod(period);
+      const currentStats = await fetchStatsForPeriod(period, true);
       const pastStats = prevPeriod ? await fetchStatsForPeriod(prevPeriod) : null;
 
       if (currentStats) setStats(currentStats);
@@ -446,8 +462,8 @@ export default function SalesDashboard() {
         {[
           { label: 'Active Portfolio', value: stats.activePortfolio, key: 'activePortfolio', detail: 'Engaged Partners', icon: BuildingOfficeIcon },
           { label: 'New Leads', value: stats.newLeads, key: 'newLeads', detail: 'Contact Initiated', icon: RocketLaunchIcon },
-          { label: 'Delivery Pipeline', value: stats.deliveryPipeline, key: 'deliveryPipeline', detail: 'Active Vacancies', icon: BriefcaseIcon },
-          { label: 'Total Submissions', value: stats.totalSubmissions, key: 'totalSubmissions', detail: 'Vetted Talent Sent', icon: UserGroupIcon },
+          { label: 'Delivery Pipeline', value: stats.deliveryPipeline, total: stats.deliveryTotal, key: 'deliveryPipeline', detail: 'Vacancies added in period', icon: BriefcaseIcon },
+          { label: 'Total Submissions', value: stats.totalSubmissions, total: stats.submissionsTotal, key: 'totalSubmissions', detail: 'Vetted talent in period', icon: UserGroupIcon },
         ].map((item, idx) => (
           <div key={idx} className="bg-white border border-slate-200 p-6 rounded-2xl shadow-sm transition hover:shadow-md">
             <div className="flex justify-between items-start mb-4">
@@ -459,9 +475,20 @@ export default function SalesDashboard() {
                 previous={prevStats ? prevStats[item.key as keyof typeof stats] : null} 
               />
             </div>
-            <h3 className="text-4xl font-bold text-slate-900 tracking-tighter">{item.value.toString().padStart(2, '0')}</h3>
+            
+            <div className="flex items-baseline gap-2">
+              <h3 className="text-4xl font-bold text-slate-900 tracking-tighter">{item.value.toString().padStart(2, '0')}</h3>
+              {item.total !== undefined && (
+                <span className="text-lg font-bold text-slate-300">/ {item.total.toString().padStart(2, '0')}</span>
+              )}
+            </div>
+
             <p className="text-xs font-bold text-slate-800 mt-1 uppercase tracking-widest">{item.label}</p>
-            <p className="text-[10px] text-slate-400 mt-1 font-medium italic">{item.key === 'totalSubmissions' ? 'Vetted Talent' : item.detail}</p>
+            <p className="text-[10px] text-slate-400 mt-1 font-medium italic">
+              {item.key === 'deliveryPipeline' || item.key === 'totalSubmissions' 
+                ? `${item.detail} (Total: ${item.total})` 
+                : item.detail}
+            </p>
           </div>
         ))}
       </div>
