@@ -127,9 +127,9 @@ export default function SalesDashboard() {
             .select('*', { count: 'exact', head: true })
             .not('pipeline_stage', 'is', null)
             .not('pipeline_stage', 'in', `(${excludedStages.map(s => `"${s}"`).join(',')})`)
-            .lte('created_at', end);
+            .lte('stage_changed_at', end);
           
-          if (start) query = query.gte('created_at', start);
+          if (start) query = query.gte('stage_changed_at', start);
           const { count } = await query;
           return count || 0;
         };
