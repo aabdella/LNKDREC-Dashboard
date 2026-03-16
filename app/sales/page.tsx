@@ -103,12 +103,11 @@ export default function SalesDashboard() {
         const totalVacancies = jobData?.reduce((sum, job) => sum + (job.total_openings || 1), 0) || 0;
 
         // Total Submissions
-        const excludedStages = ["Sourced", "Contacted/No Reply", "Rejected"];
+        const includedStages = ["Lnkd Interview", "Shortlisted by Lnkd", "Client Interview", "Pending client feedback/offer"];
         const { count: submissionCount } = await supabase
           .from('candidates')
           .select('*', { count: 'exact', head: true })
-          .not('pipeline_stage', 'is', null)
-          .not('pipeline_stage', 'in', `(${excludedStages.map(s => `"${s}"`).join(',')})`)
+          .in('pipeline_stage', includedStages)
           .gte('created_at', p.start.toISOString())
           .lte('created_at', p.end.toISOString());
 
@@ -449,7 +448,7 @@ export default function SalesDashboard() {
               />
             </div>
             <h3 className="text-4xl font-bold text-slate-900 tracking-tighter">{item.value.toString().padStart(2, '0')}</h3>
-            <p className="text-xs font-bold text-slate-800 mt-1 uppercase tracking-widest">{item.label}</p>
+            <p className="text-xs font-bold text-slate-800 mt-1 uppercase tracking-widest">{item.key === 'totalSubmissions' ? 'Total Submissions (Vetted Talents)' : item.label}</p>
             <p className="text-[10px] text-slate-400 mt-1 font-medium italic">{item.detail}</p>
           </div>
         ))}
