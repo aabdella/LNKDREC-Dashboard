@@ -6,7 +6,8 @@ import {
     XMarkIcon, 
     EnvelopeIcon, 
     PhoneIcon, 
-    PencilSquareIcon 
+    PencilSquareIcon,
+    CheckIcon
 } from '@heroicons/react/24/outline';
 
 // Types (Mirrored from main dashboard for consistency)
@@ -68,6 +69,7 @@ export default function CandidateDetailsModal({
     onUpdate: () => void;
 }) {
     const [isEditing, setIsEditing] = useState(false);
+    const [isEditingMatch, setIsEditingMatch] = useState(false);
     const [interactions, setInteractions] = useState<any[]>([]);
     const [loadingInteractions, setLoadingInteractions] = useState(false);
     const [newInteraction, setNewInteraction] = useState({ type: 'LinkedIn Message', content: '' });
@@ -80,6 +82,7 @@ export default function CandidateDetailsModal({
         tools: Array.isArray(candidate.tools) ? candidate.tools : []
     });
     const [saving, setSaving] = useState(false);
+    const [savingMatch, setSavingMatch] = useState(false);
 
     useEffect(() => {
         if (candidate) {
@@ -162,6 +165,22 @@ export default function CandidateDetailsModal({
             alert('Error updating candidate: ' + error.message);
         }
         setSaving(false);
+    };
+
+    const handleSaveMatch = async () => {
+        setSavingMatch(true);
+        const { error } = await supabase
+            .from('candidates')
+            .update({ match_reason: formData.match_reason })
+            .eq('id', candidate.id);
+        
+        if (!error) {
+            setIsEditingMatch(false);
+            onUpdate();
+        } else {
+            alert('Error updating match reason: ' + error.message);
+        }
+        setSavingMatch(false);
     };
 
     const handleChange = (field: keyof Candidate, value: any) => {
@@ -549,23 +568,46 @@ export default function CandidateDetailsModal({
                     <div className="group relative">
                         <div className="flex justify-between items-center mb-2">
                             <h3 className="font-bold text-slate-900">Why they match</h3>
-                            {!isEditing && (
+                            {!isEditingMatch && (
                                 <button 
-                                    onClick={() => setIsEditing(true)}
+                                    onClick={() => setIsEditingMatch(true)}
                                     className="text-[10px] font-bold text-indigo-600 opacity-0 group-hover:opacity-100 transition uppercase tracking-widest"
                                 >
                                     Edit Reason
                                 </button>
                             )}
                         </div>
-                        {isEditing ? (
-                            <textarea 
-                                value={formData.match_reason}
-                                onChange={e => handleChange('match_reason', e.target.value)}
-                                className="w-full border border-slate-300 rounded-md p-3 text-sm focus:ring-2 focus:ring-black outline-none min-h-[100px]"
-                            />
+                        {isEditingMatch ? (
+                            <div className="space-y-3 animate-in fade-in duration-200">
+                                <textarea 
+                                    value={formData.match_reason}
+                                    onChange={e => handleChange('match_reason', e.target.value)}
+                                    className="w-full border border-slate-300 rounded-md p-3 text-sm focus:ring-2 focus:ring-black outline-none min-h-[100px] shadow-inner bg-white"
+                                    placeholder="Explain why this candidate matches the role..."
+                                />
+                                <div className="flex justify-end gap-2">
+                                    <button 
+                                        onClick={() => {
+                                            setIsEditingMatch(false);
+                                            setFormData(prev => ({ ...prev, match_reason: candidate.match_reason }));
+                                        }}
+                                        className="px-3 py-1.5 text-xs font-bold text-slate-500 hover:bg-slate-100 rounded transition"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button 
+                                        onClick={handleSaveMatch}
+                                        disabled={savingMatch}
+                                        className="bg-black text-white px-4 py-1.5 rounded text-xs font-bold hover:bg-zinc-800 transition flex items-center gap-1.5 disabled:opacity-50"
+                                    >
+                                        {savingMatch ? '...' : <><CheckIcon className="h-3.5 w-3.5" /> Save Reason</>}
+                                    </button>
+                                </div>
+                            </div>
                         ) : (
-                            <p className="text-slate-600 bg-blue-50/50 p-4 rounded-lg border border-blue-100">{formData.match_reason}</p>
+                            <p className="text-slate-600 bg-blue-50/50 p-4 rounded-lg border border-blue-100 leading-relaxed">
+                                {formData.match_reason || 'No match justification provided.'}
+                            </p>
                         )}
                     </div>
 
