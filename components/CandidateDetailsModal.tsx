@@ -546,9 +546,27 @@ export default function CandidateDetailsModal({
                         </div>
                     </div>
 
-                    <div>
-                        <h3 className="font-bold text-slate-900 mb-2">Why they match</h3>
-                        <p className="text-slate-600 bg-blue-50/50 p-4 rounded-lg border border-blue-100">{formData.match_reason}</p>
+                    <div className="group relative">
+                        <div className="flex justify-between items-center mb-2">
+                            <h3 className="font-bold text-slate-900">Why they match</h3>
+                            {!isEditing && (
+                                <button 
+                                    onClick={() => setIsEditing(true)}
+                                    className="text-[10px] font-bold text-indigo-600 opacity-0 group-hover:opacity-100 transition uppercase tracking-widest"
+                                >
+                                    Edit Reason
+                                </button>
+                            )}
+                        </div>
+                        {isEditing ? (
+                            <textarea 
+                                value={formData.match_reason}
+                                onChange={e => handleChange('match_reason', e.target.value)}
+                                className="w-full border border-slate-300 rounded-md p-3 text-sm focus:ring-2 focus:ring-black outline-none min-h-[100px]"
+                            />
+                        ) : (
+                            <p className="text-slate-600 bg-blue-50/50 p-4 rounded-lg border border-blue-100">{formData.match_reason}</p>
+                        )}
                     </div>
 
                     {formData.brief && (
