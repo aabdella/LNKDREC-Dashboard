@@ -96,25 +96,25 @@ export default function SalesDashboard() {
         const activeCount = clientData?.filter(c => c.status === 'Active Partner' && new Date(c.created_at || 0) <= p.end).length || 0;
         const leadCount = clientData?.filter(c => c.status === 'New Lead' && new Date(c.created_at || 0) <= p.end).length || 0;
 
-        // Delivery Pipeline - Total vs Period
         const { data: jobData } = await supabase
           .from('jobs')
-          .select('id, total_openings, created_at')
-          .neq('status', 'Closed')
+          .select('id, total_openings, created_at, status')
           .lte('created_at', p.end.toISOString());
         
+        const filteredJobs = jobData?.filter(j => j.status !== 'Closed') || [];
+
         const { data: appData } = await supabase
           .from('applications')
           .select('job_id, candidate_id(pipeline_stage)')
-          .in('job_id', jobData?.map(j => j.id) || []);
+          .in('job_id', filteredJobs.map(j => j.id) || []);
 
         const calculateNet = (jobs: any[]) => jobs.reduce((sum, job) => {
           const hiredForJob = appData?.filter(a => a.job_id === job.id && (a.candidate_id as any)?.pipeline_stage === 'Hired').length || 0;
           return sum + Math.max(0, (job.total_openings || 1) - hiredForJob);
         }, 0);
 
-        const totalVacancies = calculateNet(jobData || []);
-        const periodVacancies = calculateNet(jobData?.filter(j => 
+        const totalVacancies = calculateNet(filteredJobs);
+        const periodVacancies = calculateNet(filteredJobs.filter(j => 
           isWithinInterval(new Date(j.created_at), { start: p.start, end: p.end })
         ) || []);
 
