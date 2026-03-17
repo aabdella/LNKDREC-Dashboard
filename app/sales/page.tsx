@@ -16,7 +16,7 @@ import {
   TrashIcon,
   ChevronDownIcon
 } from '@heroicons/react/24/outline';
-import { format, startOfDay, addDays, isWithinInterval, subDays } from 'date-fns';
+import { format, startOfDay, endOfDay, addDays, isWithinInterval, subDays } from 'date-fns';
 
 // Initialize Supabase
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
