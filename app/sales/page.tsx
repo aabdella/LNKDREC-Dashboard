@@ -54,7 +54,7 @@ export default function SalesDashboard() {
     // Generate periods until 2 months ahead for planning
     for (let i = 0; i < 12; i++) {
       const start = current;
-      const end = addDays(current, 13);
+      const end = endOfDay(addDays(current, 13));
       p.push({
         label: `P${i + 1}: ${format(start, 'MMM d')} - ${format(end, 'MMM d')}`,
         start,
