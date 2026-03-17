@@ -100,7 +100,7 @@ export default function SalesDashboard() {
         const { data: jobData } = await supabase
           .from('jobs')
           .select('id, total_openings, created_at')
-          .ilike('status', 'open')
+          .neq('status', 'Closed')
           .lte('created_at', p.end.toISOString());
         
         const { data: appData } = await supabase
