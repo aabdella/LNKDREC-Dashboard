@@ -21,15 +21,21 @@ export default function RootLayout({
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
+    // Initial fetch
+    const init = async () => {
+      const { data: { session: initialSession } } = await supabase.auth.getSession();
+      setSession(initialSession);
       setLoading(false);
-    });
+    };
+    init();
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, newSession) => {
+      console.log('Auth state changed:', _event, !!newSession);
+      if (_event === 'SIGNED_OUT') {
+        setSession(null);
+      } else if (newSession) {
+        setSession(newSession);
+      }
     });
 
     return () => subscription.unsubscribe();

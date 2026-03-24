@@ -22,16 +22,22 @@ export default function LoginPage() {
 
     try {
       if (mode === 'password') {
-        const { data, error } = await supabase.auth.signInWithPassword({
+        const { error } = await supabase.auth.signInWithPassword({
           email,
           password,
         });
         if (error) throw error;
         
-        // Wait a small moment for the session to be set in cookies
-        setTimeout(() => {
-          window.location.href = '/';
-        }, 500);
+        // Wait for session to propagate
+        let checks = 0;
+        const check = setInterval(async () => {
+          const { data } = await supabase.auth.getSession();
+          if (data.session || checks > 10) {
+            clearInterval(check);
+            window.location.href = '/';
+          }
+          checks++;
+        }, 100);
       } else {
         const { error } = await supabase.auth.signInWithOtp({
           email,
