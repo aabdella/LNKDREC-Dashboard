@@ -37,7 +37,7 @@ export async function loginAction(formData: FormData) {
       },
     });
     if (error) redirect(`/login?error=${encodeURIComponent(error.message)}`);
-    return { success: true, message: 'Check your email!' };
+    // Removed return statement to satisfy React form action types
   } else {
     const { error } = await supabase.auth.signInWithPassword({
       email,

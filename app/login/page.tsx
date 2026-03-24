@@ -53,7 +53,7 @@ export default function LoginPage() {
             </button>
           </div>
 
-          <form action={loginAction} onSubmit={() => setLoading(true)} className="space-y-5">
+          <form action={loginAction} className="space-y-5">
             <input type="hidden" name="mode" value={mode} />
             
             <div>
@@ -101,17 +101,10 @@ export default function LoginPage() {
 
             <button
               type="submit"
-              disabled={loading}
-              className="w-full bg-black hover:bg-zinc-800 disabled:bg-zinc-400 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-2 transition-all duration-200 mt-2 shadow-lg shadow-black/10 active:scale-[0.98]"
+              className="w-full bg-black hover:bg-zinc-800 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-2 transition-all duration-200 mt-2 shadow-lg shadow-black/10 active:scale-[0.98]"
             >
-              {loading ? (
-                <div className="h-5 w-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              ) : (
-                <>
-                  {mode === 'password' ? 'Sign In' : 'Send Magic Link'}
-                  <ArrowRightIcon className="h-4 w-4" />
-                </>
-              )}
+              {mode === 'password' ? 'Sign In' : 'Send Magic Link'}
+              <ArrowRightIcon className="h-4 w-4" />
             </button>
           </form>
         </div>
