@@ -2,29 +2,18 @@
 
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
+import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import { ArrowRightIcon, EnvelopeIcon, LockClosedIcon } from '@heroicons/react/24/outline';
 
 export default function LoginPage() {
+  const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [mode, setMode] = useState<'password' | 'magic-link'>('password');
 
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    // Check if we are already logged in; if so, don't sign out.
-    // This allows the redirect to work correctly.
-    const checkSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        // Only sign out if there's no session, or just rely on the middleware
-        // Actually, to fix your loop, we should NOT sign out here automatically anymore.
-      }
-    };
-    checkSession();
-  }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,12 +22,16 @@ export default function LoginPage() {
 
     try {
       if (mode === 'password') {
-        const { error } = await supabase.auth.signInWithPassword({
+        const { data, error } = await supabase.auth.signInWithPassword({
           email,
           password,
         });
         if (error) throw error;
-        window.location.href = '/';
+        
+        // Wait a small moment for the session to be set in cookies
+        setTimeout(() => {
+          window.location.href = '/';
+        }, 500);
       } else {
         const { error } = await supabase.auth.signInWithOtp({
           email,
