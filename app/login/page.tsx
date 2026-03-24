@@ -1,62 +1,20 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import Image from 'next/image';
-import { useRouter } from 'next/navigation';
-import { supabase } from '@/lib/supabaseClient';
+import { useSearchParams } from 'next/navigation';
+import { loginAction } from '../actions/auth';
 import { ArrowRightIcon, EnvelopeIcon, LockClosedIcon } from '@heroicons/react/24/outline';
 
 export default function LoginPage() {
-  const router = useRouter();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const searchParams = useSearchParams();
+  const errorMsg = searchParams.get('error');
+  
   const [loading, setLoading] = useState(false);
   const [mode, setMode] = useState<'password' | 'magic-link'>('password');
 
-  const [error, setError] = useState<string | null>(null);
-
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
-
-    try {
-      if (mode === 'password') {
-        const { error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
-        if (error) throw error;
-        
-        // Wait for session to propagate
-        let checks = 0;
-        const check = setInterval(async () => {
-          const { data } = await supabase.auth.getSession();
-          if (data.session || checks > 10) {
-            clearInterval(check);
-            window.location.href = '/';
-          }
-          checks++;
-        }, 100);
-      } else {
-        const { error } = await supabase.auth.signInWithOtp({
-          email,
-          options: {
-            emailRedirectTo: window.location.origin,
-          },
-        });
-        if (error) throw error;
-        alert('Check your email for the magic link!');
-      }
-    } catch (err: any) {
-      setError(err.message || 'Failed to sign in');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
-    <div className="min-h-[calc(100vh-64px)] flex items-center justify-center bg-slate-50 p-6">
+    <div className="min-h-screen flex items-center justify-center bg-slate-50 p-6">
       <div className="w-full max-w-[400px] animate-in fade-in slide-in-from-bottom-4 duration-700">
         
         {/* Card Header */}
@@ -80,12 +38,14 @@ export default function LoginPage() {
           {/* Mode Switcher */}
           <div className="flex p-1 bg-slate-100 rounded-xl mb-8">
             <button 
+              type="button"
               onClick={() => setMode('password')}
               className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all duration-200 ${mode === 'password' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
             >
               Password
             </button>
             <button 
+              type="button"
               onClick={() => setMode('magic-link')}
               className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all duration-200 ${mode === 'magic-link' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
             >
@@ -93,7 +53,9 @@ export default function LoginPage() {
             </button>
           </div>
 
-          <form onSubmit={handleLogin} className="space-y-5">
+          <form action={loginAction} onSubmit={() => setLoading(true)} className="space-y-5">
+            <input type="hidden" name="mode" value={mode} />
+            
             <div>
               <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 px-1">Email Address</label>
               <div className="relative group">
@@ -101,12 +63,11 @@ export default function LoginPage() {
                   <EnvelopeIcon className="h-5 w-5" />
                 </div>
                 <input
+                  name="email"
                   type="email"
                   required
                   className="block w-full pl-11 pr-4 py-3 bg-slate-50 border-transparent border focus:border-black focus:bg-white rounded-xl text-sm transition-all duration-200 outline-none placeholder:text-slate-300"
                   placeholder="name@company.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
                 />
               </div>
             </div>
@@ -122,20 +83,19 @@ export default function LoginPage() {
                     <LockClosedIcon className="h-5 w-5" />
                   </div>
                   <input
+                    name="password"
                     type="password"
-                    required
+                    required={mode === 'password'}
                     className="block w-full pl-11 pr-4 py-3 bg-slate-50 border-transparent border focus:border-black focus:bg-white rounded-xl text-sm transition-all duration-200 outline-none placeholder:text-slate-300"
                     placeholder="••••••••"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
                   />
                 </div>
               </div>
             )}
 
-            {error && (
+            {errorMsg && (
               <div className="p-3 bg-red-50 border border-red-100 rounded-xl text-red-600 text-xs font-medium animate-in fade-in duration-200">
-                ⚠️ {error}
+                ⚠️ {errorMsg}
               </div>
             )}
 
@@ -156,7 +116,6 @@ export default function LoginPage() {
           </form>
         </div>
 
-        {/* Footer info */}
         <p className="text-center mt-8 text-xs text-slate-400 font-medium tracking-tight">
           LNKD Platform v2.4.0 · Secured by OpenClaw
         </p>

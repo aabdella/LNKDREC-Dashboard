@@ -1,45 +1,47 @@
-'use client';
-
-import { useState, useEffect } from 'react';
+import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import Link from 'next/link';
 import Image from 'next/image';
 import { ViewColumnsIcon } from '@heroicons/react/24/outline';
-import { supabase } from '@/lib/supabaseClient';
+import { cookies } from 'next/headers';
+import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import LogoutButton from './components/LogoutButton';
 import AutoLogout from './components/AutoLogout';
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"] });
 
-export default function RootLayout({
+export const metadata: Metadata = {
+  title: "LNKD Platform",
+  description: "Advanced candidate sourcing and matching platform.",
+};
+
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const [session, setSession] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const cookieStore = await cookies();
+  
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name: string) {
+          return cookieStore.get(name)?.value;
+        },
+        set(name: string, value: string, options: CookieOptions) {
+          cookieStore.set({ name, value, ...options });
+        },
+        remove(name: string, options: CookieOptions) {
+          cookieStore.set({ name, value, ...options });
+        },
+      },
+    }
+  );
 
-  useEffect(() => {
-    // Initial fetch
-    const init = async () => {
-      const { data: { session: initialSession } } = await supabase.auth.getSession();
-      setSession(initialSession);
-      setLoading(false);
-    };
-    init();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, newSession) => {
-      console.log('Auth state changed:', _event, !!newSession);
-      if (_event === 'SIGNED_OUT') {
-        setSession(null);
-      } else if (newSession) {
-        setSession(newSession);
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
+  const { data: { session } } = await supabase.auth.getSession();
 
   return (
     <html lang="en">
@@ -47,7 +49,6 @@ export default function RootLayout({
         {session && <AutoLogout />}
         <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
           
-          {/* Only show header if logged in */}
           {session && (
             <header className="bg-black text-white shadow-lg sticky top-0 z-50 animate-in fade-in slide-in-from-top-4 duration-500">
               <div className="max-w-7xl mx-auto px-4 py-3">
@@ -61,7 +62,6 @@ export default function RootLayout({
                           <h1 className="text-xl font-semibold tracking-wide hidden sm:block group-hover:text-zinc-200 transition">Platform</h1>
                       </Link>
 
-                      {/* Desktop Navigation */}
                       <nav className="hidden md:flex gap-6 ml-4 text-sm font-medium text-zinc-400">
                           <Link href="/" className="hover:text-white transition py-2 border-b-2 border-transparent hover:border-white">Candidates</Link>
                           <Link href="/sourcing" className="hover:text-white transition py-2 border-b-2 border-transparent hover:border-white">Sourcing</Link>
@@ -80,7 +80,6 @@ export default function RootLayout({
                   </div>
                 </div>
 
-                {/* Mobile Navigation */}
                 <nav className="md:hidden mt-3 pt-3 border-t border-zinc-800 flex gap-4 text-sm font-medium text-zinc-400 overflow-x-auto">
                   <Link href="/" className="hover:text-white transition whitespace-nowrap">Candidates</Link>
                   <Link href="/sourcing" className="hover:text-white transition whitespace-nowrap">Sourcing</Link>
@@ -95,17 +94,11 @@ export default function RootLayout({
             </header>
           )}
 
-          {/* Page Content */}
-          <main className={!session ? 'flex items-center justify-center min-h-screen' : ''}>
-            {loading ? (
-              <div className="flex items-center justify-center min-h-screen">
-                <div className="h-8 w-8 border-4 border-black/10 border-t-black rounded-full animate-spin" />
-              </div>
-            ) : children}
+          <main>
+            {children}
           </main>
         </div>
       </body>
     </html>
   );
 }
-
