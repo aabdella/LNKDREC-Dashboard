@@ -14,8 +14,16 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Clear any existing session to ensure we see the login UI
-    supabase.auth.signOut();
+    // Check if we are already logged in; if so, don't sign out.
+    // This allows the redirect to work correctly.
+    const checkSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        // Only sign out if there's no session, or just rely on the middleware
+        // Actually, to fix your loop, we should NOT sign out here automatically anymore.
+      }
+    };
+    checkSession();
   }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
