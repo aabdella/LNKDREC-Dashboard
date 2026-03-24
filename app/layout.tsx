@@ -3,6 +3,8 @@ import { Inter } from "next/font/google";
 import Link from 'next/link';
 import Image from 'next/image';
 import { ViewColumnsIcon } from '@heroicons/react/24/outline';
+import LogoutButton from './components/LogoutButton';
+import AutoLogout from './components/AutoLogout';
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"] });
@@ -20,6 +22,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={inter.className}>
+        <AutoLogout />
         <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
            {/* Global Header */}
           <header className="bg-black text-white shadow-lg sticky top-0 z-50">
@@ -49,6 +52,7 @@ export default function RootLayout({
                 
                 <div className="flex items-center gap-4">
                     <span className="text-xs sm:text-sm text-zinc-400">Admin</span>
+                    <LogoutButton />
                 </div>
               </div>
 

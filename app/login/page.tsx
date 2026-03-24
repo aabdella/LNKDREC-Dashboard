@@ -11,19 +11,41 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [mode, setMode] = useState<'password' | 'magic-link'>('password');
 
+  const [error, setError] = useState<string | null>(null);
+
   useEffect(() => {
     // Clear any existing session to ensure we see the login UI
-    const logout = async () => {
-      await supabase.auth.signOut();
-    };
-    logout();
+    supabase.auth.signOut();
   }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    // Logic will be added in next step
-    setTimeout(() => setLoading(false), 1500);
+    setError(null);
+
+    try {
+      if (mode === 'password') {
+        const { error } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+        if (error) throw error;
+        window.location.href = '/';
+      } else {
+        const { error } = await supabase.auth.signInWithOtp({
+          email,
+          options: {
+            emailRedirectTo: window.location.origin,
+          },
+        });
+        if (error) throw error;
+        alert('Check your email for the magic link!');
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to sign in');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -101,6 +123,12 @@ export default function LoginPage() {
                     onChange={(e) => setPassword(e.target.value)}
                   />
                 </div>
+              </div>
+            )}
+
+            {error && (
+              <div className="p-3 bg-red-50 border border-red-100 rounded-xl text-red-600 text-xs font-medium animate-in fade-in duration-200">
+                ⚠️ {error}
               </div>
             )}
 
