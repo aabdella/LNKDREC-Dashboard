@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Image from 'next/image';
+import { supabase } from '@/lib/supabaseClient';
 import { ArrowRightIcon, EnvelopeIcon, LockClosedIcon } from '@heroicons/react/24/outline';
 
 export default function LoginPage() {
@@ -9,6 +10,14 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [mode, setMode] = useState<'password' | 'magic-link'>('password');
+
+  useEffect(() => {
+    // Clear any existing session to ensure we see the login UI
+    const logout = async () => {
+      await supabase.auth.signOut();
+    };
+    logout();
+  }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
