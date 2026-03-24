@@ -4,7 +4,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { ViewColumnsIcon } from '@heroicons/react/24/outline';
 import { cookies } from 'next/headers';
-import { createServerClient, type CookieOptions } from '@supabase/ssr';
+import { createServerClient } from '@supabase/ssr';
 import LogoutButton from './components/LogoutButton';
 import AutoLogout from './components/AutoLogout';
 import "./globals.css";
@@ -23,6 +23,7 @@ export default async function RootLayout({
 }>) {
   const cookieStore = await cookies();
   
+  // Create a read-only supabase client for the server component
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -30,12 +31,6 @@ export default async function RootLayout({
       cookies: {
         get(name: string) {
           return cookieStore.get(name)?.value;
-        },
-        set(name: string, value: string, options: CookieOptions) {
-          cookieStore.set({ name, value, ...options });
-        },
-        remove(name: string, options: CookieOptions) {
-          cookieStore.set({ name, value, ...options });
         },
       },
     }
