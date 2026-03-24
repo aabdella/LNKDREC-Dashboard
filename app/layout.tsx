@@ -1,78 +1,105 @@
-import type { Metadata } from "next";
+'use client';
+
+import { useState, useEffect } from 'react';
 import { Inter } from "next/font/google";
 import Link from 'next/link';
 import Image from 'next/image';
 import { ViewColumnsIcon } from '@heroicons/react/24/outline';
+import { supabase } from '@/lib/supabaseClient';
 import LogoutButton from './components/LogoutButton';
 import AutoLogout from './components/AutoLogout';
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"] });
 
-export const metadata: Metadata = {
-  title: "LNKD Platform",
-  description: "Advanced candidate sourcing and matching platform.",
-};
-
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const [session, setSession] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setLoading(false);
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
   return (
     <html lang="en">
       <body className={inter.className}>
-        <AutoLogout />
+        {session && <AutoLogout />}
         <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
-           {/* Global Header */}
-          <header className="bg-black text-white shadow-lg sticky top-0 z-50">
-            <div className="max-w-7xl mx-auto px-4 py-3">
-              <div className="flex justify-between items-center">
-                <div className="flex items-center gap-6">
-                    <Link href="/" className="flex items-center gap-3 group">
-                        <div className="bg-white p-1 rounded-sm">
-                            <Image src="/logo.jpg" alt="LNKD Logo" width={80} height={40} className="object-contain h-8 w-auto" />
-                        </div>
-                        <div className="h-6 w-px bg-zinc-700 mx-1 hidden sm:block"></div>
-                        <h1 className="text-xl font-semibold tracking-wide hidden sm:block group-hover:text-zinc-200 transition">Platform</h1>
-                    </Link>
+          
+          {/* Only show header if logged in */}
+          {session && (
+            <header className="bg-black text-white shadow-lg sticky top-0 z-50 animate-in fade-in slide-in-from-top-4 duration-500">
+              <div className="max-w-7xl mx-auto px-4 py-3">
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center gap-6">
+                      <Link href="/" className="flex items-center gap-3 group">
+                          <div className="bg-white p-1 rounded-sm">
+                              <Image src="/logo.jpg" alt="LNKD Logo" width={80} height={40} className="object-contain h-8 w-auto" />
+                          </div>
+                          <div className="h-6 w-px bg-zinc-700 mx-1 hidden sm:block"></div>
+                          <h1 className="text-xl font-semibold tracking-wide hidden sm:block group-hover:text-zinc-200 transition">Platform</h1>
+                      </Link>
 
-                    {/* Desktop Navigation */}
-                    <nav className="hidden md:flex gap-6 ml-4 text-sm font-medium text-zinc-400">
-                        <Link href="/" className="hover:text-white transition py-2 border-b-2 border-transparent hover:border-white">Candidates</Link>
-                        <Link href="/sourcing" className="hover:text-white transition py-2 border-b-2 border-transparent hover:border-white">Sourcing</Link>
-                        <Link href="/sales" className="hover:text-white transition py-2 border-b-2 border-transparent hover:border-white">Sales</Link>
-                        <Link href="/jobs" className="hover:text-white transition py-2 border-b-2 border-transparent hover:border-white">Companies/Jobs</Link>
-                        <Link href="/add-candidate" className="hover:text-white transition py-2 border-b-2 border-transparent hover:border-white">Add Candidate</Link>
-                        <Link href="/pipeline" className="hover:text-white transition py-2 border-b-2 border-transparent hover:border-white flex items-center gap-1.5">
-                          <ViewColumnsIcon className="h-4 w-4" />Pipeline
-                        </Link>
-                    </nav>
+                      {/* Desktop Navigation */}
+                      <nav className="hidden md:flex gap-6 ml-4 text-sm font-medium text-zinc-400">
+                          <Link href="/" className="hover:text-white transition py-2 border-b-2 border-transparent hover:border-white">Candidates</Link>
+                          <Link href="/sourcing" className="hover:text-white transition py-2 border-b-2 border-transparent hover:border-white">Sourcing</Link>
+                          <Link href="/sales" className="hover:text-white transition py-2 border-b-2 border-transparent hover:border-white">Sales</Link>
+                          <Link href="/jobs" className="hover:text-white transition py-2 border-b-2 border-transparent hover:border-white">Companies/Jobs</Link>
+                          <Link href="/add-candidate" className="hover:text-white transition py-2 border-b-2 border-transparent hover:border-white">Add Candidate</Link>
+                          <Link href="/pipeline" className="hover:text-white transition py-2 border-b-2 border-transparent hover:border-white flex items-center gap-1.5">
+                            <ViewColumnsIcon className="h-4 w-4" />Pipeline
+                          </Link>
+                      </nav>
+                  </div>
+                  
+                  <div className="flex items-center gap-4">
+                      <span className="text-xs sm:text-sm text-zinc-400">Admin</span>
+                      <LogoutButton />
+                  </div>
                 </div>
-                
-                <div className="flex items-center gap-4">
-                    <span className="text-xs sm:text-sm text-zinc-400">Admin</span>
-                    <LogoutButton />
-                </div>
+
+                {/* Mobile Navigation */}
+                <nav className="md:hidden mt-3 pt-3 border-t border-zinc-800 flex gap-4 text-sm font-medium text-zinc-400 overflow-x-auto">
+                  <Link href="/" className="hover:text-white transition whitespace-nowrap">Candidates</Link>
+                  <Link href="/sourcing" className="hover:text-white transition whitespace-nowrap">Sourcing</Link>
+                  <Link href="/sales" className="hover:text-white transition whitespace-nowrap">Sales</Link>
+                  <Link href="/jobs" className="hover:text-white transition whitespace-nowrap">Companies/Jobs</Link>
+                  <Link href="/add-candidate" className="hover:text-white transition whitespace-nowrap">Add Candidate</Link>
+                  <Link href="/pipeline" className="hover:text-white transition whitespace-nowrap flex items-center gap-1">
+                    <ViewColumnsIcon className="h-4 w-4" />Pipeline
+                  </Link>
+                </nav>
               </div>
+            </header>
+          )}
 
-              {/* Mobile Navigation (Visible only on small screens) */}
-              <nav className="md:hidden mt-3 pt-3 border-t border-zinc-800 flex gap-4 text-sm font-medium text-zinc-400 overflow-x-auto">
-                <Link href="/" className="hover:text-white transition whitespace-nowrap">Candidates</Link>
-                <Link href="/sourcing" className="hover:text-white transition whitespace-nowrap">Sourcing</Link>
-                <Link href="/sales" className="hover:text-white transition whitespace-nowrap">Sales</Link>
-                <Link href="/jobs" className="hover:text-white transition whitespace-nowrap">Companies/Jobs</Link>
-                <Link href="/add-candidate" className="hover:text-white transition whitespace-nowrap">Add Candidate</Link>
-                <Link href="/pipeline" className="hover:text-white transition whitespace-nowrap flex items-center gap-1">
-                  <ViewColumnsIcon className="h-4 w-4" />Pipeline
-                </Link>
-              </nav>
-            </div>
-          </header>
-
-          {children}
+          {/* Page Content */}
+          <main className={!session ? 'flex items-center justify-center min-h-screen' : ''}>
+            {loading ? (
+              <div className="flex items-center justify-center min-h-screen">
+                <div className="h-8 w-8 border-4 border-black/10 border-t-black rounded-full animate-spin" />
+              </div>
+            ) : children}
+          </main>
         </div>
       </body>
     </html>
   );
 }
+
