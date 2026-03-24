@@ -1,31 +1,77 @@
-import { createMiddlewareClient } from '@supabase/auth-helpers-nextjs';
-import { NextResponse } from 'next/server';
-import type { NextRequest } from 'next/server';
+import { createServerClient, type CookieOptions } from '@supabase/ssr';
+import { NextResponse, type NextRequest } from 'next/server';
 
-export async function middleware(req: NextRequest) {
-  const res = NextResponse.next();
-  
-  // Use a simple Supabase client for middleware
-  // We check for the session cookie directly for speed
-  const supabase = createMiddlewareClient({ req, res });
+export async function middleware(request: NextRequest) {
+  let response = NextResponse.next({
+    request: {
+      headers: request.headers,
+    },
+  });
+
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name: string) {
+          return request.cookies.get(name)?.value;
+        },
+        set(name: string, value: string, options: CookieOptions) {
+          request.cookies.set({
+            name,
+            value,
+            ...options,
+          });
+          response = NextResponse.next({
+            request: {
+              headers: request.headers,
+            },
+          });
+          response.cookies.set({
+            name,
+            value,
+            ...options,
+          });
+        },
+        remove(name: string, options: CookieOptions) {
+          request.cookies.set({
+            name,
+            value: '',
+            ...options,
+          });
+          response = NextResponse.next({
+            request: {
+              headers: request.headers,
+            },
+          });
+          response.cookies.set({
+            name,
+            value: '',
+            ...options,
+          });
+        },
+      },
+    }
+  );
+
   const { data: { session } } = await supabase.auth.getSession();
 
-  const isLoginPage = req.nextUrl.pathname === '/login';
-  const isPublicAsset = req.nextUrl.pathname.startsWith('/_next') || 
-                       req.nextUrl.pathname.startsWith('/api') ||
-                       req.nextUrl.pathname.includes('.');
+  const isLoginPage = request.nextUrl.pathname === '/login';
+  const isPublicAsset = request.nextUrl.pathname.startsWith('/_next') || 
+                       request.nextUrl.pathname.startsWith('/api') ||
+                       request.nextUrl.pathname.includes('.');
 
   // 1. If no session and trying to access private page -> Redirect to /login
   if (!session && !isLoginPage && !isPublicAsset) {
-    return NextResponse.redirect(new URL('/login', req.url));
+    return NextResponse.redirect(new URL('/login', request.url));
   }
 
   // 2. If session exists and trying to access /login -> Redirect to /
   if (session && isLoginPage) {
-    return NextResponse.redirect(new URL('/', req.url));
+    return NextResponse.redirect(new URL('/', request.url));
   }
 
-  return res;
+  return response;
 }
 
 export const config = {
