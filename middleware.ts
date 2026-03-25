@@ -57,6 +57,7 @@ export async function middleware(request: NextRequest) {
   const { data: { session } } = await supabase.auth.getSession();
 
   const isLoginPage = request.nextUrl.pathname === '/login';
+  const isAdminPage = request.nextUrl.pathname.startsWith('/admin');
   const isPublicAsset = request.nextUrl.pathname.startsWith('/_next') || 
                        request.nextUrl.pathname.startsWith('/api') ||
                        request.nextUrl.pathname.includes('.');
@@ -69,6 +70,14 @@ export async function middleware(request: NextRequest) {
   // 2. If session exists and trying to access /login -> Redirect to /
   if (session && isLoginPage) {
     return NextResponse.redirect(new URL('/', request.url));
+  }
+
+  // 3. Admin Route Protection
+  if (isAdminPage) {
+    const isSuperAdmin = session?.user?.email?.endsWith('@lnkd.ai');
+    if (!isSuperAdmin) {
+      return NextResponse.redirect(new URL('/', request.url));
+    }
   }
 
   return response;

@@ -37,6 +37,7 @@ export default async function RootLayout({
   );
 
   const { data: { session } } = await supabase.auth.getSession();
+  const isSuperAdmin = session?.user?.email?.endsWith('@lnkd.ai'); // Using domain check as initial proxy for Super Admin
 
   return (
     <html lang="en">
@@ -70,7 +71,17 @@ export default async function RootLayout({
                   </div>
                   
                   <div className="flex items-center gap-4">
-                      <span className="text-xs sm:text-sm text-zinc-400">Admin</span>
+                      {isSuperAdmin && (
+                        <Link 
+                          href="/admin" 
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-xs font-bold text-indigo-400 hover:bg-indigo-500/20 hover:text-indigo-300 transition-all active:scale-95"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-3.5 h-3.5">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z" />
+                          </svg>
+                          Admin Dashboard
+                        </Link>
+                      )}
                       <LogoutButton />
                   </div>
                 </div>
