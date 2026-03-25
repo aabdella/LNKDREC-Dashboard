@@ -823,9 +823,22 @@ function CVExportModal({
   useEffect(() => {
     async function fetchRate() {
       try {
-        const res = await fetch('https://api.frankfurter.app/latest?from=USD&to=EGP');
+        const cached = localStorage.getItem('lnkd_egp_rate');
+        const now = Date.now();
+        if (cached) {
+          const { rate, ts } = JSON.parse(cached);
+          if (now - ts < 24 * 60 * 60 * 1000) {
+            setEgpRate(rate);
+            return;
+          }
+        }
+        const res = await fetch('https://open.er-api.com/v6/latest/USD');
         const data = await res.json();
-        if (data?.rates?.EGP) setEgpRate(data.rates.EGP);
+        const rate = data.rates?.EGP;
+        if (rate && typeof rate === 'number') {
+          setEgpRate(rate);
+          localStorage.setItem('lnkd_egp_rate', JSON.stringify({ rate, ts: now }));
+        }
       } catch { }
     }
     fetchRate();
