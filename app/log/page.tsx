@@ -54,6 +54,16 @@ const ALL_ACTIONS = [
   'candidate_edited', 'job_created', 'job_updated', 'status_snapshot',
 ];
 
+function formatFullTime(dateStr: string): string {
+  const date = new Date(dateStr);
+  return date.toLocaleTimeString([], { 
+    hour: '2-digit', 
+    minute: '2-digit', 
+    second: '2-digit',
+    hour12: true 
+  });
+}
+
 function timeAgo(dateStr: string): string {
   const now = Date.now();
   const then = new Date(dateStr).getTime();
@@ -210,9 +220,12 @@ ALTER TABLE activity_log ADD COLUMN IF NOT EXISTS user_id uuid;`}</pre>
                   return (
                     <tr key={entry.id} className="hover:bg-slate-50/50 transition">
                       <td className="px-5 py-3">
-                        <span className="text-xs text-slate-400 whitespace-nowrap" title={new Date(entry.created_at).toLocaleString()}>
+                        <div className="text-xs font-bold text-slate-900 whitespace-nowrap">
+                          {formatFullTime(entry.created_at)}
+                        </div>
+                        <div className="text-[10px] text-slate-400 whitespace-nowrap mt-0.5" title={new Date(entry.created_at).toLocaleString()}>
                           {timeAgo(entry.created_at)}
-                        </span>
+                        </div>
                       </td>
                       <td className="px-5 py-3">
                         <span className={`inline-flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full border ${colorClass}`}>
