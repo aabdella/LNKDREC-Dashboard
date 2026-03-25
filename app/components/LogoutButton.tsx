@@ -1,12 +1,12 @@
 'use client';
 
-import { supabase } from '@/lib/supabaseClient';
 import { PowerIcon } from '@heroicons/react/24/outline';
+import { logoutAction } from '../actions/auth';
 
 export default function LogoutButton() {
   const handleLogout = async () => {
-    await supabase.auth.signOut();
-    window.location.href = '/login';
+    // Call the server action to sign out and redirect
+    await logoutAction();
   };
 
   return (

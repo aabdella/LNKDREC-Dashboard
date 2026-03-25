@@ -73,5 +73,8 @@ export async function logoutAction() {
   );
 
   await supabase.auth.signOut();
+  // Clear the cookies explicitly to be safe
+  cookieStore.set('sb-access-token', '', { maxAge: 0 });
+  cookieStore.set('sb-refresh-token', '', { maxAge: 0 });
   redirect('/login');
 }
