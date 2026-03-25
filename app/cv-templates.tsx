@@ -325,7 +325,7 @@ export function CVTemplateA({ candidate, privacy, logoBase64, vetting, egpRate =
 
         {/* About */}
         {candidate.brief && (
-          <View style={stylesA.section}>
+          <View style={stylesA.section} wrap={false}>
             <Text style={stylesA.sectionTitle}>About</Text>
             <Text style={stylesA.aboutText}>{candidate.brief}</Text>
           </View>
@@ -333,7 +333,7 @@ export function CVTemplateA({ candidate, privacy, logoBase64, vetting, egpRate =
 
         {/* Skills */}
         {skills.length > 0 && (
-          <View style={stylesA.section}>
+          <View style={stylesA.section} wrap={false}>
             <Text style={stylesA.sectionTitle}>Skills</Text>
             <View style={stylesA.skillsWrap}>
               {skills.map((s, i) => (
@@ -348,7 +348,7 @@ export function CVTemplateA({ candidate, privacy, logoBase64, vetting, egpRate =
           <View style={stylesA.section}>
             <Text style={stylesA.sectionTitle}>Work History</Text>
             {candidate.work_history.map((job, i) => (
-              <View key={i} style={stylesA.workEntry}>
+              <View key={i} style={stylesA.workEntry} wrap={false}>
                 <View style={stylesA.workRow}>
                   <View>
                     <Text style={stylesA.workCompany}>{job.company}</Text>
@@ -373,7 +373,7 @@ export function CVTemplateA({ candidate, privacy, logoBase64, vetting, egpRate =
 
         {/* Education */}
         {candidate.education && (
-          <View style={stylesA.section}>
+          <View style={stylesA.section} wrap={false}>
             <Text style={stylesA.sectionTitle}>Education</Text>
             <Text style={stylesA.educationText}>{candidate.education}</Text>
           </View>
@@ -381,7 +381,7 @@ export function CVTemplateA({ candidate, privacy, logoBase64, vetting, egpRate =
 
         {/* Courses & Certificates */}
         {candidate.courses_certificates && (
-          <View style={stylesA.section}>
+          <View style={stylesA.section} wrap={false}>
             <Text style={stylesA.sectionTitle}>Courses &amp; Certificates</Text>
             <Text style={stylesA.coursesText}>{candidate.courses_certificates}</Text>
           </View>
@@ -389,7 +389,7 @@ export function CVTemplateA({ candidate, privacy, logoBase64, vetting, egpRate =
 
         {/* Vetting Details */}
         {vetting && (
-          <View style={stylesA.section}>
+          <View style={stylesA.section} wrap={false}>
             <Text style={stylesA.sectionTitle}>Vetting Details</Text>
             <View style={stylesA.vettingBox}>
               <View style={stylesA.vettingRow}>
@@ -446,7 +446,7 @@ export function CVTemplateA({ candidate, privacy, logoBase64, vetting, egpRate =
 
         {/* Match Reason */}
         {candidate.match_reason && (
-          <View style={stylesA.section}>
+          <View style={stylesA.section} wrap={false}>
             <Text style={stylesA.sectionTitle}>Why This Candidate</Text>
             <View style={stylesA.matchBox}>
               <Text style={stylesA.matchText}>{candidate.match_reason}</Text>
@@ -707,7 +707,7 @@ export function CVTemplateB({ candidate, privacy, logoBase64, vetting, egpRate =
 
           {/* About */}
           {candidate.brief && (
-            <View>
+            <View wrap={false}>
               <Text style={stylesB.contentSectionTitle}>About</Text>
               <Text style={stylesB.aboutText}>{candidate.brief}</Text>
             </View>
@@ -718,7 +718,7 @@ export function CVTemplateB({ candidate, privacy, logoBase64, vetting, egpRate =
             <View>
               <Text style={stylesB.contentSectionTitle}>Work History</Text>
               {candidate.work_history.map((job, i) => (
-                <View key={i} style={stylesB.workEntry}>
+                <View key={i} style={stylesB.workEntry} wrap={false}>
                   <View style={stylesB.workRow}>
                     <View>
                       <Text style={stylesB.workCompany}>{job.company}</Text>
@@ -743,7 +743,7 @@ export function CVTemplateB({ candidate, privacy, logoBase64, vetting, egpRate =
 
           {/* Education */}
           {candidate.education && (
-            <View>
+            <View wrap={false}>
               <Text style={stylesB.contentSectionTitle}>Education</Text>
               <Text style={stylesB.educationText}>{candidate.education}</Text>
             </View>
@@ -751,7 +751,7 @@ export function CVTemplateB({ candidate, privacy, logoBase64, vetting, egpRate =
 
           {/* Courses & Certificates */}
           {candidate.courses_certificates && (
-            <View>
+            <View wrap={false}>
               <Text style={stylesB.contentSectionTitle}>Courses &amp; Certificates</Text>
               <Text style={stylesB.coursesText}>{candidate.courses_certificates}</Text>
             </View>
@@ -759,7 +759,7 @@ export function CVTemplateB({ candidate, privacy, logoBase64, vetting, egpRate =
 
           {/* Vetting Details */}
           {vetting && (
-            <View>
+            <View wrap={false}>
               <Text style={stylesB.contentSectionTitle}>Vetting Details</Text>
               <View style={{ backgroundColor: '#f8fafc', borderLeftWidth: 3, borderLeftColor: '#4f46e5', paddingHorizontal: 10, paddingVertical: 8 }}>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 16, marginBottom: 6 }}>
@@ -813,7 +813,7 @@ export function CVTemplateB({ candidate, privacy, logoBase64, vetting, egpRate =
 
           {/* Match Reason */}
           {candidate.match_reason && (
-            <View>
+            <View wrap={false}>
               <Text style={stylesB.contentSectionTitle}>Why This Candidate</Text>
               <View style={stylesB.matchBox}>
                 <Text style={stylesB.matchText}>{candidate.match_reason}</Text>
