@@ -7,7 +7,9 @@ import {
     EnvelopeIcon, 
     PhoneIcon, 
     PencilSquareIcon,
-    CheckIcon
+    CheckIcon,
+    ChevronUpIcon,
+    ChevronDownIcon
 } from '@heroicons/react/24/outline';
 
 // Types (Mirrored from main dashboard for consistency)
@@ -201,6 +203,16 @@ export default function CandidateDetailsModal({
         setFormData(prev => ({ ...prev, work_history: updatedHistory }));
     };
 
+    const moveWorkHistory = (index: number, direction: 'up' | 'down') => {
+        const history = [...(formData.work_history || [])];
+        const newIndex = direction === 'up' ? index - 1 : index + 1;
+        
+        if (newIndex < 0 || newIndex >= history.length) return;
+        
+        [history[index], history[newIndex]] = [history[newIndex], history[index]];
+        setFormData(prev => ({ ...prev, work_history: history }));
+    };
+
     const removeWorkHistory = (index: number) => {
         setFormData(prev => ({
             ...prev,
@@ -392,13 +404,34 @@ export default function CandidateDetailsModal({
                         <div className="space-y-4">
                             {(formData.work_history || []).map((work, idx) => (
                                 <div key={idx} className="p-4 bg-slate-50 rounded-lg border border-slate-200 relative group">
-                                    <button 
-                                        type="button" 
-                                        onClick={() => removeWorkHistory(idx)}
-                                        className="absolute top-2 right-2 text-slate-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition"
-                                    >
-                                        <XMarkIcon className="h-5 w-5" />
-                                    </button>
+                                    <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition">
+                                        <button 
+                                            type="button" 
+                                            onClick={() => moveWorkHistory(idx, 'up')}
+                                            disabled={idx === 0}
+                                            className="p-1 text-slate-400 hover:text-indigo-600 disabled:opacity-30 disabled:hover:text-slate-400"
+                                            title="Move Up"
+                                        >
+                                            <ChevronUpIcon className="h-5 w-5" />
+                                        </button>
+                                        <button 
+                                            type="button" 
+                                            onClick={() => moveWorkHistory(idx, 'down')}
+                                            disabled={idx === (formData.work_history?.length || 0) - 1}
+                                            className="p-1 text-slate-400 hover:text-indigo-600 disabled:opacity-30 disabled:hover:text-slate-400"
+                                            title="Move Down"
+                                        >
+                                            <ChevronDownIcon className="h-5 w-5" />
+                                        </button>
+                                        <button 
+                                            type="button" 
+                                            onClick={() => removeWorkHistory(idx)}
+                                            className="p-1 text-slate-400 hover:text-red-500"
+                                            title="Remove"
+                                        >
+                                            <XMarkIcon className="h-5 w-5" />
+                                        </button>
+                                    </div>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         <div>
                                             <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Company</label>
