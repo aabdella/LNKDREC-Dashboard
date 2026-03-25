@@ -12,6 +12,7 @@ type LogEntry = {
   entity_name: string | null;
   details: Record<string, any> | null;
   source: string | null;
+  user_email: string | null;
 };
 
 const ACTION_COLORS: Record<string, string> = {
@@ -146,16 +147,8 @@ export default function LogPage() {
         <div className="mb-6 p-5 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
           <p className="font-bold mb-2">⚠️ activity_log table not found in Supabase</p>
           <p className="mb-3">Run this SQL in your <a href="https://supabase.com/dashboard/project/clrzajerliyyddfyvggd/sql" target="_blank" className="underline font-semibold">Supabase SQL Editor</a>:</p>
-          <pre className="bg-white border border-amber-200 rounded p-3 text-xs overflow-x-auto">{`CREATE TABLE IF NOT EXISTS activity_log (
-  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-  created_at timestamptz DEFAULT now(),
-  action text NOT NULL,
-  entity_type text,
-  entity_id text,
-  entity_name text,
-  details jsonb,
-  source text DEFAULT 'web'
-);`}</pre>
+          <pre className="bg-white border border-amber-200 rounded p-3 text-xs overflow-x-auto">{`ALTER TABLE activity_log ADD COLUMN IF NOT EXISTS user_email text;
+ALTER TABLE activity_log ADD COLUMN IF NOT EXISTS user_id uuid;`}</pre>
         </div>
       )}
 
@@ -189,6 +182,7 @@ export default function LogPage() {
               <tr>
                 <th className="px-5 py-3 text-xs font-bold text-slate-500 uppercase w-28">Time</th>
                 <th className="px-5 py-3 text-xs font-bold text-slate-500 uppercase w-48">Action</th>
+                <th className="px-5 py-3 text-xs font-bold text-slate-500 uppercase">User</th>
                 <th className="px-5 py-3 text-xs font-bold text-slate-500 uppercase">Entity</th>
                 <th className="px-5 py-3 text-xs font-bold text-slate-500 uppercase">Details</th>
                 <th className="px-5 py-3 text-xs font-bold text-slate-500 uppercase w-20">Source</th>
@@ -224,6 +218,10 @@ export default function LogPage() {
                         <span className={`inline-flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full border ${colorClass}`}>
                           {icon} {entry.action.replace(/_/g, ' ')}
                         </span>
+                      </td>
+                      <td className="px-5 py-3">
+                        <div className="text-sm font-bold text-slate-700">{entry.user_email?.split('@')[0] || 'system'}</div>
+                        <div className="text-[10px] text-slate-400">{entry.user_email || 'automated'}</div>
                       </td>
                       <td className="px-5 py-3">
                         <div className="text-sm font-medium text-slate-800">{entry.entity_name || '—'}</div>
