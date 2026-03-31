@@ -221,24 +221,35 @@ export default function SourcingPage() {
 
       const scored = data
         .map(c => {
-          // Build full candidate text from all relevant fields
-          const candidateText = [
-            c.title || '',
-            c.brief || '',
-            c.match_reason || '',
-            c.lnkd_notes || '',
-            c.resume_text || '',
-            ...(Array.isArray(c.skills) ? c.skills : []),
-            ...(Array.isArray(c.technologies) ? c.technologies.map((t: any) => t.name || t) : []),
-            ...(Array.isArray(c.tools) ? c.tools.map((t: any) => t.name || t) : []),
-            ...(Array.isArray(c.work_history)
-              ? c.work_history.map((w: any) => `${w.title || ''} ${w.company || ''}`)
-              : []),
-          ].join(' ').toLowerCase();
+          // --- Point 5: Weighted field scoring ---
+          // Each field has a multiplier — skills/title matches count far more than resume text
+          const weightedFields: { text: string; weight: number }[] = [
+            { text: c.title || '',        weight: 4 }, // title is the strongest signal
+            { text: (Array.isArray(c.skills) ? c.skills.join(' ') : ''), weight: 3 },
+            { text: (Array.isArray(c.technologies) ? c.technologies.map((t: any) => t.name || t).join(' ') : ''), weight: 3 },
+            { text: (Array.isArray(c.tools) ? c.tools.map((t: any) => t.name || t).join(' ') : ''), weight: 3 },
+            { text: c.brief || '',        weight: 2 },
+            { text: c.match_reason || '', weight: 2 },
+            { text: c.lnkd_notes || '',   weight: 1 },
+            { text: (Array.isArray(c.work_history)
+              ? c.work_history.map((w: any) => `${w.title || ''} ${w.company || ''}`).join(' ')
+              : ''),                       weight: 2 },
+            { text: c.resume_text || '',  weight: 1 },
+          ];
 
-          // Point 1: Technical term match score
-          const termHits = jdTerms.filter(t => candidateText.includes(t)).length;
-          const termScore = jdTerms.length > 0 ? (termHits / jdTerms.length) * 100 : 0;
+          // Sum weighted hits across all fields
+          const totalWeight = weightedFields.reduce((sum, f) => sum + f.weight, 0);
+          let weightedHits = 0;
+
+          for (const field of weightedFields) {
+            const fieldLower = field.text.toLowerCase();
+            const hits = jdTerms.filter(t => fieldLower.includes(t)).length;
+            // Normalize per-field (0–1) then scale by weight
+            const fieldScore = jdTerms.length > 0 ? hits / jdTerms.length : 0;
+            weightedHits += fieldScore * field.weight;
+          }
+
+          const termScore = (weightedHits / totalWeight) * 100;
 
           // Point 2: Title similarity bonus/penalty
           const candidateTitle = (c.title || '').toLowerCase();
@@ -246,9 +257,9 @@ export default function SourcingPage() {
           let titleBonus = 0;
           if (titleKeywords.length > 0) {
             const ratio = titleHits / titleKeywords.length;
-            if (ratio >= 0.4) titleBonus = 20;
-            else if (ratio >= 0.2) titleBonus = 8;
-            else titleBonus = -15; // completely unrelated title
+            if (ratio >= 0.4) titleBonus = 25;
+            else if (ratio >= 0.2) titleBonus = 10;
+            else titleBonus = -15;
           }
 
           // Point 4: Seniority penalty
@@ -257,9 +268,9 @@ export default function SourcingPage() {
           const isSeniorTitle = /senior|lead|principal|staff|head|manager|architect|director/i.test(c.title || '');
           if (requiredYears >= 5) {
             if (candidateYears > 0 && candidateYears < requiredYears) {
-              seniorityPenalty = -25; // confirmed under-experienced
+              seniorityPenalty = -25;
             } else if (candidateYears === 0 && !isSeniorTitle) {
-              seniorityPenalty = -10; // no seniority signals
+              seniorityPenalty = -10;
             }
           }
 
