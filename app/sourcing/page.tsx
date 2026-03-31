@@ -222,34 +222,30 @@ export default function SourcingPage() {
       const scored = data
         .map(c => {
           // --- Point 5: Weighted field scoring ---
-          // Each field has a multiplier — skills/title matches count far more than resume text
+          // Build per-field text blobs with multipliers
           const weightedFields: { text: string; weight: number }[] = [
-            { text: c.title || '',        weight: 4 }, // title is the strongest signal
+            { text: c.title || '',        weight: 4 },
             { text: (Array.isArray(c.skills) ? c.skills.join(' ') : ''), weight: 3 },
             { text: (Array.isArray(c.technologies) ? c.technologies.map((t: any) => t.name || t).join(' ') : ''), weight: 3 },
             { text: (Array.isArray(c.tools) ? c.tools.map((t: any) => t.name || t).join(' ') : ''), weight: 3 },
             { text: c.brief || '',        weight: 2 },
             { text: c.match_reason || '', weight: 2 },
-            { text: c.lnkd_notes || '',   weight: 1 },
             { text: (Array.isArray(c.work_history)
               ? c.work_history.map((w: any) => `${w.title || ''} ${w.company || ''}`).join(' ')
               : ''),                       weight: 2 },
+            { text: c.lnkd_notes || '',   weight: 1 },
             { text: c.resume_text || '',  weight: 1 },
           ];
 
-          // Sum weighted hits across all fields
-          const totalWeight = weightedFields.reduce((sum, f) => sum + f.weight, 0);
-          let weightedHits = 0;
+          // Combine into one weighted text blob — repeat each field text by its weight
+          // so that high-weight field hits count proportionally more
+          const weightedText = weightedFields
+            .map(f => Array(f.weight).fill(f.text.toLowerCase()).join(' '))
+            .join(' ');
 
-          for (const field of weightedFields) {
-            const fieldLower = field.text.toLowerCase();
-            const hits = jdTerms.filter(t => fieldLower.includes(t)).length;
-            // Normalize per-field (0–1) then scale by weight
-            const fieldScore = jdTerms.length > 0 ? hits / jdTerms.length : 0;
-            weightedHits += fieldScore * field.weight;
-          }
-
-          const termScore = (weightedHits / totalWeight) * 100;
+          // Count how many unique JD terms appear in the weighted blob
+          const termHits = jdTerms.filter(t => weightedText.includes(t)).length;
+          const termScore = jdTerms.length > 0 ? (termHits / jdTerms.length) * 100 : 0;
 
           // Point 2: Title similarity bonus/penalty
           const candidateTitle = (c.title || '').toLowerCase();
