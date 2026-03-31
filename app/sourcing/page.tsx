@@ -6,6 +6,14 @@ import { useState, useEffect } from 'react';
 import { BriefcaseIcon, CloudArrowUpIcon, TrashIcon, CheckCircleIcon, SparklesIcon } from '@heroicons/react/24/outline';
 
 // Types
+type Job = {
+  id: string;
+  title: string;
+  description: string;
+  location?: string;
+  status?: string;
+};
+
 type Candidate = {
   id: string;
   full_name: string;
@@ -37,6 +45,8 @@ type DeepSearchDebug = {
 
 export default function SourcingPage() {
   const [jd, setJd] = useState('');
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const [selectedJobId, setSelectedJobId] = useState<string>('');
   const [internalMatches, setInternalMatches] = useState<Candidate[]>([]);
   const [sourcedQueue, setSourcedQueue] = useState<Candidate[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -49,7 +59,25 @@ export default function SourcingPage() {
 
   useEffect(() => {
     fetchSourcedQueue();
+    fetchJobs();
   }, []);
+
+  async function fetchJobs() {
+    const { data, error } = await supabase
+      .from('jobs')
+      .select('id, title, description, location, status')
+      .eq('status', 'Open')
+      .order('created_at', { ascending: false });
+    if (data) setJobs(data);
+    if (error) console.error('Error fetching jobs:', error);
+  }
+
+  function handleJobSelect(jobId: string) {
+    setSelectedJobId(jobId);
+    if (!jobId) return;
+    const job = jobs.find(j => j.id === jobId);
+    if (job?.description) setJd(job.description);
+  }
 
   async function fetchSourcedQueue() {
     const { data, error } = await supabase
@@ -313,10 +341,36 @@ export default function SourcingPage() {
             </h2>
             <textarea
               className="w-full h-64 p-4 border border-slate-200 rounded-lg mb-4 text-sm resize-none focus:ring-2 focus:ring-black outline-none"
-              placeholder="Paste JD here..."
+              placeholder="Paste JD here or select a job below..."
               value={jd}
               onChange={(e) => setJd(e.target.value)}
             />
+
+            {/* Job selector */}
+            <div className="mb-4">
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">
+                Load from Saved Jobs
+              </label>
+              <div className="relative">
+                <select
+                  value={selectedJobId}
+                  onChange={(e) => handleJobSelect(e.target.value)}
+                  className="w-full appearance-none bg-white border border-slate-200 rounded-lg px-4 py-2.5 text-sm text-slate-700 font-medium focus:ring-2 focus:ring-black outline-none cursor-pointer pr-8 shadow-sm"
+                >
+                  <option value="">— Select a job —</option>
+                  {jobs.map(job => (
+                    <option key={job.id} value={job.id}>
+                      {job.title}{job.location ? ` · ${job.location}` : ''}
+                    </option>
+                  ))}
+                </select>
+                <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-slate-400">
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </div>
+              </div>
+            </div>
             <div className="space-y-3">
               <button
                 onClick={findInternalMatches}
