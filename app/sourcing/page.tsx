@@ -2,7 +2,7 @@
 
 import { supabase } from '@/lib/supabaseClient';
 import { logActivity } from '@/lib/logActivity';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { BriefcaseIcon, CloudArrowUpIcon, TrashIcon, CheckCircleIcon, SparklesIcon } from '@heroicons/react/24/outline';
 
 // Types
@@ -48,6 +48,7 @@ export default function SourcingPage() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [selectedJobId, setSelectedJobId] = useState<string>('');
   const [internalMatches, setInternalMatches] = useState<Candidate[]>([]);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [sourcedQueue, setSourcedQueue] = useState<Candidate[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isSourcing, setIsSourcing] = useState(false);
@@ -61,6 +62,17 @@ export default function SourcingPage() {
     fetchSourcedQueue();
     fetchJobs();
   }, []);
+
+  // Auto-match + reset when JD changes (debounced 600ms)
+  useEffect(() => {
+    setInternalMatches([]);
+    if (!jd.trim()) return;
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      findInternalMatches();
+    }, 600);
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, [jd]);
 
   async function fetchJobs() {
     const { data, error } = await supabase
