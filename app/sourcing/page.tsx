@@ -221,10 +221,20 @@ export default function SourcingPage() {
 
       const scored = data
         .map(c => {
-          // --- Point 5: Weighted field scoring ---
-          // Build per-field text blobs with multipliers
+          const candidateTitle = (c.title || '').toLowerCase();
+
+          // === COMPONENT A: Title match score (0–100) ===
+          // An exact or near-exact title match should dominate the final score
+          let titleScore = 0;
+          if (titleKeywords.length > 0) {
+            const hits = titleKeywords.filter(k => candidateTitle.includes(k)).length;
+            titleScore = Math.round((hits / titleKeywords.length) * 100);
+          }
+
+          // === COMPONENT B: Skills/term match score (0–100) ===
+          // Weighted blob: repeat high-value fields so they count more
           const weightedFields: { text: string; weight: number }[] = [
-            { text: c.title || '',        weight: 4 },
+            { text: candidateTitle,       weight: 3 },
             { text: (Array.isArray(c.skills) ? c.skills.join(' ') : ''), weight: 3 },
             { text: (Array.isArray(c.technologies) ? c.technologies.map((t: any) => t.name || t).join(' ') : ''), weight: 3 },
             { text: (Array.isArray(c.tools) ? c.tools.map((t: any) => t.name || t).join(' ') : ''), weight: 3 },
@@ -236,41 +246,26 @@ export default function SourcingPage() {
             { text: c.lnkd_notes || '',   weight: 1 },
             { text: c.resume_text || '',  weight: 1 },
           ];
-
-          // Combine into one weighted text blob — repeat each field text by its weight
-          // so that high-weight field hits count proportionally more
           const weightedText = weightedFields
             .map(f => Array(f.weight).fill(f.text.toLowerCase()).join(' '))
             .join(' ');
-
-          // Count how many unique JD terms appear in the weighted blob
           const termHits = jdTerms.filter(t => weightedText.includes(t)).length;
-          const termScore = jdTerms.length > 0 ? (termHits / jdTerms.length) * 100 : 0;
+          const termScore = jdTerms.length > 0 ? Math.round((termHits / jdTerms.length) * 100) : 0;
 
-          // Point 2: Title similarity bonus/penalty
-          const candidateTitle = (c.title || '').toLowerCase();
-          const titleHits = titleKeywords.filter(k => candidateTitle.includes(k)).length;
-          let titleBonus = 0;
-          if (titleKeywords.length > 0) {
-            const ratio = titleHits / titleKeywords.length;
-            if (ratio >= 0.4) titleBonus = 25;
-            else if (ratio >= 0.2) titleBonus = 10;
-            else titleBonus = -15;
-          }
+          // === BLEND: title 60% + terms 40% ===
+          // Title match dominates — "Senior Graphic Designer" vs "Senior Graphic Designer" JD = 80%+
+          const blendedScore = Math.round((titleScore * 0.6) + (termScore * 0.4));
 
-          // Point 4: Seniority penalty
+          // === SENIORITY ADJUSTMENT (Point 4) ===
           let seniorityPenalty = 0;
           const candidateYears = c.years_experience_total || 0;
-          const isSeniorTitle = /senior|lead|principal|staff|head|manager|architect|director/i.test(c.title || '');
+          const isSeniorTitle = /senior|lead|principal|staff|head|manager|architect|director/i.test(candidateTitle);
           if (requiredYears >= 5) {
-            if (candidateYears > 0 && candidateYears < requiredYears) {
-              seniorityPenalty = -25;
-            } else if (candidateYears === 0 && !isSeniorTitle) {
-              seniorityPenalty = -10;
-            }
+            if (candidateYears > 0 && candidateYears < requiredYears) seniorityPenalty = -15;
+            else if (candidateYears === 0 && !isSeniorTitle) seniorityPenalty = -8;
           }
 
-          const finalScore = Math.max(0, Math.min(100, Math.round(termScore + titleBonus + seniorityPenalty)));
+          const finalScore = Math.max(0, Math.min(100, blendedScore + seniorityPenalty));
           return { ...c, _jdScore: finalScore };
         })
         // Point 3: Hide anything below 10% — irrelevant results
