@@ -174,32 +174,103 @@ export default function SourcingPage() {
     if (!jd.trim()) return;
     setIsMatching(true);
     setActiveTab('internal');
+
     const { data } = await supabase
       .from('candidates')
       .select('*')
       .not('pipeline_stage', 'eq', 'Rejected')
       .order('match_score', { ascending: false })
-      .limit(30);
+      .limit(100);
+
     if (data) {
-      // Simple keyword scoring against JD
       const jdLower = jd.toLowerCase();
+
+      // --- Point 1: Extract meaningful technical terms only (strip filler words) ---
+      const STOP_WORDS = new Set([
+        'the','and','for','with','from','that','this','have','will','you','are','our','your',
+        'their','they','them','its','has','been','not','but','can','all','any','more','into',
+        'each','such','also','about','both','through','using','strong','ability','ensure',
+        'experience','design','build','work','team','role','join','help','make','use',
+        'key','new','well','part','end','set','get','how','way','who','what','when',
+        'where','which','while','across','between','within','without','including','following',
+        'required','preferred','minimum','years','least','most','other','these','those',
+        'relevant','related','must','need','some','than','then','time','very','just','like',
+        'over','after','before','should','would','could','collaborate','communicate','deliver',
+        'drive','develop','implement','support','manage','lead','provide','create','maintain',
+        'improve','analyze','monitor','operate','understand','knowledge','skills','tools',
+        'systems','solutions','platform','service','product','data','environment',
+        'infrastructure','engineering','software','technical','opportunity','company',
+        'organization','business','customer','client','hands','proven','solid','deep',
+        'working','building','operating','designing','scaling','high','large','modern',
+        'production','real','batch','cost','debug','tune','performance','reliability',
+      ]);
+
+      const jdTerms = [...new Set(
+        (jdLower.match(/\b[a-z][a-z0-9+#._-]{2,}\b/g) || [])
+          .filter(w => !STOP_WORDS.has(w) && w.length >= 3)
+      )];
+
+      // --- Point 4: Extract seniority requirement from JD ---
+      const seniorityMatch = jd.match(/(\d+)\+?\s*years?/i);
+      const requiredYears = seniorityMatch ? parseInt(seniorityMatch[1]) : 0;
+
+      // --- Point 2: Extract title keywords from first meaningful JD line ---
+      const jdTitleLine = jd.split('\n').find(l => l.trim().length > 5)?.toLowerCase() || '';
+      const titleKeywords = (jdTitleLine.match(/\b[a-z][a-z0-9+#]{2,}\b/g) || [])
+        .filter(w => !STOP_WORDS.has(w));
+
       const scored = data
         .map(c => {
-          const skillText = [
+          // Build full candidate text from all relevant fields
+          const candidateText = [
             c.title || '',
             c.brief || '',
             c.match_reason || '',
+            c.lnkd_notes || '',
+            c.resume_text || '',
             ...(Array.isArray(c.skills) ? c.skills : []),
             ...(Array.isArray(c.technologies) ? c.technologies.map((t: any) => t.name || t) : []),
             ...(Array.isArray(c.tools) ? c.tools.map((t: any) => t.name || t) : []),
+            ...(Array.isArray(c.work_history)
+              ? c.work_history.map((w: any) => `${w.title || ''} ${w.company || ''}`)
+              : []),
           ].join(' ').toLowerCase();
-          const words = jdLower.match(/\b[a-z][a-z0-9+#.]{2,}\b/g) || [];
-          const unique = [...new Set(words)];
-          const hits = unique.filter(w => skillText.includes(w)).length;
-          const score = unique.length > 0 ? Math.round((hits / unique.length) * 100) : 0;
-          return { ...c, _jdScore: score };
+
+          // Point 1: Technical term match score
+          const termHits = jdTerms.filter(t => candidateText.includes(t)).length;
+          const termScore = jdTerms.length > 0 ? (termHits / jdTerms.length) * 100 : 0;
+
+          // Point 2: Title similarity bonus/penalty
+          const candidateTitle = (c.title || '').toLowerCase();
+          const titleHits = titleKeywords.filter(k => candidateTitle.includes(k)).length;
+          let titleBonus = 0;
+          if (titleKeywords.length > 0) {
+            const ratio = titleHits / titleKeywords.length;
+            if (ratio >= 0.4) titleBonus = 20;
+            else if (ratio >= 0.2) titleBonus = 8;
+            else titleBonus = -15; // completely unrelated title
+          }
+
+          // Point 4: Seniority penalty
+          let seniorityPenalty = 0;
+          const candidateYears = c.years_experience_total || 0;
+          const isSeniorTitle = /senior|lead|principal|staff|head|manager|architect|director/i.test(c.title || '');
+          if (requiredYears >= 5) {
+            if (candidateYears > 0 && candidateYears < requiredYears) {
+              seniorityPenalty = -25; // confirmed under-experienced
+            } else if (candidateYears === 0 && !isSeniorTitle) {
+              seniorityPenalty = -10; // no seniority signals
+            }
+          }
+
+          const finalScore = Math.max(0, Math.min(100, Math.round(termScore + titleBonus + seniorityPenalty)));
+          return { ...c, _jdScore: finalScore };
         })
-        .sort((a, b) => b._jdScore - a._jdScore);
+        // Point 3: Hide anything below 10% — irrelevant results
+        .filter(c => c._jdScore >= 10)
+        .sort((a, b) => b._jdScore - a._jdScore)
+        .slice(0, 20);
+
       setInternalMatches(scored);
     }
     setIsMatching(false);
