@@ -161,8 +161,35 @@ export default function SourcingPage() {
   async function findInternalMatches() {
     if (!jd.trim()) return;
     setIsMatching(true);
-    const { data } = await supabase.from('candidates').select('*').limit(10);
-    if (data) setInternalMatches(data);
+    setActiveTab('internal');
+    const { data } = await supabase
+      .from('candidates')
+      .select('*')
+      .not('pipeline_stage', 'eq', 'Rejected')
+      .order('match_score', { ascending: false })
+      .limit(30);
+    if (data) {
+      // Simple keyword scoring against JD
+      const jdLower = jd.toLowerCase();
+      const scored = data
+        .map(c => {
+          const skillText = [
+            c.title || '',
+            c.brief || '',
+            c.match_reason || '',
+            ...(Array.isArray(c.skills) ? c.skills : []),
+            ...(Array.isArray(c.technologies) ? c.technologies.map((t: any) => t.name || t) : []),
+            ...(Array.isArray(c.tools) ? c.tools.map((t: any) => t.name || t) : []),
+          ].join(' ').toLowerCase();
+          const words = jdLower.match(/\b[a-z][a-z0-9+#.]{2,}\b/g) || [];
+          const unique = [...new Set(words)];
+          const hits = unique.filter(w => skillText.includes(w)).length;
+          const score = unique.length > 0 ? Math.round((hits / unique.length) * 100) : 0;
+          return { ...c, _jdScore: score };
+        })
+        .sort((a, b) => b._jdScore - a._jdScore);
+      setInternalMatches(scored);
+    }
     setIsMatching(false);
   }
 
@@ -410,6 +437,74 @@ export default function SourcingPage() {
               {activeTab === 'sourced' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-black" />}
             </button>
           </div>
+
+          {activeTab === 'internal' && (
+            <div className="space-y-4">
+              {internalMatches.length === 0 ? (
+                <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-12 text-center">
+                  <p className="text-slate-400 text-sm">
+                    {isMatching ? 'Matching against internal candidates...' : 'Paste a JD and click "Match Internal Talent" to find matches.'}
+                  </p>
+                </div>
+              ) : (
+                <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                  <table className="w-full text-left">
+                    <thead className="bg-slate-50 border-b">
+                      <tr className="text-xs font-bold text-slate-500 uppercase">
+                        <th className="px-4 py-4">Candidate</th>
+                        <th className="px-4 py-4">JD Fit</th>
+                        <th className="px-4 py-4">Stage</th>
+                        <th className="px-4 py-4">Links</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {internalMatches.map((c: any) => (
+                        <tr key={c.id} className="hover:bg-slate-50 transition">
+                          <td className="px-4 py-4">
+                            <div className="font-bold text-slate-900">{c.full_name}</div>
+                            <div className="text-[11px] text-slate-500">{c.title}</div>
+                            <div className="text-[11px] text-slate-400">{c.location}</div>
+                          </td>
+                          <td className="px-4 py-4">
+                            <div className="flex items-center gap-2">
+                              <div className="w-20 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                <div
+                                  className="h-full rounded-full"
+                                  style={{
+                                    width: `${c._jdScore}%`,
+                                    backgroundColor: c._jdScore >= 60 ? '#22c55e' : c._jdScore >= 30 ? '#f59e0b' : '#e2e8f0'
+                                  }}
+                                />
+                              </div>
+                              <span className="text-xs font-bold text-slate-700">{c._jdScore}%</span>
+                            </div>
+                            {c.match_reason && (
+                              <div className="text-[10px] text-slate-400 mt-1 max-w-xs line-clamp-2">{c.match_reason}</div>
+                            )}
+                          </td>
+                          <td className="px-4 py-4">
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-slate-100 text-slate-600 border-slate-200">
+                              {c.pipeline_stage || c.status || '—'}
+                            </span>
+                          </td>
+                          <td className="px-4 py-4">
+                            <div className="flex gap-2">
+                              {c.linkedin_url && (
+                                <a href={c.linkedin_url} target="_blank" rel="noopener noreferrer" className="text-[10px] text-indigo-600 font-bold hover:underline">LinkedIn</a>
+                              )}
+                              {c.portfolio_url && (
+                                <a href={c.portfolio_url} target="_blank" rel="noopener noreferrer" className="text-[10px] text-pink-600 font-bold hover:underline">Portfolio</a>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
 
           {activeTab === 'sourced' && (
             <div className="space-y-4">
