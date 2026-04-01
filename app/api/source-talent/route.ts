@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { extractJobTitle } from '@/lib/extractJobTitle';
 
 // ─── Supabase (service role preferred) ──────────────────────────────────────
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://clrzajerliyyddfyvggd.supabase.co';
@@ -120,9 +121,12 @@ function calcCompleteness(candidate: Partial<CandidateResult>): number {
 interface ExtractionResult {
   keywordSets: string[][];
   experienceLevel: 'junior' | 'mid' | 'senior';
+  parsedTitle: string;
 }
 
 function extractKeywords(jd: string): ExtractionResult {
+  // ── Extracted job title (primary signal) ───────────────────────────────
+  const parsedTitle = extractJobTitle(jd);
   const text = jd.toLowerCase();
 
   // ── Experience Level Detection ────────────────────────────────────────────
@@ -174,7 +178,7 @@ function extractKeywords(jd: string): ExtractionResult {
     'HR Manager':           ['hr manager', 'human resources', 'talent acquisition', 'recruiter'],
   };
 
-  let detectedRole = 'Professional';
+  let detectedRole = parsedTitle || 'Professional';
   for (const [role, patterns] of Object.entries(rolePatterns)) {
     if (patterns.some(p => text.includes(p))) {
       detectedRole = role;
@@ -269,7 +273,7 @@ function extractKeywords(jd: string): ExtractionResult {
   }
 
   // Return both keyword sets and detected experience level
-  return { keywordSets: kwSets.slice(0, 5), experienceLevel: detectedExp };
+  return { keywordSets: kwSets.slice(0, 5), experienceLevel: detectedExp, parsedTitle };
 }
 
 // ─── Parse a Brave search result into a candidate ───────────────────────────
@@ -486,7 +490,7 @@ export async function POST(req: NextRequest) {
 
     const extraction = extractKeywords(jd);
     const kwSets = extraction.keywordSets;
-    const experienceLevel = extraction.experienceLevel;
+    const parsedTitle = extraction.parsedTitle;
     const BRAVE_API_KEY = process.env.BRAVE_SEARCH_API_KEY || 'REDACTED_BRAVE_API_KEY';
     const isCreative = R.creative.test(jd);
 
@@ -613,7 +617,12 @@ export async function POST(req: NextRequest) {
       success: true,
       sourced: insertedCount,
       candidates: insertedCandidates,
-      keywordSets: kwSets,
+      debug: {
+        parsedTitle,
+        keywordSets: kwSets,
+        totalDiscovered: allCandidates.length,
+        inserted: insertedCount,
+      },
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);

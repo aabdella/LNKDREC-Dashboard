@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { extractJobTitle } from '@/lib/extractJobTitle';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://clrzajerliyyddfyvggd.supabase.co';
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
@@ -103,8 +104,8 @@ export async function POST(req: NextRequest) {
     const { jd } = await req.json();
     if (!jd) return NextResponse.json({ error: 'JD required' }, { status: 400 });
 
-    const titleLine = jd
-      .split('\n')[0]
+    const parsedTitle = extractJobTitle(jd);
+    const titleLine = (parsedTitle || jd.split('\n').find((l: string) => l.trim().length > 5) || 'Professional')
       .replace(/[()&]/g, ' ')
       .replace(/[ ]+/g, ' ')
       .trim();
@@ -133,6 +134,7 @@ export async function POST(req: NextRequest) {
         sourced: 0,
         debug: {
           mode: 'production-no-hits',
+          parsedTitle,
           titleLine,
           targetMarket,
           queries,
@@ -198,6 +200,7 @@ export async function POST(req: NextRequest) {
       sourced: toInsert.length,
       debug: {
         mode: 'production',
+        parsedTitle,
         titleLine,
         targetMarket,
         queries,

@@ -29,8 +29,15 @@ type Candidate = {
 };
 
 type SourcingAlert = { type: 'success' | 'error'; message: string } | null;
+type QuickSourceDebug = {
+  parsedTitle?: string;
+  keywordSets?: string[][];
+  totalDiscovered?: number;
+  inserted?: number;
+} | null;
 type DeepSearchDebug = {
   mode?: string;
+  parsedTitle?: string;
   titleLine?: string;
   targetMarket?: string;
   queries?: string[];
@@ -57,6 +64,7 @@ export default function SourcingPage() {
   const [isMatching, setIsMatching] = useState(false);
   const [activeTab, setActiveTab] = useState<'internal' | 'sourced'>('internal');
   const [sourcingAlert, setSourcingAlert] = useState<SourcingAlert>(null);
+  const [quickSourceDebug, setQuickSourceDebug] = useState<QuickSourceDebug>(null);
   const [deepSearchDebug, setDeepSearchDebug] = useState<DeepSearchDebug>(null);
 
   useEffect(() => {
@@ -111,6 +119,7 @@ export default function SourcingPage() {
     }
     setIsSourcing(true);
     setSourcingAlert(null);
+    setQuickSourceDebug(null);
     setSelectedIds([]);
     try {
       const res = await fetch('/api/source-talent', {
@@ -122,6 +131,7 @@ export default function SourcingPage() {
       if (!res.ok || !data.success) {
         setSourcingAlert({ type: 'error', message: data.error || 'Sourcing failed.' });
       } else {
+        setQuickSourceDebug(data.debug || null);
         setSourcingAlert({
           type: 'success',
           message: `Quick Sourcing complete! Found ${data.sourced} candidates.`,
@@ -383,6 +393,55 @@ export default function SourcingPage() {
         </div>
       )}
 
+      {quickSourceDebug && (
+        <div className="mb-6 bg-slate-900 text-slate-100 rounded-xl border border-slate-800 shadow-sm overflow-hidden">
+          <div className="px-5 py-4 border-b border-slate-800 flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-bold">⚡ Quick Source Debug</h3>
+              <p className="text-[11px] text-slate-400 mt-1">Parsed title + keyword sets used for this Brave search run.</p>
+            </div>
+            <button onClick={() => setQuickSourceDebug(null)} className="text-slate-400 hover:text-white text-lg leading-none">×</button>
+          </div>
+          <div className="p-5 space-y-4 text-xs">
+            {/* Parsed title + stats row */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div className="bg-slate-950 rounded-lg p-3 border border-slate-800">
+                <div className="text-slate-400 mb-1">Parsed Job Title</div>
+                <div className={`font-semibold break-words ${quickSourceDebug.parsedTitle ? 'text-emerald-400' : 'text-red-400'}`}>
+                  {quickSourceDebug.parsedTitle || '⚠ Not detected — fallback used'}
+                </div>
+              </div>
+              <div className="bg-slate-950 rounded-lg p-3 border border-slate-800">
+                <div className="text-slate-400 mb-1">Profiles Discovered</div>
+                <div className="font-semibold text-slate-100">{quickSourceDebug.totalDiscovered ?? '—'}</div>
+              </div>
+              <div className="bg-slate-950 rounded-lg p-3 border border-slate-800">
+                <div className="text-slate-400 mb-1">Inserted to Queue</div>
+                <div className="font-semibold text-slate-100">{quickSourceDebug.inserted ?? '—'}</div>
+              </div>
+            </div>
+            {/* Keyword sets */}
+            {!!quickSourceDebug.keywordSets?.length && (
+              <div>
+                <div className="text-slate-300 font-semibold mb-2">Keyword Sets ({quickSourceDebug.keywordSets.length})</div>
+                <div className="space-y-2">
+                  {quickSourceDebug.keywordSets.map((set, i) => (
+                    <div key={i} className="bg-slate-950 rounded-lg p-3 border border-slate-800 flex items-start gap-3">
+                      <span className="text-slate-500 font-mono w-5 shrink-0">#{i + 1}</span>
+                      <div className="flex flex-wrap gap-2">
+                        {set.map((kw, j) => (
+                          <span key={j} className="bg-indigo-900/50 text-indigo-200 border border-indigo-700/50 rounded px-2 py-0.5 text-[11px] font-medium">{kw}</span>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {deepSearchDebug && (
         <div className="mb-6 bg-slate-900 text-slate-100 rounded-xl border border-slate-800 shadow-sm overflow-hidden">
           <div className="px-5 py-4 border-b border-slate-800 flex items-center justify-between">
@@ -394,9 +453,15 @@ export default function SourcingPage() {
           </div>
 
           <div className="p-5 space-y-4 text-xs">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
               <div className="bg-slate-950 rounded-lg p-3 border border-slate-800">
-                <div className="text-slate-400 mb-1">Parsed Title</div>
+                <div className="text-slate-400 mb-1">Parsed Job Title</div>
+                <div className={`font-semibold break-words ${deepSearchDebug.parsedTitle ? 'text-emerald-400' : 'text-red-400'}`}>
+                  {deepSearchDebug.parsedTitle || '⚠ Not detected'}
+                </div>
+              </div>
+              <div className="bg-slate-950 rounded-lg p-3 border border-slate-800">
+                <div className="text-slate-400 mb-1">Title Used in Query</div>
                 <div className="font-semibold text-slate-100 break-words">{deepSearchDebug.titleLine || '—'}</div>
               </div>
               <div className="bg-slate-950 rounded-lg p-3 border border-slate-800">
