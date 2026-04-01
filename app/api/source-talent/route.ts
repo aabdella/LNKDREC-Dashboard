@@ -131,7 +131,7 @@ function extractKeywords(jd: string): ExtractionResult {
   const text = jd.toLowerCase();
 
   // ── 1. Parsed job title — the actual role from the JD ─────────────────
-  const parsedTitle = extractJobTitle(jd);
+  const { title: parsedTitle } = extractJobTitle(jd);
   const titleForSearch = parsedTitle || 'Professional';
 
   // ── 2. Experience level ───────────────────────────────────────────────

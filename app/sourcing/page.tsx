@@ -2,6 +2,7 @@
 
 import { supabase } from '@/lib/supabaseClient';
 import { logActivity } from '@/lib/logActivity';
+import { extractJobTitle } from '@/lib/extractJobTitle';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { BriefcaseIcon, CloudArrowUpIcon, TrashIcon, CheckCircleIcon, SparklesIcon } from '@heroicons/react/24/outline';
 
@@ -32,7 +33,7 @@ type SourcingAlert = { type: 'success' | 'error'; message: string } | null;
 type MatchDebug = {
   extractedTitle: string;
   titleKeywords: string[];
-  extractedFrom: 'label' | 'fallback-line' | 'none';
+  extractedFrom: 'label' | 'seeking-pattern' | 'title-case-line' | 'fallback-line' | 'none';
   jdTermsCount: number;
 } | null;
 type QuickSourceDebug = {
@@ -239,34 +240,8 @@ export default function SourcingPage() {
 
       const jdLower = jdText.toLowerCase();
 
-      // ── 2. Extract JD role title ──────────────────────────────────────────
-      let extractedTitleLine = '';
-      let extractedFrom: 'label' | 'fallback-line' | 'none' = 'none';
-      const lines = jdText.split('\n').map(l => l.trim()).filter(Boolean);
-
-      // Pass 1: explicit label — "Job Title:", "Position:", "Role:", "Title:"
-      for (const line of lines) {
-        const labelMatch = line.match(/^(?:job\s*title|position|role|title)\s*[:\-–|]\s*(.+)/i);
-        if (labelMatch) {
-          extractedTitleLine = labelMatch[1].trim();
-          extractedFrom = 'label';
-          break;
-        }
-      }
-
-      // Pass 2: fallback — first non-header line with ≥2 meaningful words
-      // FIX: raised length cap from 80 → 150 to catch "We are seeking a Senior Graphic Designer..."
-      if (!extractedTitleLine) {
-        for (const line of lines) {
-          const isHeader = /^(role summary|about|overview|summary|responsibilities|requirements|qualifications|duties|purpose)\s*[:\-–]?$/i.test(line);
-          const words = (line.match(/\b[a-z][a-z0-9+#]{2,}\b/gi) || []).filter(w => !TITLE_STOP.has(w.toLowerCase()));
-          if (!isHeader && words.length >= 2 && line.length <= 150) {
-            extractedTitleLine = line;
-            extractedFrom = 'fallback-line';
-            break;
-          }
-        }
-      }
+      // ── 2. Extract JD role title via shared 4-pass extractor ─────────────
+      const { title: extractedTitleLine, extractedFrom } = extractJobTitle(jdText);
 
       const cleanedTitleLine = extractedTitleLine.toLowerCase().trim();
       const titleKeywords = (cleanedTitleLine.match(/\b[a-z][a-z0-9+#]{2,}\b/g) || [])
@@ -437,8 +412,8 @@ export default function SourcingPage() {
               </div>
               <div className="bg-slate-950 rounded-lg p-3 border border-slate-800">
                 <div className="text-slate-400 mb-1">Extracted Via</div>
-                <div className={`font-semibold ${matchDebug.extractedFrom === 'label' ? 'text-emerald-400' : matchDebug.extractedFrom === 'fallback-line' ? 'text-amber-400' : 'text-red-400'}`}>
-                  {matchDebug.extractedFrom === 'label' ? '✅ Explicit label' : matchDebug.extractedFrom === 'fallback-line' ? '⚠ Fallback line' : '❌ Not found'}
+                <div className={`font-semibold ${matchDebug.extractedFrom === 'label' ? 'text-emerald-400' : matchDebug.extractedFrom === 'seeking-pattern' ? 'text-emerald-300' : matchDebug.extractedFrom === 'title-case-line' ? 'text-amber-400' : matchDebug.extractedFrom === 'fallback-line' ? 'text-amber-500' : 'text-red-400'}`}>
+                  {matchDebug.extractedFrom === 'label' ? '✅ Explicit label' : matchDebug.extractedFrom === 'seeking-pattern' ? '✅ Seeking pattern' : matchDebug.extractedFrom === 'title-case-line' ? '⚠ Title-case line' : matchDebug.extractedFrom === 'fallback-line' ? '⚠ Fallback line' : '❌ Not found'}
                 </div>
               </div>
               <div className="bg-slate-950 rounded-lg p-3 border border-slate-800">
