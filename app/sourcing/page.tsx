@@ -29,6 +29,12 @@ type Candidate = {
 };
 
 type SourcingAlert = { type: 'success' | 'error'; message: string } | null;
+type MatchDebug = {
+  extractedTitle: string;
+  titleKeywords: string[];
+  extractedFrom: 'label' | 'fallback-line' | 'none';
+  jdTermsCount: number;
+} | null;
 type QuickSourceDebug = {
   parsedTitle?: string;
   keywordSets?: string[][];
@@ -67,6 +73,7 @@ export default function SourcingPage() {
   const [isMatching, setIsMatching] = useState(false);
   const [activeTab, setActiveTab] = useState<'internal' | 'sourced'>('internal');
   const [sourcingAlert, setSourcingAlert] = useState<SourcingAlert>(null);
+  const [matchDebug, setMatchDebug] = useState<MatchDebug>(null);
   const [quickSourceDebug, setQuickSourceDebug] = useState<QuickSourceDebug>(null);
   const [deepSearchDebug, setDeepSearchDebug] = useState<DeepSearchDebug>(null);
 
@@ -192,6 +199,7 @@ export default function SourcingPage() {
     // ── Reset all matching state before every run ──────────────────────────
     setIsMatching(true);
     setInternalMatches([]);
+    setMatchDebug(null);
     setActiveTab('internal');
 
     const { data } = await supabase
@@ -232,28 +240,29 @@ export default function SourcingPage() {
       const jdLower = jdText.toLowerCase();
 
       // ── 2. Extract JD role title ──────────────────────────────────────────
-      // Strategy: scan lines for an explicit "Job Title / Position / Role:" label first.
-      // If none found, use the first substantive non-header line (>= 3 meaningful words).
       let extractedTitleLine = '';
+      let extractedFrom: 'label' | 'fallback-line' | 'none' = 'none';
       const lines = jdText.split('\n').map(l => l.trim()).filter(Boolean);
 
-      // Pass 1: look for labelled title line
+      // Pass 1: explicit label — "Job Title:", "Position:", "Role:", "Title:"
       for (const line of lines) {
         const labelMatch = line.match(/^(?:job\s*title|position|role|title)\s*[:\-–|]\s*(.+)/i);
         if (labelMatch) {
           extractedTitleLine = labelMatch[1].trim();
+          extractedFrom = 'label';
           break;
         }
       }
 
-      // Pass 2: fallback — first line that looks like a real title
-      // (not a section header like "Role Summary:", "About Us:", etc.)
+      // Pass 2: fallback — first non-header line with ≥2 meaningful words
+      // FIX: raised length cap from 80 → 150 to catch "We are seeking a Senior Graphic Designer..."
       if (!extractedTitleLine) {
         for (const line of lines) {
           const isHeader = /^(role summary|about|overview|summary|responsibilities|requirements|qualifications|duties|purpose)\s*[:\-–]?$/i.test(line);
           const words = (line.match(/\b[a-z][a-z0-9+#]{2,}\b/gi) || []).filter(w => !TITLE_STOP.has(w.toLowerCase()));
-          if (!isHeader && words.length >= 2 && line.length <= 80) {
+          if (!isHeader && words.length >= 2 && line.length <= 150) {
             extractedTitleLine = line;
+            extractedFrom = 'fallback-line';
             break;
           }
         }
@@ -273,14 +282,21 @@ export default function SourcingPage() {
       const seniorityMatch = jdText.match(/(\d+)\+?\s*years?/i);
       const requiredYears = seniorityMatch ? parseInt(seniorityMatch[1]) : 0;
 
-      console.log('[Matching] Extracted JD title line:', extractedTitleLine);
+      // ── Set debug info for UI ─────────────────────────────────────────────
+      setMatchDebug({
+        extractedTitle: extractedTitleLine || '(none)',
+        titleKeywords,
+        extractedFrom,
+        jdTermsCount: jdTerms.length,
+      });
+
+      console.log('[Matching] Extracted JD title line:', extractedTitleLine, `(via ${extractedFrom})`);
       console.log('[Matching] Title keywords:', titleKeywords);
       console.log('[Matching] JD terms count:', jdTerms.length, jdTerms.slice(0, 20));
 
       // ── 5. Score each candidate ───────────────────────────────────────────
       const scored = data
         .map(c => {
-          // Use the candidate's job_title field (stored as c.title) as primary signal
           const candidateTitle = (c.title || '').toLowerCase().trim();
 
           // ── Component A: Job Title Match (PRIMARY — 65%) ──────────────────
@@ -288,11 +304,8 @@ export default function SourcingPage() {
           if (titleKeywords.length > 0 && candidateTitle) {
             const hits = titleKeywords.filter(k => candidateTitle.includes(k)).length;
             const keywordRatio = hits / titleKeywords.length;
-
-            // Bonus: exact phrase match boosts score significantly
             const exactPhrase = cleanedTitleLine.replace(/\s+/g, ' ');
             const exactBonus = candidateTitle.includes(exactPhrase) ? 20 : 0;
-
             titleScore = Math.min(100, Math.round(keywordRatio * 100) + exactBonus);
           }
 
@@ -314,8 +327,17 @@ export default function SourcingPage() {
           const termHits = jdTerms.filter(t => weightedText.includes(t)).length;
           const termScore = jdTerms.length > 0 ? Math.round((termHits / jdTerms.length) * 100) : 0;
 
-          // ── Blend: 65% title match + 35% keyword boost ────────────────────
-          const blendedScore = Math.round((titleScore * 0.65) + (termScore * 0.35));
+          // ── Blend: 65% title + 35% keyword boost ─────────────────────────
+          let blendedScore = Math.round((titleScore * 0.65) + (termScore * 0.35));
+
+          // FIX: Strong title match (≥90) should not be dragged below 85 by missing skill data.
+          // Candidates whose title exactly matches the JD role must rank near the top regardless
+          // of whether their skills/tools fields are populated in the DB.
+          if (titleScore >= 90) {
+            blendedScore = Math.max(blendedScore, 85);
+          } else if (titleScore >= 70) {
+            blendedScore = Math.max(blendedScore, 60);
+          }
 
           // ── Seniority adjustment ──────────────────────────────────────────
           let seniorityPenalty = 0;
@@ -328,9 +350,9 @@ export default function SourcingPage() {
 
           const finalScore = Math.max(0, Math.min(100, blendedScore + seniorityPenalty));
 
-          console.log(`[Match] ${c.full_name} | jobTitle="${c.title}" | titleScore=${titleScore} | termScore=${termScore} | final=${finalScore}`);
+          console.log(`[Match] ${c.full_name} | jobTitle="${c.title}" | titleScore=${titleScore} | termScore=${termScore} | blended=${blendedScore} | final=${finalScore}`);
 
-          return { ...c, _jdScore: finalScore };
+          return { ...c, _jdScore: finalScore, _titleScore: titleScore, _termScore: termScore };
         })
         .filter(c => c._jdScore >= 10)
         .sort((a, b) => b._jdScore - a._jdScore)
@@ -393,6 +415,48 @@ export default function SourcingPage() {
         }`}>
           <span>{sourcingAlert.message}</span>
           <button onClick={() => setSourcingAlert(null)}>×</button>
+        </div>
+      )}
+
+      {matchDebug && (
+        <div className="mb-6 bg-slate-900 text-slate-100 rounded-xl border border-slate-800 shadow-sm overflow-hidden">
+          <div className="px-5 py-4 border-b border-slate-800 flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-bold">🎯 Internal Match Debug</h3>
+              <p className="text-[11px] text-slate-400 mt-1">What the matching engine parsed from the JD — validate this before investigating scores.</p>
+            </div>
+            <button onClick={() => setMatchDebug(null)} className="text-slate-400 hover:text-white text-lg leading-none">×</button>
+          </div>
+          <div className="p-5 space-y-3 text-xs">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+              <div className="md:col-span-2 bg-slate-950 rounded-lg p-3 border border-slate-800">
+                <div className="text-slate-400 mb-1">Extracted Job Title</div>
+                <div className={`font-semibold break-words text-sm ${matchDebug.extractedTitle && matchDebug.extractedTitle !== '(none)' ? 'text-emerald-400' : 'text-red-400'}`}>
+                  {matchDebug.extractedTitle || '⚠ Nothing extracted — scores will be near zero'}
+                </div>
+              </div>
+              <div className="bg-slate-950 rounded-lg p-3 border border-slate-800">
+                <div className="text-slate-400 mb-1">Extracted Via</div>
+                <div className={`font-semibold ${matchDebug.extractedFrom === 'label' ? 'text-emerald-400' : matchDebug.extractedFrom === 'fallback-line' ? 'text-amber-400' : 'text-red-400'}`}>
+                  {matchDebug.extractedFrom === 'label' ? '✅ Explicit label' : matchDebug.extractedFrom === 'fallback-line' ? '⚠ Fallback line' : '❌ Not found'}
+                </div>
+              </div>
+              <div className="bg-slate-950 rounded-lg p-3 border border-slate-800">
+                <div className="text-slate-400 mb-1">JD Keyword Terms</div>
+                <div className="font-semibold text-slate-100">{matchDebug.jdTermsCount}</div>
+              </div>
+            </div>
+            {matchDebug.titleKeywords.length > 0 && (
+              <div className="bg-slate-950 rounded-lg p-3 border border-slate-800">
+                <div className="text-slate-400 mb-2">Title Keywords Used for Scoring</div>
+                <div className="flex flex-wrap gap-1.5">
+                  {matchDebug.titleKeywords.map((kw, i) => (
+                    <span key={i} className="bg-emerald-900/50 text-emerald-200 border border-emerald-700/50 rounded px-2 py-0.5 text-[11px] font-medium">{kw}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -720,6 +784,11 @@ export default function SourcingPage() {
                                 />
                               </div>
                               <span className="text-xs font-bold text-slate-700">{c._jdScore}%</span>
+                            </div>
+                            <div className="flex gap-2 mt-1">
+                              <span className="text-[10px] text-slate-400">Title <span className="font-bold text-slate-600">{c._titleScore ?? '—'}%</span></span>
+                              <span className="text-[10px] text-slate-300">·</span>
+                              <span className="text-[10px] text-slate-400">KW <span className="font-bold text-slate-600">{c._termScore ?? '—'}%</span></span>
                             </div>
                             {c.match_reason && (
                               <div className="text-[10px] text-slate-400 mt-1 max-w-xs line-clamp-2">{c.match_reason}</div>
