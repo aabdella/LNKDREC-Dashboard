@@ -201,7 +201,7 @@ export default function SourcingPage() {
         'systems','solutions','platform','service','product','data','environment',
         'infrastructure','engineering','software','technical','opportunity','company',
         'organization','business','customer','client','hands','proven','solid','deep',
-        'working','building','operating','designing','scaling','high','large','modern',
+        'building','operating','scaling','high','large','modern',
         'production','real','batch','cost','debug','tune','performance','reliability',
       ]);
 
@@ -214,10 +214,15 @@ export default function SourcingPage() {
       const seniorityMatch = jd.match(/(\d+)\+?\s*years?/i);
       const requiredYears = seniorityMatch ? parseInt(seniorityMatch[1]) : 0;
 
-      // --- Point 2: Extract title keywords from first meaningful JD line ---
-      const jdTitleLine = jd.split('\n').find(l => l.trim().length > 5)?.toLowerCase() || '';
-      const titleKeywords = (jdTitleLine.match(/\b[a-z][a-z0-9+#]{2,}\b/g) || [])
-        .filter(w => !STOP_WORDS.has(w));
+      // --- Point 2: Extract title keywords from JD ---
+      // Strip label prefixes like "Job Title:", "Position:", "Role:" before parsing
+      const rawTitleLine = jd.split('\n').find(l => l.trim().length > 5) || '';
+      const cleanedTitleLine = rawTitleLine
+        .replace(/^(job\s*title|position|role|title)\s*[:\-–|]\s*/i, '')
+        .toLowerCase();
+      const TITLE_STOP = new Set([...STOP_WORDS, 'job', 'title', 'position', 'role', 'remote', 'location', 'onsite', 'hybrid']);
+      const titleKeywords = (cleanedTitleLine.match(/\b[a-z][a-z0-9+#]{2,}\b/g) || [])
+        .filter(w => !TITLE_STOP.has(w));
 
       const scored = data
         .map(c => {
