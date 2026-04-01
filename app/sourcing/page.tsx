@@ -3,6 +3,7 @@
 import { supabase } from '@/lib/supabaseClient';
 import { logActivity } from '@/lib/logActivity';
 import { extractJobTitle } from '@/lib/extractJobTitle';
+import { getTechFamilyScore, TECH_FAMILIES } from '@/lib/techFamilies';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { BriefcaseIcon, CloudArrowUpIcon, TrashIcon, CheckCircleIcon, SparklesIcon } from '@heroicons/react/24/outline';
 
@@ -38,6 +39,8 @@ type MatchDebug = {
   techFallback: string[];
   jdTermsCount: number;
   scoringMode: 'title' | 'tech-fallback';
+  jdTechTerms: string[];
+  jdFamilies: string[];
 } | null;
 type QuickSourceDebug = {
   parsedTitle?: string;
@@ -257,6 +260,23 @@ export default function SourcingPage() {
           .filter(w => !STOP_WORDS.has(w) && w.length >= 3)
       )];
 
+      // ── 3b. Extract JD tech terms for family scoring ──────────────────────
+      const allFamilyTerms = new Set(
+        Object.values(TECH_FAMILIES).flat().map(t => t.toLowerCase())
+      );
+      const jdTechTerms = [...new Set([
+        ...techFallback,
+        ...jdTerms.filter(t => allFamilyTerms.has(t)),
+      ])];
+
+      // Pre-compute which families the JD maps to (for debug display)
+      const jdFamiliesSet = new Set<string>();
+      for (const [family, terms] of Object.entries(TECH_FAMILIES)) {
+        if (terms.some(t => jdLower.includes(t.toLowerCase()))) {
+          jdFamiliesSet.add(family);
+        }
+      }
+
       // ── 4. Seniority requirement ──────────────────────────────────────────
       const seniorityMatch = jdText.match(/(\d+)\+?\s*years?/i);
       const requiredYears = seniorityMatch ? parseInt(seniorityMatch[1]) : 0;
@@ -270,13 +290,16 @@ export default function SourcingPage() {
         techFallback,
         jdTermsCount: jdTerms.length,
         scoringMode: titleExtracted ? 'title' : 'tech-fallback',
+        jdTechTerms,
+        jdFamilies: [...jdFamiliesSet],
       });
 
       console.log('[Matching] Extracted JD title line:', extractedTitleLine, `(via ${extractedFrom}, freq=${titleFrequency})`);
       console.log('[Matching] Title keywords:', titleKeywords);
       console.log('[Matching] Scoring mode:', titleExtracted ? 'title' : 'tech-fallback');
-      if (!titleExtracted) console.log('[Matching] Tech fallback terms:', techFallback);
-      console.log('[Matching] JD terms count:', jdTerms.length, jdTerms.slice(0, 20));
+      console.log('[Matching] JD tech terms:', jdTechTerms);
+      console.log('[Matching] JD families:', [...jdFamiliesSet]);
+      console.log('[Matching] JD terms count:', jdTerms.length);
 
       // ── 5. Score each candidate ───────────────────────────────────────────
       const scored = data
@@ -293,7 +316,7 @@ export default function SourcingPage() {
             titleScore = Math.min(100, Math.round(keywordRatio * 100) + exactBonus);
           }
 
-          // ── Component B: JD Keyword / Skill Match (BOOST — 35%) ──────────
+          // ── Component B: JD Keyword match (20%) ──────────────────────────
           const weightedFields: { text: string; weight: number }[] = [
             { text: candidateTitle, weight: 4 },
             { text: (Array.isArray(c.skills) ? c.skills.join(' ') : ''), weight: 3 },
@@ -311,27 +334,36 @@ export default function SourcingPage() {
           const termHits = jdTerms.filter(t => weightedText.includes(t)).length;
           const termScore = jdTerms.length > 0 ? Math.round((termHits / jdTerms.length) * 100) : 0;
 
-          // ── Component C: Tech fallback (when title extraction failed) ─────
-          // Score purely on how many JD tech terms appear in the candidate's profile
+          // ── Component C: Tech family score (20%) ──────────────────────────
+          const techResult = getTechFamilyScore(jdTechTerms, weightedText);
+          const techFamilyScore = techResult.score;
+
+          // ── Component D: Tech fallback exact hits (when title failed) ─────
           let techFallbackScore = 0;
           if (!titleExtracted && techFallback.length > 0) {
-            const techHits = techFallback.filter(t =>
-              weightedText.includes(t.toLowerCase())
-            ).length;
+            const techHits = techFallback.filter(t => weightedText.includes(t.toLowerCase())).length;
             techFallbackScore = Math.round((techHits / techFallback.length) * 100);
           }
 
           // ── Blend ─────────────────────────────────────────────────────────
           let blendedScore: number;
           if (titleExtracted) {
-            // Normal mode: 65% title + 35% keywords
-            blendedScore = Math.round((titleScore * 0.65) + (termScore * 0.35));
-            // Floor: strong title match should not be dragged below 85/60
+            // Title mode: 60% title + 20% tech family + 20% KW
+            blendedScore = Math.round(
+              (titleScore    * 0.60) +
+              (techFamilyScore * 0.20) +
+              (termScore     * 0.20)
+            );
+            // Floor: exact title match not dragged below 85/60 by empty skill fields
             if (titleScore >= 90) blendedScore = Math.max(blendedScore, 85);
             else if (titleScore >= 70) blendedScore = Math.max(blendedScore, 60);
           } else {
-            // Tech-fallback mode: 60% tech hits + 40% general keyword hits
-            blendedScore = Math.round((techFallbackScore * 0.60) + (termScore * 0.40));
+            // Tech-fallback mode: 50% family + 30% exact tech + 20% KW
+            blendedScore = Math.round(
+              (techFamilyScore  * 0.50) +
+              (techFallbackScore * 0.30) +
+              (termScore        * 0.20)
+            );
           }
 
           // ── Seniority adjustment ──────────────────────────────────────────
@@ -345,9 +377,9 @@ export default function SourcingPage() {
 
           const finalScore = Math.max(0, Math.min(100, blendedScore + seniorityPenalty));
 
-          console.log(`[Match] ${c.full_name} | jobTitle="${c.title}" | titleScore=${titleScore} | termScore=${termScore} | techFB=${techFallbackScore} | blended=${blendedScore} | final=${finalScore}`);
+          console.log(`[Match] ${c.full_name} | jobTitle="${c.title}" | titleScore=${titleScore} | techFamily=${techFamilyScore} | termScore=${termScore} | techFB=${techFallbackScore} | blended=${blendedScore} | final=${finalScore}`);
 
-          return { ...c, _jdScore: finalScore, _titleScore: titleScore, _termScore: termScore, _techFallbackScore: techFallbackScore };
+          return { ...c, _jdScore: finalScore, _titleScore: titleScore, _termScore: termScore, _techFamilyScore: techFamilyScore, _techFallbackScore: techFallbackScore };
         })
         .filter(c => c._jdScore >= 10)
         .sort((a, b) => b._jdScore - a._jdScore)
@@ -463,6 +495,28 @@ export default function SourcingPage() {
                   {matchDebug.titleKeywords.map((kw, i) => (
                     <span key={i} className="bg-emerald-900/50 text-emerald-200 border border-emerald-700/50 rounded px-2 py-0.5 text-[11px] font-medium">{kw}</span>
                   ))}
+                </div>
+              </div>
+            )}
+            {matchDebug.jdTechTerms.length > 0 && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="bg-slate-950 rounded-lg p-3 border border-slate-800">
+                  <div className="text-slate-400 mb-2">Tech Terms Detected in JD</div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {matchDebug.jdTechTerms.map((t, i) => (
+                      <span key={i} className="bg-blue-900/50 text-blue-200 border border-blue-700/50 rounded px-2 py-0.5 text-[11px] font-medium">{t}</span>
+                    ))}
+                  </div>
+                </div>
+                <div className="bg-slate-950 rounded-lg p-3 border border-slate-800">
+                  <div className="text-slate-400 mb-2">Tech Families Mapped</div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {matchDebug.jdFamilies.length > 0
+                      ? matchDebug.jdFamilies.map((f, i) => (
+                          <span key={i} className="bg-purple-900/50 text-purple-200 border border-purple-700/50 rounded px-2 py-0.5 text-[11px] font-medium">{f.replace(/_/g, ' ')}</span>
+                        ))
+                      : <span className="text-slate-500 text-[11px]">None detected</span>}
+                  </div>
                 </div>
               </div>
             )}
@@ -805,8 +859,10 @@ export default function SourcingPage() {
                               </div>
                               <span className="text-xs font-bold text-slate-700">{c._jdScore}%</span>
                             </div>
-                            <div className="flex gap-2 mt-1">
+                            <div className="flex flex-wrap gap-2 mt-1">
                               <span className="text-[10px] text-slate-400">Title <span className="font-bold text-slate-600">{c._titleScore ?? '—'}%</span></span>
+                              <span className="text-[10px] text-slate-300">·</span>
+                              <span className="text-[10px] text-slate-400">Family <span className="font-bold text-blue-500">{c._techFamilyScore ?? '—'}%</span></span>
                               <span className="text-[10px] text-slate-300">·</span>
                               <span className="text-[10px] text-slate-400">KW <span className="font-bold text-slate-600">{c._termScore ?? '—'}%</span></span>
                               {c._techFallbackScore > 0 && <>
