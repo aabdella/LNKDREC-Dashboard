@@ -175,19 +175,20 @@ export default function SourcingPage() {
 
   async function runMatching(jdText: string) {
     if (!jdText.trim()) return;
+
+    // ── Reset all matching state before every run ──────────────────────────
     setIsMatching(true);
+    setInternalMatches([]);
     setActiveTab('internal');
 
     const { data } = await supabase
       .from('candidates')
       .select('*')
       .not('pipeline_stage', 'eq', 'Rejected')
-      .order('match_score', { ascending: false })
-      .limit(100);
+      .limit(200);
 
     if (data) {
-      const jdLower = jdText.toLowerCase();
-
+      // ── 1. Build stop-word set ────────────────────────────────────────────
       const STOP_WORDS = new Set([
         'the','and','for','with','from','that','this','have','will','you','are','our','your',
         'their','they','them','its','has','been','not','but','can','all','any','more','into',
@@ -205,46 +206,86 @@ export default function SourcingPage() {
         'organization','business','customer','client','hands','proven','solid','deep',
         'building','operating','scaling','high','large','modern',
         'production','real','batch','cost','debug','tune','performance','reliability',
+        'summary','seeking','description','responsibilities','qualifications','about',
+        'overview','duties','purpose',
       ]);
 
+      const TITLE_STOP = new Set([
+        ...STOP_WORDS,
+        'job','title','position','role','remote','location','onsite','hybrid',
+        'full','time','contract','freelance','permanent',
+      ]);
+
+      const jdLower = jdText.toLowerCase();
+
+      // ── 2. Extract JD role title ──────────────────────────────────────────
+      // Strategy: scan lines for an explicit "Job Title / Position / Role:" label first.
+      // If none found, use the first substantive non-header line (>= 3 meaningful words).
+      let extractedTitleLine = '';
+      const lines = jdText.split('\n').map(l => l.trim()).filter(Boolean);
+
+      // Pass 1: look for labelled title line
+      for (const line of lines) {
+        const labelMatch = line.match(/^(?:job\s*title|position|role|title)\s*[:\-–|]\s*(.+)/i);
+        if (labelMatch) {
+          extractedTitleLine = labelMatch[1].trim();
+          break;
+        }
+      }
+
+      // Pass 2: fallback — first line that looks like a real title
+      // (not a section header like "Role Summary:", "About Us:", etc.)
+      if (!extractedTitleLine) {
+        for (const line of lines) {
+          const isHeader = /^(role summary|about|overview|summary|responsibilities|requirements|qualifications|duties|purpose)\s*[:\-–]?$/i.test(line);
+          const words = (line.match(/\b[a-z][a-z0-9+#]{2,}\b/gi) || []).filter(w => !TITLE_STOP.has(w.toLowerCase()));
+          if (!isHeader && words.length >= 2 && line.length <= 80) {
+            extractedTitleLine = line;
+            break;
+          }
+        }
+      }
+
+      const cleanedTitleLine = extractedTitleLine.toLowerCase().trim();
+      const titleKeywords = (cleanedTitleLine.match(/\b[a-z][a-z0-9+#]{2,}\b/g) || [])
+        .filter(w => !TITLE_STOP.has(w));
+
+      // ── 3. Build JD keyword terms (boost signals) ─────────────────────────
       const jdTerms = [...new Set(
         (jdLower.match(/\b[a-z][a-z0-9+#._-]{2,}\b/g) || [])
           .filter(w => !STOP_WORDS.has(w) && w.length >= 3)
       )];
 
-      // Seniority
+      // ── 4. Seniority requirement ──────────────────────────────────────────
       const seniorityMatch = jdText.match(/(\d+)\+?\s*years?/i);
       const requiredYears = seniorityMatch ? parseInt(seniorityMatch[1]) : 0;
 
-      // Title: strip "Job Title:" / "Position:" label, then extract keywords
-      const rawTitleLine = jdText.split('\n').find(l => l.trim().length > 5) || '';
-      const cleanedTitleLine = rawTitleLine
-        .replace(/^(job\s*title|position|role|title)\s*[:\-–|]\s*/i, '')
-        .toLowerCase()
-        .trim();
-      const TITLE_STOP = new Set([...STOP_WORDS, 'job', 'title', 'position', 'role', 'remote', 'location', 'onsite', 'hybrid']);
-      const titleKeywords = (cleanedTitleLine.match(/\b[a-z][a-z0-9+#]{2,}\b/g) || [])
-        .filter(w => !TITLE_STOP.has(w));
-
-      console.log('[Matching] JD title line raw:', rawTitleLine);
-      console.log('[Matching] Cleaned title line:', cleanedTitleLine);
+      console.log('[Matching] Extracted JD title line:', extractedTitleLine);
       console.log('[Matching] Title keywords:', titleKeywords);
       console.log('[Matching] JD terms count:', jdTerms.length, jdTerms.slice(0, 20));
 
+      // ── 5. Score each candidate ───────────────────────────────────────────
       const scored = data
         .map(c => {
-          const candidateTitle = (c.title || '').toLowerCase();
+          // Use the candidate's job_title field (stored as c.title) as primary signal
+          const candidateTitle = (c.title || '').toLowerCase().trim();
 
-          // Component A: Title match (0–100) — primary signal
+          // ── Component A: Job Title Match (PRIMARY — 65%) ──────────────────
           let titleScore = 0;
-          if (titleKeywords.length > 0) {
+          if (titleKeywords.length > 0 && candidateTitle) {
             const hits = titleKeywords.filter(k => candidateTitle.includes(k)).length;
-            titleScore = Math.round((hits / titleKeywords.length) * 100);
+            const keywordRatio = hits / titleKeywords.length;
+
+            // Bonus: exact phrase match boosts score significantly
+            const exactPhrase = cleanedTitleLine.replace(/\s+/g, ' ');
+            const exactBonus = candidateTitle.includes(exactPhrase) ? 20 : 0;
+
+            titleScore = Math.min(100, Math.round(keywordRatio * 100) + exactBonus);
           }
 
-          // Component B: Weighted skill/term match (0–100)
+          // ── Component B: JD Keyword / Skill Match (BOOST — 35%) ──────────
           const weightedFields: { text: string; weight: number }[] = [
-            { text: candidateTitle, weight: 3 },
+            { text: candidateTitle, weight: 4 },
             { text: (Array.isArray(c.skills) ? c.skills.join(' ') : ''), weight: 3 },
             { text: (Array.isArray(c.technologies) ? c.technologies.map((t: any) => t.name || t).join(' ') : ''), weight: 3 },
             { text: (Array.isArray(c.tools) ? c.tools.map((t: any) => t.name || t).join(' ') : ''), weight: 3 },
@@ -260,10 +301,10 @@ export default function SourcingPage() {
           const termHits = jdTerms.filter(t => weightedText.includes(t)).length;
           const termScore = jdTerms.length > 0 ? Math.round((termHits / jdTerms.length) * 100) : 0;
 
-          // Blend: 60% title + 40% terms
-          const blendedScore = Math.round((titleScore * 0.6) + (termScore * 0.4));
+          // ── Blend: 65% title match + 35% keyword boost ────────────────────
+          const blendedScore = Math.round((titleScore * 0.65) + (termScore * 0.35));
 
-          // Seniority adjustment
+          // ── Seniority adjustment ──────────────────────────────────────────
           let seniorityPenalty = 0;
           const candidateYears = c.years_experience_total || 0;
           const isSeniorTitle = /senior|lead|principal|staff|head|manager|architect|director/i.test(candidateTitle);
@@ -274,9 +315,7 @@ export default function SourcingPage() {
 
           const finalScore = Math.max(0, Math.min(100, blendedScore + seniorityPenalty));
 
-          if (titleScore > 50) {
-            console.log(`[Match] ${c.full_name} | title="${c.title}" | titleScore=${titleScore} | termScore=${termScore} | final=${finalScore}`);
-          }
+          console.log(`[Match] ${c.full_name} | jobTitle="${c.title}" | titleScore=${titleScore} | termScore=${termScore} | final=${finalScore}`);
 
           return { ...c, _jdScore: finalScore };
         })
@@ -286,6 +325,7 @@ export default function SourcingPage() {
 
       setInternalMatches(scored);
     }
+
     setIsMatching(false);
   }
 
