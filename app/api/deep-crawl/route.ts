@@ -104,8 +104,8 @@ export async function POST(req: NextRequest) {
     const { jd } = await req.json();
     if (!jd) return NextResponse.json({ error: 'JD required' }, { status: 400 });
 
-    const { title: parsedTitle } = extractJobTitle(jd);
-    const titleLine = (parsedTitle || jd.split('\n').find((l: string) => l.trim().length > 5) || 'Professional')
+    const { title: parsedTitle, techFallback } = extractJobTitle(jd);
+    const titleLine = (parsedTitle || techFallback.slice(0, 2).join(' ') || jd.split('\n').find((l: string) => l.trim().length > 5) || 'Professional')
       .replace(/[()&]/g, ' ')
       .replace(/[ ]+/g, ' ')
       .trim();

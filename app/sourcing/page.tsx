@@ -33,8 +33,11 @@ type SourcingAlert = { type: 'success' | 'error'; message: string } | null;
 type MatchDebug = {
   extractedTitle: string;
   titleKeywords: string[];
-  extractedFrom: 'label' | 'seeking-pattern' | 'title-case-line' | 'fallback-line' | 'none';
+  extractedFrom: 'label' | 'seeking-pattern' | 'title-case-line' | 'fallback-line' | 'frequency-scan' | 'none';
+  titleFrequency: number;
+  techFallback: string[];
   jdTermsCount: number;
+  scoringMode: 'title' | 'tech-fallback';
 } | null;
 type QuickSourceDebug = {
   parsedTitle?: string;
@@ -92,7 +95,7 @@ export default function SourcingPage() {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
       runMatching(jdRef.current);
-    }, 600);
+    }, 2000);
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [jd]);
 
@@ -240,8 +243,9 @@ export default function SourcingPage() {
 
       const jdLower = jdText.toLowerCase();
 
-      // ── 2. Extract JD role title via shared 4-pass extractor ─────────────
-      const { title: extractedTitleLine, extractedFrom } = extractJobTitle(jdText);
+      // ── 2. Extract JD role title via shared 5-pass extractor ─────────────
+      const { title: extractedTitleLine, extractedFrom, titleFrequency, techFallback } = extractJobTitle(jdText);
+      const titleExtracted = extractedTitleLine.trim().length > 0;
 
       const cleanedTitleLine = extractedTitleLine.toLowerCase().trim();
       const titleKeywords = (cleanedTitleLine.match(/\b[a-z][a-z0-9+#]{2,}\b/g) || [])
@@ -262,11 +266,16 @@ export default function SourcingPage() {
         extractedTitle: extractedTitleLine || '(none)',
         titleKeywords,
         extractedFrom,
+        titleFrequency,
+        techFallback,
         jdTermsCount: jdTerms.length,
+        scoringMode: titleExtracted ? 'title' : 'tech-fallback',
       });
 
-      console.log('[Matching] Extracted JD title line:', extractedTitleLine, `(via ${extractedFrom})`);
+      console.log('[Matching] Extracted JD title line:', extractedTitleLine, `(via ${extractedFrom}, freq=${titleFrequency})`);
       console.log('[Matching] Title keywords:', titleKeywords);
+      console.log('[Matching] Scoring mode:', titleExtracted ? 'title' : 'tech-fallback');
+      if (!titleExtracted) console.log('[Matching] Tech fallback terms:', techFallback);
       console.log('[Matching] JD terms count:', jdTerms.length, jdTerms.slice(0, 20));
 
       // ── 5. Score each candidate ───────────────────────────────────────────
@@ -276,7 +285,7 @@ export default function SourcingPage() {
 
           // ── Component A: Job Title Match (PRIMARY — 65%) ──────────────────
           let titleScore = 0;
-          if (titleKeywords.length > 0 && candidateTitle) {
+          if (titleExtracted && titleKeywords.length > 0 && candidateTitle) {
             const hits = titleKeywords.filter(k => candidateTitle.includes(k)).length;
             const keywordRatio = hits / titleKeywords.length;
             const exactPhrase = cleanedTitleLine.replace(/\s+/g, ' ');
@@ -302,16 +311,27 @@ export default function SourcingPage() {
           const termHits = jdTerms.filter(t => weightedText.includes(t)).length;
           const termScore = jdTerms.length > 0 ? Math.round((termHits / jdTerms.length) * 100) : 0;
 
-          // ── Blend: 65% title + 35% keyword boost ─────────────────────────
-          let blendedScore = Math.round((titleScore * 0.65) + (termScore * 0.35));
+          // ── Component C: Tech fallback (when title extraction failed) ─────
+          // Score purely on how many JD tech terms appear in the candidate's profile
+          let techFallbackScore = 0;
+          if (!titleExtracted && techFallback.length > 0) {
+            const techHits = techFallback.filter(t =>
+              weightedText.includes(t.toLowerCase())
+            ).length;
+            techFallbackScore = Math.round((techHits / techFallback.length) * 100);
+          }
 
-          // FIX: Strong title match (≥90) should not be dragged below 85 by missing skill data.
-          // Candidates whose title exactly matches the JD role must rank near the top regardless
-          // of whether their skills/tools fields are populated in the DB.
-          if (titleScore >= 90) {
-            blendedScore = Math.max(blendedScore, 85);
-          } else if (titleScore >= 70) {
-            blendedScore = Math.max(blendedScore, 60);
+          // ── Blend ─────────────────────────────────────────────────────────
+          let blendedScore: number;
+          if (titleExtracted) {
+            // Normal mode: 65% title + 35% keywords
+            blendedScore = Math.round((titleScore * 0.65) + (termScore * 0.35));
+            // Floor: strong title match should not be dragged below 85/60
+            if (titleScore >= 90) blendedScore = Math.max(blendedScore, 85);
+            else if (titleScore >= 70) blendedScore = Math.max(blendedScore, 60);
+          } else {
+            // Tech-fallback mode: 60% tech hits + 40% general keyword hits
+            blendedScore = Math.round((techFallbackScore * 0.60) + (termScore * 0.40));
           }
 
           // ── Seniority adjustment ──────────────────────────────────────────
@@ -325,9 +345,9 @@ export default function SourcingPage() {
 
           const finalScore = Math.max(0, Math.min(100, blendedScore + seniorityPenalty));
 
-          console.log(`[Match] ${c.full_name} | jobTitle="${c.title}" | titleScore=${titleScore} | termScore=${termScore} | blended=${blendedScore} | final=${finalScore}`);
+          console.log(`[Match] ${c.full_name} | jobTitle="${c.title}" | titleScore=${titleScore} | termScore=${termScore} | techFB=${techFallbackScore} | blended=${blendedScore} | final=${finalScore}`);
 
-          return { ...c, _jdScore: finalScore, _titleScore: titleScore, _termScore: termScore };
+          return { ...c, _jdScore: finalScore, _titleScore: titleScore, _termScore: termScore, _techFallbackScore: techFallbackScore };
         })
         .filter(c => c._jdScore >= 10)
         .sort((a, b) => b._jdScore - a._jdScore)
@@ -407,18 +427,33 @@ export default function SourcingPage() {
               <div className="md:col-span-2 bg-slate-950 rounded-lg p-3 border border-slate-800">
                 <div className="text-slate-400 mb-1">Extracted Job Title</div>
                 <div className={`font-semibold break-words text-sm ${matchDebug.extractedTitle && matchDebug.extractedTitle !== '(none)' ? 'text-emerald-400' : 'text-red-400'}`}>
-                  {matchDebug.extractedTitle || '⚠ Nothing extracted — scores will be near zero'}
+                  {matchDebug.extractedTitle || '⚠ Nothing extracted — tech fallback mode active'}
                 </div>
               </div>
               <div className="bg-slate-950 rounded-lg p-3 border border-slate-800">
                 <div className="text-slate-400 mb-1">Extracted Via</div>
-                <div className={`font-semibold ${matchDebug.extractedFrom === 'label' ? 'text-emerald-400' : matchDebug.extractedFrom === 'seeking-pattern' ? 'text-emerald-300' : matchDebug.extractedFrom === 'title-case-line' ? 'text-amber-400' : matchDebug.extractedFrom === 'fallback-line' ? 'text-amber-500' : 'text-red-400'}`}>
-                  {matchDebug.extractedFrom === 'label' ? '✅ Explicit label' : matchDebug.extractedFrom === 'seeking-pattern' ? '✅ Seeking pattern' : matchDebug.extractedFrom === 'title-case-line' ? '⚠ Title-case line' : matchDebug.extractedFrom === 'fallback-line' ? '⚠ Fallback line' : '❌ Not found'}
+                <div className={`font-semibold ${
+                  matchDebug.extractedFrom === 'label' ? 'text-emerald-400' :
+                  matchDebug.extractedFrom === 'seeking-pattern' ? 'text-emerald-300' :
+                  matchDebug.extractedFrom === 'frequency-scan' ? 'text-blue-400' :
+                  matchDebug.extractedFrom === 'title-case-line' ? 'text-amber-400' :
+                  matchDebug.extractedFrom === 'fallback-line' ? 'text-amber-500' :
+                  'text-red-400'
+                }`}>
+                  {matchDebug.extractedFrom === 'label'          ? '✅ Explicit label' :
+                   matchDebug.extractedFrom === 'seeking-pattern' ? '✅ Seeking pattern' :
+                   matchDebug.extractedFrom === 'frequency-scan' ? `🔢 Frequency scan (×${matchDebug.titleFrequency})` :
+                   matchDebug.extractedFrom === 'title-case-line' ? '⚠ Title-case line' :
+                   matchDebug.extractedFrom === 'fallback-line'   ? '⚠ Fallback line' :
+                   '❌ Not found'}
                 </div>
               </div>
               <div className="bg-slate-950 rounded-lg p-3 border border-slate-800">
-                <div className="text-slate-400 mb-1">JD Keyword Terms</div>
-                <div className="font-semibold text-slate-100">{matchDebug.jdTermsCount}</div>
+                <div className="text-slate-400 mb-1">Scoring Mode</div>
+                <div className={`font-semibold ${matchDebug.scoringMode === 'title' ? 'text-emerald-400' : 'text-amber-400'}`}>
+                  {matchDebug.scoringMode === 'title' ? '🎯 Title match' : '🔧 Tech fallback'}
+                </div>
+                <div className="text-slate-500 mt-0.5">{matchDebug.jdTermsCount} JD terms</div>
               </div>
             </div>
             {matchDebug.titleKeywords.length > 0 && (
@@ -427,6 +462,16 @@ export default function SourcingPage() {
                 <div className="flex flex-wrap gap-1.5">
                   {matchDebug.titleKeywords.map((kw, i) => (
                     <span key={i} className="bg-emerald-900/50 text-emerald-200 border border-emerald-700/50 rounded px-2 py-0.5 text-[11px] font-medium">{kw}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+            {matchDebug.scoringMode === 'tech-fallback' && matchDebug.techFallback.length > 0 && (
+              <div className="bg-slate-950 rounded-lg p-3 border border-slate-800">
+                <div className="text-slate-400 mb-2">⚠ No title extracted — scoring on tech/tool terms instead</div>
+                <div className="flex flex-wrap gap-1.5">
+                  {matchDebug.techFallback.map((t, i) => (
+                    <span key={i} className="bg-amber-900/50 text-amber-200 border border-amber-700/50 rounded px-2 py-0.5 text-[11px] font-medium">{t}</span>
                   ))}
                 </div>
               </div>
@@ -764,6 +809,10 @@ export default function SourcingPage() {
                               <span className="text-[10px] text-slate-400">Title <span className="font-bold text-slate-600">{c._titleScore ?? '—'}%</span></span>
                               <span className="text-[10px] text-slate-300">·</span>
                               <span className="text-[10px] text-slate-400">KW <span className="font-bold text-slate-600">{c._termScore ?? '—'}%</span></span>
+                              {c._techFallbackScore > 0 && <>
+                                <span className="text-[10px] text-slate-300">·</span>
+                                <span className="text-[10px] text-amber-500">Tech <span className="font-bold">{c._techFallbackScore}%</span></span>
+                              </>}
                             </div>
                             {c.match_reason && (
                               <div className="text-[10px] text-slate-400 mt-1 max-w-xs line-clamp-2">{c.match_reason}</div>
