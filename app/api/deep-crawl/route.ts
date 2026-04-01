@@ -112,15 +112,30 @@ export async function POST(req: NextRequest) {
 
     const targetMarket = extractTargetMarket(jd);
 
-    console.log(`🦞 [Deep Search] Discovering profiles for: ${titleLine}`);
+    // Creative roles: Behance is relevant; non-creative: LinkedIn only
+    const isCreative = /designer|art.?director|creative|illustrat|visual|motion|graphic/i.test(parsedTitle);
 
-    const queries = [
-      `site:behance.net ${titleLine} Egypt`,
-      `site:behance.net ${titleLine} ${targetMarket} Egypt`,
-      `site:linkedin.com/in ${titleLine} Egypt ${targetMarket}`,
-    ].filter((q, i, arr) => q.trim() && arr.indexOf(q) === i);
+    console.log(`🦞 [Deep Search] Discovering profiles for: "${titleLine}" | creative=${isCreative} | market=${targetMarket || 'none'}`);
 
-    const discoveryRuns = await Promise.all(queries.map(searchProfiles));
+    // Build queries anchored on the parsed title — no hardcoded role names
+    const queries: string[] = [];
+
+    // LinkedIn always included
+    queries.push(`site:linkedin.com/in "${titleLine}" Egypt`);
+    if (targetMarket) {
+      queries.push(`site:linkedin.com/in "${titleLine}" Egypt ${targetMarket}`);
+    } else {
+      queries.push(`site:linkedin.com/in ${titleLine} Cairo`);
+    }
+
+    // Behance only for creative roles
+    if (isCreative) {
+      queries.push(`site:behance.net ${titleLine} Egypt`);
+    }
+
+    // Dedupe identical queries
+    const uniqueQueries = [...new Set(queries.filter(q => q.trim()))];
+    const discoveryRuns = await Promise.all(uniqueQueries.map(searchProfiles));
     const discovered = Array.from(
       new Set(
         discoveryRuns.flatMap((run) => run.filteredUrls?.map((r: any) => r.url) || [])
@@ -137,7 +152,7 @@ export async function POST(req: NextRequest) {
           parsedTitle,
           titleLine,
           targetMarket,
-          queries,
+          queries: uniqueQueries,
           discoveryRuns,
           discovered: [],
         },
@@ -203,7 +218,7 @@ export async function POST(req: NextRequest) {
         parsedTitle,
         titleLine,
         targetMarket,
-        queries,
+        queries: uniqueQueries,
         discoveryRuns,
         discovered,
         targets,

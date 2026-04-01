@@ -32,6 +32,9 @@ type SourcingAlert = { type: 'success' | 'error'; message: string } | null;
 type QuickSourceDebug = {
   parsedTitle?: string;
   keywordSets?: string[][];
+  topSkills?: string[];
+  detectedCompanies?: string[];
+  marketKw?: string[];
   totalDiscovered?: number;
   inserted?: number;
 } | null;
@@ -420,6 +423,41 @@ export default function SourcingPage() {
                 <div className="font-semibold text-slate-100">{quickSourceDebug.inserted ?? '—'}</div>
               </div>
             </div>
+            {/* Skills + companies row */}
+            {(!!quickSourceDebug.topSkills?.length || !!quickSourceDebug.detectedCompanies?.length || !!quickSourceDebug.marketKw?.length) && (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="bg-slate-950 rounded-lg p-3 border border-slate-800">
+                  <div className="text-slate-400 mb-2">Skills Extracted from JD</div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {quickSourceDebug.topSkills?.length
+                      ? quickSourceDebug.topSkills.map((s, i) => (
+                          <span key={i} className="bg-blue-900/50 text-blue-200 border border-blue-700/50 rounded px-2 py-0.5 text-[11px] font-medium">{s}</span>
+                        ))
+                      : <span className="text-slate-500">None detected</span>}
+                  </div>
+                </div>
+                <div className="bg-slate-950 rounded-lg p-3 border border-slate-800">
+                  <div className="text-slate-400 mb-2">Companies Detected</div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {quickSourceDebug.detectedCompanies?.length
+                      ? quickSourceDebug.detectedCompanies.map((c, i) => (
+                          <span key={i} className="bg-amber-900/50 text-amber-200 border border-amber-700/50 rounded px-2 py-0.5 text-[11px] font-medium">{c}</span>
+                        ))
+                      : <span className="text-slate-500">None detected</span>}
+                  </div>
+                </div>
+                <div className="bg-slate-950 rounded-lg p-3 border border-slate-800">
+                  <div className="text-slate-400 mb-2">Market Signals</div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {quickSourceDebug.marketKw?.length
+                      ? quickSourceDebug.marketKw.map((m, i) => (
+                          <span key={i} className="bg-emerald-900/50 text-emerald-200 border border-emerald-700/50 rounded px-2 py-0.5 text-[11px] font-medium">{m}</span>
+                        ))
+                      : <span className="text-slate-500">Egypt (default)</span>}
+                  </div>
+                </div>
+              </div>
+            )}
             {/* Keyword sets */}
             {!!quickSourceDebug.keywordSets?.length && (
               <div>

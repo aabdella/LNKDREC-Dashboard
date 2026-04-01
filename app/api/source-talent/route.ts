@@ -122,158 +122,115 @@ interface ExtractionResult {
   keywordSets: string[][];
   experienceLevel: 'junior' | 'mid' | 'senior';
   parsedTitle: string;
+  topSkills: string[];
+  detectedCompanies: string[];
+  marketKw: string[];
 }
 
 function extractKeywords(jd: string): ExtractionResult {
-  // ── Extracted job title (primary signal) ───────────────────────────────
-  const parsedTitle = extractJobTitle(jd);
   const text = jd.toLowerCase();
 
-  // ── Experience Level Detection ────────────────────────────────────────────
+  // ── 1. Parsed job title — the actual role from the JD ─────────────────
+  const parsedTitle = extractJobTitle(jd);
+  const titleForSearch = parsedTitle || 'Professional';
+
+  // ── 2. Experience level ───────────────────────────────────────────────
   type ExperienceLevel = 'junior' | 'mid' | 'senior';
   const expPatterns: Record<ExperienceLevel, RegExp[]> = {
-    junior: [
-      /1-2\s*years?/i, /0-2\s*years?/i, /fresh\s*graduate/i, /entry\s*level/i,
-      /junior/i, /associate/i, /trainee/i, /intern/i, /newly\s*qualif/i,
-      /1\s*\+\s*year/i, /one\s*to\s*two/i, /up\s*to\s*2/i
-    ],
-    mid: [
-      /3-5\s*years?/i, /2-4\s*years?/i, /mid-?level/i, /intermediate/i,
-      /3\s*years?/i, /4\s*years?/i, /mid-level/i
-    ],
-    senior: [
-      /5\s*\+\s*years?/i, /6\s*\+\s*years?/i, /senior/i, /lead/i,
-      /principal/i, /head\s*of/i, /director/i, /7\s*years?/i, /8\s*years?/i,
-      /10\s*\+\s*years?/i, /expert/i, /experienced\s*professional/i
-    ]
+    junior: [/1-2\s*years?/i, /0-2\s*years?/i, /fresh\s*graduate/i, /entry\s*level/i, /junior/i, /trainee/i, /intern/i],
+    mid:    [/3-5\s*years?/i, /2-4\s*years?/i, /mid-?level/i, /intermediate/i],
+    senior: [/5\s*\+\s*years?/i, /6\s*\+\s*years?/i, /senior/i, /lead/i, /principal/i, /head\s*of/i, /director/i, /10\s*\+\s*years?/i],
   };
-
-  let detectedExp: ExperienceLevel = 'mid'; // Default
+  let detectedExp: ExperienceLevel = 'mid';
   const juniorMatches = expPatterns.junior.filter(p => p.test(jd)).length;
   const seniorMatches = expPatterns.senior.filter(p => p.test(jd)).length;
-  const midMatches = expPatterns.mid.filter(p => p.test(jd)).length;
-
+  const midMatches    = expPatterns.mid.filter(p => p.test(jd)).length;
   if (juniorMatches > seniorMatches && juniorMatches > midMatches) detectedExp = 'junior';
   else if (seniorMatches > juniorMatches && seniorMatches > midMatches) detectedExp = 'senior';
-  // Otherwise default to 'mid'
 
-  // Role detection — Art Director and Creative Director added explicitly
-  const rolePatterns: Record<string, string[]> = {
-    'Technical Support Agent': ['technical support agent', 'tech support agent', 'call center', 'technical support specialist', 'customer support agent', 'support advisor', 'technical advisor'],
-    'Art Director':         ['art director'],
-    'Creative Director':    ['creative director'],
-    'Graphic Designer':     ['graphic designer', 'graphic design', 'visual designer', 'senior graphic'],
-    'Software Engineer':    ['software engineer', 'software developer', 'swe'],
-    'Frontend Developer':   ['frontend', 'front-end', 'front end', 'react developer', 'vue developer'],
-    'Backend Developer':    ['backend', 'back-end', 'back end', 'node.js developer', 'python developer'],
-    'Full Stack Developer': ['full stack', 'full-stack', 'fullstack'],
-    'Product Manager':      ['product manager', 'product management'],
-    'UX Designer':          ['ux designer', 'ui/ux', 'ui designer', 'product designer'],
-    'Data Scientist':       ['data scientist', 'data science', 'ml engineer', 'machine learning'],
-    'DevOps Engineer':      ['devops', 'site reliability', 'infrastructure engineer'],
-    'Mobile Developer':     ['mobile developer', 'ios developer', 'android developer', 'react native'],
-    'Marketing Manager':    ['marketing manager', 'digital marketing', 'growth manager'],
-    'Sales Manager':        ['sales manager', 'account executive', 'business development'],
-    'Content Writer':       ['content writer', 'copywriter', 'content creator'],
-    'HR Manager':           ['hr manager', 'human resources', 'talent acquisition', 'recruiter'],
-  };
+  // ── 3. Extract top skills directly from JD text ───────────────────────
+  // Pull meaningful technical tokens: capitalized words, acronyms, known tech patterns
+  // Pattern: words that are ALL-CAPS (≥2 chars), TitleCase tech terms, or contain dots/+/#
+  const skillTokenPattern = /\b([A-Z][a-zA-Z0-9+#.\-]{1,}|[A-Z]{2,}[0-9]*)\b/g;
+  const rawTokens = jd.match(skillTokenPattern) || [];
 
-  let detectedRole = parsedTitle || 'Professional';
-  for (const [role, patterns] of Object.entries(rolePatterns)) {
-    if (patterns.some(p => text.includes(p))) {
-      detectedRole = role;
-      break;
-    }
+  // Generic words to exclude from skill tokens
+  const TOKEN_STOP = new Set([
+    'Job', 'Title', 'Position', 'Role', 'Summary', 'About', 'Overview', 'The', 'And', 'For',
+    'With', 'From', 'That', 'This', 'Have', 'Will', 'You', 'Are', 'Our', 'Your', 'Their',
+    'They', 'Them', 'Its', 'Has', 'Been', 'Not', 'But', 'Can', 'All', 'Any', 'More',
+    'Egypt', 'Cairo', 'Egypt,', 'Inc', 'Ltd', 'LLC', 'We', 'Is', 'In', 'Of', 'To', 'A',
+    'An', 'Be', 'As', 'At', 'By', 'On', 'Or', 'If', 'Do', 'So', 'Up', 'It', 'No',
+    'Hi', 'Who', 'How', 'Why', 'What', 'When', 'Where', 'Which', 'While',
+    'Must', 'Should', 'Would', 'Could', 'May', 'Might',
+    'New', 'Key', 'Set', 'Use', 'Get', 'Build', 'Work', 'Team', 'Join',
+    'Senior', 'Junior', 'Lead', 'Head', 'Chief', 'Principal', 'Staff',
+  ]);
+
+  // Deduplicate and filter, preserve original casing for search quality
+  const topSkills = [...new Set(
+    rawTokens.filter(t => !TOKEN_STOP.has(t) && t.length >= 2 && t.length <= 30)
+  )].slice(0, 8);
+
+  // ── 4. Company names mentioned in JD — scan inline, no predefined list ──
+  // Look for "at <Company>", "with <Company>", "from <Company>", or quoted names
+  const companyRegex = /\b(?:at|with|from|for|ex[-\s]?)\s+([A-Z][a-zA-Z0-9&\s]{2,30}?)(?=[,.\n]|\s+(?:and|or|is|are|was|will|to|for)\b)/g;
+  const rawCompanies: string[] = [];
+  let cm: RegExpExecArray | null;
+  while ((cm = companyRegex.exec(jd)) !== null) {
+    const name = cm[1].trim();
+    if (name.split(' ').length <= 4 && name.length >= 3) rawCompanies.push(name);
   }
+  const detectedCompanies = [...new Set(rawCompanies)].slice(0, 3);
 
-  // Skill detection — exact names AND common aliases/suites
-  const allSkills = [
-    'React', 'Next.js', 'Vue', 'Angular', 'TypeScript', 'JavaScript', 'Node.js',
-    'Python', 'Django', 'FastAPI', 'Flask', 'Java', 'Spring', 'Go', 'Rust',
-    'PostgreSQL', 'MySQL', 'MongoDB', 'Redis', 'AWS', 'Azure', 'GCP',
-    'Docker', 'Kubernetes', 'Terraform', 'GraphQL', 'REST',
-    'Figma', 'Sketch', 'Adobe XD', 'Photoshop', 'Illustrator', 'InDesign', 'After Effects', 'Premiere',
-    'TensorFlow', 'PyTorch', 'scikit-learn', 'Pandas', 'NumPy',
-    'React Native', 'Flutter', 'Swift', 'Kotlin',
-    'Git', 'CI/CD', 'Agile', 'Scrum',
-  ];
-
-  // Alias map: if JD contains phrase → inject skill name
-  const skillAliases: Record<string, string[]> = {
-    'Photoshop':    ['adobe creative suite', 'adobe creative cloud', 'adobe suite'],
-    'Illustrator':  ['adobe creative suite', 'adobe creative cloud', 'adobe suite', 'adobe illustrator'],
-    'InDesign':     ['adobe creative suite', 'adobe creative cloud', 'adobe suite', 'adobe indesign'],
-    'After Effects':['adobe creative suite', 'adobe creative cloud', 'after effects'],
-    'Figma':        ['figma'],
-    'Social Media': ['social media', 'instagram', 'facebook', 'tiktok', 'campaigns'],
-  };
-
-  const detectedSkills = allSkills.filter(s => text.includes(s.toLowerCase()));
-  // Add alias-detected skills
-  for (const [skill, aliases] of Object.entries(skillAliases)) {
-    if (!detectedSkills.includes(skill) && aliases.some(a => text.includes(a))) {
-      detectedSkills.push(skill);
-    }
-  }
-  const topSkills = detectedSkills.slice(0, 5);
-
-  // Company name detection — extract specific employers/brands mentioned in JD
-  // These become high-priority search terms (quoted for exact match)
-  const companyPatterns: string[] = [
-    'Vodafone International Services', 'VIS', 'VOIS', '_VOIS',
-    'Teleperformance', 'Concentrix', 'Sutherland', 'Majorel', 'Intelcia',
-    'Amazon', 'Microsoft', 'Google', 'IBM', 'Oracle', 'SAP', 'Cisco',
-    'McKinsey', 'Deloitte', 'PwC', 'EY', 'KPMG',
-    'Unilever', 'P&G', 'Nestle', 'Pepsi', 'Coca-Cola',
-    'Jumia', 'Talabat', 'Careem', 'Uber',
-  ];
-  const detectedCompanies = companyPatterns.filter(c => text.includes(c.toLowerCase()));
-
-  // Market experience detection — used as search keywords, not location
+  // ── 5. Market / geography signals ─────────────────────────────────────
   const marketKw: string[] = [];
-  if (R.locationSa.test(jd) || text.includes('ksa')) marketKw.push('Saudi', 'KSA');
-  if (text.includes('gcc') || text.includes('gulf')) marketKw.push('GCC');
-  if (R.locationAe.test(jd)) marketKw.push('GCC');
+  if (/saudi|ksa/i.test(jd))           marketKw.push('Saudi');
+  if (/gcc|gulf/i.test(jd))            marketKw.push('GCC');
+  if (/uae|dubai|emirates/i.test(jd))  marketKw.push('UAE');
 
-  // Build 5 keyword sets — always Egypt-anchored, market experience + company names woven in
-  const kwSets: string[][] = [];
+  // ── 6. Build 5 search keyword sets ────────────────────────────────────
+  // Each set = [title, location/market, optional-boost-term]
+  // Title is always the anchor — everything else is a refinement signal
   const primaryCompany = detectedCompanies[0] || null;
   const secondCompany  = detectedCompanies[1] || null;
+  const skill1 = topSkills[0] || null;
+  const skill2 = topSkills[1] || null;
 
-  // Set 1: role + Egypt + company name (highest precision — mirrors manual search)
-  kwSets.push(primaryCompany
-    ? [detectedRole, 'Egypt', primaryCompany]
-    : marketKw.length > 0 ? [detectedRole, 'Egypt', marketKw[0]] : [detectedRole, 'Egypt']);
+  const kwSets: string[][] = [
+    // Set 1: title + Egypt (baseline — broadest, most reliable)
+    [titleForSearch, 'Egypt'],
 
-  // Set 2: role + Egypt + second company or market keyword
-  kwSets.push(secondCompany
-    ? [detectedRole, 'Egypt', secondCompany]
-    : marketKw.length > 1 ? [detectedRole, 'Egypt', marketKw[1]]
-    : topSkills.length > 0 ? [detectedRole, topSkills[0], 'Egypt'] : [detectedRole, 'Egypt', 'international']);
+    // Set 2: title + Cairo (city-level precision)
+    [titleForSearch, 'Cairo'],
 
-  // Set 3: role + Cairo + company name
-  kwSets.push(primaryCompany
-    ? [detectedRole, 'Cairo', primaryCompany]
-    : marketKw.length > 0 ? [detectedRole, 'Cairo', marketKw[0]] : [detectedRole, 'Cairo']);
+    // Set 3: title + top skill + Egypt (narrow by specialty)
+    skill1
+      ? [titleForSearch, skill1, 'Egypt']
+      : marketKw.length > 0 ? [titleForSearch, 'Egypt', marketKw[0]] : [titleForSearch, 'Egypt'],
 
-  // Set 4: role + top skill + Egypt (or company)
-  kwSets.push(topSkills.length > 0
-    ? [detectedRole, topSkills[0], 'Egypt']
-    : primaryCompany ? [detectedRole, primaryCompany, 'Egypt'] : [detectedRole, 'Egypt', 'international']);
+    // Set 4: title + second skill OR market keyword
+    skill2
+      ? [titleForSearch, skill2, 'Egypt']
+      : primaryCompany ? [titleForSearch, primaryCompany, 'Egypt'] : [titleForSearch, 'Egypt'],
 
-  // Set 5: company + Egypt + market keyword or skill
-  if (primaryCompany) {
-    kwSets.push(marketKw.length > 0
-      ? [primaryCompany, 'Egypt', marketKw[0]]
-      : [primaryCompany, 'Egypt']);
-  } else if (topSkills.length >= 2) {
-    kwSets.push([topSkills[0], topSkills[1], 'Egypt']);
-  } else {
-    kwSets.push([detectedRole, 'Egypt', 'international', 'support']);
-  }
+    // Set 5: title + company OR market + skill combo
+    primaryCompany
+      ? [titleForSearch, primaryCompany, 'Egypt']
+      : secondCompany ? [titleForSearch, secondCompany, 'Egypt']
+      : marketKw.length > 0 ? [titleForSearch, marketKw[0], 'Egypt']
+      : skill1 && skill2 ? [titleForSearch, skill1, skill2]
+      : [titleForSearch, 'Egypt'],
+  ];
 
-  // Return both keyword sets and detected experience level
-  return { keywordSets: kwSets.slice(0, 5), experienceLevel: detectedExp, parsedTitle };
+  return {
+    keywordSets: kwSets,
+    experienceLevel: detectedExp,
+    parsedTitle,
+    topSkills,
+    detectedCompanies,
+    marketKw,
+  };
 }
 
 // ─── Parse a Brave search result into a candidate ───────────────────────────
@@ -491,8 +448,13 @@ export async function POST(req: NextRequest) {
     const extraction = extractKeywords(jd);
     const kwSets = extraction.keywordSets;
     const parsedTitle = extraction.parsedTitle;
+    const topSkills = extraction.topSkills;
+    const detectedCompanies = extraction.detectedCompanies;
+    const marketKw = extraction.marketKw;
     const BRAVE_API_KEY = process.env.BRAVE_SEARCH_API_KEY || 'REDACTED_BRAVE_API_KEY';
-    const isCreative = R.creative.test(jd);
+
+    // Creative roles = Behance is relevant; detected from parsed title, not a hardcoded regex
+    const isCreative = /designer|art.?director|creative|illustrat|visual|motion|graphic/i.test(parsedTitle);
 
     // ── Clear previous sourced candidates before new search ───────────────
     await supabase
@@ -620,6 +582,9 @@ export async function POST(req: NextRequest) {
       debug: {
         parsedTitle,
         keywordSets: kwSets,
+        topSkills,
+        detectedCompanies,
+        marketKw,
         totalDiscovered: allCandidates.length,
         inserted: insertedCount,
       },
