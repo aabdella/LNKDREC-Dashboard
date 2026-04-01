@@ -149,37 +149,79 @@ function extractKeywords(jd: string): ExtractionResult {
   else if (seniorMatches > juniorMatches && seniorMatches > midMatches) detectedExp = 'senior';
 
   // ── 3. Extract top skills directly from JD text ───────────────────────
-  // Pull meaningful technical tokens: capitalized words, acronyms, known tech patterns
-  // Pattern: words that are ALL-CAPS (≥2 chars), TitleCase tech terms, or contain dots/+/#
-  const skillTokenPattern = /\b([A-Z][a-zA-Z0-9+#.\-]{1,}|[A-Z]{2,}[0-9]*)\b/g;
-  const rawTokens = jd.match(skillTokenPattern) || [];
+  // Words from the parsed title should NOT count as skills
+  const titleWords = new Set(
+    (parsedTitle || '').split(/[\s\-–,]+/).map(w => w.toLowerCase()).filter(Boolean)
+  );
 
-  // Generic words to exclude from skill tokens
+  // Generic stop words — role words, English filler, geography
   const TOKEN_STOP = new Set([
-    'Job', 'Title', 'Position', 'Role', 'Summary', 'About', 'Overview', 'The', 'And', 'For',
-    'With', 'From', 'That', 'This', 'Have', 'Will', 'You', 'Are', 'Our', 'Your', 'Their',
-    'They', 'Them', 'Its', 'Has', 'Been', 'Not', 'But', 'Can', 'All', 'Any', 'More',
-    'Egypt', 'Cairo', 'Egypt,', 'Inc', 'Ltd', 'LLC', 'We', 'Is', 'In', 'Of', 'To', 'A',
-    'An', 'Be', 'As', 'At', 'By', 'On', 'Or', 'If', 'Do', 'So', 'Up', 'It', 'No',
-    'Hi', 'Who', 'How', 'Why', 'What', 'When', 'Where', 'Which', 'While',
-    'Must', 'Should', 'Would', 'Could', 'May', 'Might',
-    'New', 'Key', 'Set', 'Use', 'Get', 'Build', 'Work', 'Team', 'Join',
-    'Senior', 'Junior', 'Lead', 'Head', 'Chief', 'Principal', 'Staff',
+    'job', 'title', 'position', 'role', 'summary', 'about', 'overview', 'the', 'and', 'for',
+    'with', 'from', 'that', 'this', 'have', 'will', 'you', 'are', 'our', 'your', 'their',
+    'they', 'them', 'its', 'has', 'been', 'not', 'but', 'can', 'all', 'any', 'more',
+    'egypt', 'cairo', 'inc', 'ltd', 'llc', 'we', 'is', 'in', 'of', 'to', 'a',
+    'an', 'be', 'as', 'at', 'by', 'on', 'or', 'if', 'do', 'so', 'up', 'it', 'no',
+    'who', 'how', 'why', 'what', 'when', 'where', 'which', 'while',
+    'must', 'should', 'would', 'could', 'may', 'might',
+    'new', 'key', 'set', 'use', 'get', 'build', 'work', 'team', 'join',
+    'senior', 'junior', 'lead', 'head', 'chief', 'principal', 'staff',
+    // Sentence-level noise
+    'such', 'also', 'each', 'both', 'into', 'through', 'using', 'strong', 'ability',
+    'experience', 'including', 'following', 'required', 'preferred', 'equivalent',
+    'including', 'looking', 'need', 'needs', 'see', 'ways', 'stand', 'crowd',
+    // Tech-adjacent but not searchable skills
+    'remote', 'location', 'description', 'well', 'great', 'good',
   ]);
 
-  // Deduplicate and filter, preserve original casing for search quality
-  const topSkills = [...new Set(
-    rawTokens.filter(t => !TOKEN_STOP.has(t) && t.length >= 2 && t.length <= 30)
-  )].slice(0, 8);
+  // Scan for technical skill tokens:
+  // 1. Known tech terms (lowercase scan) — catches Python, Docker, Slurm, CUDA etc.
+  const KNOWN_TECH = [
+    'Python', 'C++', 'Rust', 'Go', 'Java', 'JavaScript', 'TypeScript',
+    'Docker', 'Kubernetes', 'Slurm', 'GitLab', 'GitHub', 'Terraform',
+    'CUDA', 'GPU', 'NCCL', 'MPI', 'OpenMPI', 'InfiniBand', 'NVLink',
+    'PyTorch', 'TensorFlow', 'JAX', 'MLPerf', 'DCGM', 'Nsight',
+    'Linux', 'Bash', 'REST', 'GraphQL', 'gRPC',
+    'AWS', 'GCP', 'Azure', 'Kubernetes', 'Helm', 'Argo',
+    'Prometheus', 'Grafana', 'OpenTelemetry', 'Kafka', 'Spark', 'Flink',
+    'PostgreSQL', 'MySQL', 'MongoDB', 'Redis',
+    'React', 'Next.js', 'Vue', 'Angular', 'Node.js',
+    'Figma', 'Photoshop', 'Illustrator', 'InDesign', 'After Effects',
+    'AIOps', 'MLOps', 'DevOps', 'SRE', 'HPC',
+    'CI/CD', 'Agile', 'Scrum',
+  ];
+  const foundKnownTech = KNOWN_TECH.filter(t => text.includes(t.toLowerCase()));
 
-  // ── 4. Company names mentioned in JD — scan inline, no predefined list ──
-  // Look for "at <Company>", "with <Company>", "from <Company>", or quoted names
-  const companyRegex = /\b(?:at|with|from|for|ex[-\s]?)\s+([A-Z][a-zA-Z0-9&\s]{2,30}?)(?=[,.\n]|\s+(?:and|or|is|are|was|will|to|for)\b)/g;
+  // 2. Capitalized / ALL-CAPS tokens in JD that aren't title words or stop words
+  const skillTokenPattern = /\b([A-Z][a-zA-Z0-9+#.\-]{1,}|[A-Z]{2,}[0-9]*)\b/g;
+  const rawTokens = jd.match(skillTokenPattern) || [];
+  const capsTokens = [...new Set(
+    rawTokens.filter(t => {
+      const tl = t.toLowerCase();
+      return !TOKEN_STOP.has(tl) && !titleWords.has(tl) && t.length >= 2 && t.length <= 30;
+    })
+  )];
+
+  // Merge: known tech first (higher signal), then caps tokens, dedupe
+  const topSkills = [...new Set([...foundKnownTech, ...capsTokens])].slice(0, 8);
+
+  // ── 4. Company names — strict: multi-word proper nouns, blocklist tech terms ──
+  // Only match "at/join/from <ProperNoun>" patterns; require ≥2 words or known suffixes
+  const TECH_BLOCKLIST = new Set([
+    'Docker', 'Kubernetes', 'Python', 'Linux', 'AWS', 'Azure', 'GCP', 'GitLab', 'GitHub',
+    'Slurm', 'CUDA', 'PyTorch', 'TensorFlow', 'AIOps', 'MLOps', 'DevOps', 'REST', 'GPU',
+    'React', 'Node', 'Java', 'Rust', 'Go', 'CI', 'CD', 'API', 'HPC', 'GPU', 'ML',
+  ]);
+
+  // Pattern: "join/at/from <Two+ Word Proper Noun>" — requires ≥2 words to reduce false positives
+  const companyRegex = /\b(?:join|at|from)\s+([A-Z][a-zA-Z0-9]+(?:\s+[A-Z][a-zA-Z0-9]+)+)/g;
   const rawCompanies: string[] = [];
   let cm: RegExpExecArray | null;
   while ((cm = companyRegex.exec(jd)) !== null) {
     const name = cm[1].trim();
-    if (name.split(' ').length <= 4 && name.length >= 3) rawCompanies.push(name);
+    const firstWord = name.split(' ')[0];
+    // Skip if first word is a known tech term
+    if (TECH_BLOCKLIST.has(firstWord)) continue;
+    if (name.split(' ').length <= 5 && name.length >= 4) rawCompanies.push(name);
   }
   const detectedCompanies = [...new Set(rawCompanies)].slice(0, 3);
 
@@ -249,6 +291,8 @@ function parseResult(
   if (platform === 'Behance' && !url.includes('behance.net')) return null;
   if (platform === 'Wuzzuf' && !url.includes('wuzzuf.net')) return null;
   if (platform === 'Bayt' && !url.includes('bayt.com')) return null;
+  // Bayt: skip job listing pages — only accept candidate profile URLs
+  if (platform === 'Bayt' && /\/jobs\/|\/job\/|job-search|jobseeker/i.test(url)) return null;
 
   let linkedin_url = '';
   let portfolio_url = '';
