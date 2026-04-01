@@ -2,7 +2,7 @@
 
 import { supabase } from '@/lib/supabaseClient';
 import { logActivity } from '@/lib/logActivity';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { BriefcaseIcon, CloudArrowUpIcon, TrashIcon, CheckCircleIcon, SparklesIcon } from '@heroicons/react/24/outline';
 
 // Types
@@ -45,6 +45,7 @@ type DeepSearchDebug = {
 
 export default function SourcingPage() {
   const [jd, setJd] = useState('');
+  const jdRef = useRef('');
   const [jobs, setJobs] = useState<Job[]>([]);
   const [selectedJobId, setSelectedJobId] = useState<string>('');
   const [internalMatches, setInternalMatches] = useState<Candidate[]>([]);
@@ -64,12 +65,14 @@ export default function SourcingPage() {
   }, []);
 
   // Auto-match + reset when JD changes (debounced 600ms)
+  // Store latest jd in ref to avoid stale closure in setTimeout
   useEffect(() => {
+    jdRef.current = jd;
     setInternalMatches([]);
     if (!jd.trim()) return;
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
-      findInternalMatches();
+      runMatching(jdRef.current);
     }, 600);
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [jd]);
@@ -170,8 +173,8 @@ export default function SourcingPage() {
     }
   }
 
-  async function findInternalMatches() {
-    if (!jd.trim()) return;
+  async function runMatching(jdText: string) {
+    if (!jdText.trim()) return;
     setIsMatching(true);
     setActiveTab('internal');
 
@@ -183,23 +186,22 @@ export default function SourcingPage() {
       .limit(100);
 
     if (data) {
-      const jdLower = jd.toLowerCase();
+      const jdLower = jdText.toLowerCase();
 
-      // --- Point 1: Extract meaningful technical terms only (strip filler words) ---
       const STOP_WORDS = new Set([
         'the','and','for','with','from','that','this','have','will','you','are','our','your',
         'their','they','them','its','has','been','not','but','can','all','any','more','into',
         'each','such','also','about','both','through','using','strong','ability','ensure',
-        'experience','design','build','work','team','role','join','help','make','use',
+        'experience','build','work','team','role','join','help','make','use',
         'key','new','well','part','end','set','get','how','way','who','what','when',
         'where','which','while','across','between','within','without','including','following',
         'required','preferred','minimum','years','least','most','other','these','those',
         'relevant','related','must','need','some','than','then','time','very','just','like',
         'over','after','before','should','would','could','collaborate','communicate','deliver',
         'drive','develop','implement','support','manage','lead','provide','create','maintain',
-        'improve','analyze','monitor','operate','understand','knowledge','skills','tools',
+        'improve','analyze','monitor','operate','understand','knowledge',
         'systems','solutions','platform','service','product','data','environment',
-        'infrastructure','engineering','software','technical','opportunity','company',
+        'infrastructure','engineering','technical','opportunity','company',
         'organization','business','customer','client','hands','proven','solid','deep',
         'building','operating','scaling','high','large','modern',
         'production','real','batch','cost','debug','tune','performance','reliability',
@@ -210,46 +212,47 @@ export default function SourcingPage() {
           .filter(w => !STOP_WORDS.has(w) && w.length >= 3)
       )];
 
-      // --- Point 4: Extract seniority requirement from JD ---
-      const seniorityMatch = jd.match(/(\d+)\+?\s*years?/i);
+      // Seniority
+      const seniorityMatch = jdText.match(/(\d+)\+?\s*years?/i);
       const requiredYears = seniorityMatch ? parseInt(seniorityMatch[1]) : 0;
 
-      // --- Point 2: Extract title keywords from JD ---
-      // Strip label prefixes like "Job Title:", "Position:", "Role:" before parsing
-      const rawTitleLine = jd.split('\n').find(l => l.trim().length > 5) || '';
+      // Title: strip "Job Title:" / "Position:" label, then extract keywords
+      const rawTitleLine = jdText.split('\n').find(l => l.trim().length > 5) || '';
       const cleanedTitleLine = rawTitleLine
         .replace(/^(job\s*title|position|role|title)\s*[:\-–|]\s*/i, '')
-        .toLowerCase();
+        .toLowerCase()
+        .trim();
       const TITLE_STOP = new Set([...STOP_WORDS, 'job', 'title', 'position', 'role', 'remote', 'location', 'onsite', 'hybrid']);
       const titleKeywords = (cleanedTitleLine.match(/\b[a-z][a-z0-9+#]{2,}\b/g) || [])
         .filter(w => !TITLE_STOP.has(w));
+
+      console.log('[Matching] JD title line raw:', rawTitleLine);
+      console.log('[Matching] Cleaned title line:', cleanedTitleLine);
+      console.log('[Matching] Title keywords:', titleKeywords);
+      console.log('[Matching] JD terms count:', jdTerms.length, jdTerms.slice(0, 20));
 
       const scored = data
         .map(c => {
           const candidateTitle = (c.title || '').toLowerCase();
 
-          // === COMPONENT A: Title match score (0–100) ===
-          // An exact or near-exact title match should dominate the final score
+          // Component A: Title match (0–100) — primary signal
           let titleScore = 0;
           if (titleKeywords.length > 0) {
             const hits = titleKeywords.filter(k => candidateTitle.includes(k)).length;
             titleScore = Math.round((hits / titleKeywords.length) * 100);
           }
 
-          // === COMPONENT B: Skills/term match score (0–100) ===
-          // Weighted blob: repeat high-value fields so they count more
+          // Component B: Weighted skill/term match (0–100)
           const weightedFields: { text: string; weight: number }[] = [
-            { text: candidateTitle,       weight: 3 },
+            { text: candidateTitle, weight: 3 },
             { text: (Array.isArray(c.skills) ? c.skills.join(' ') : ''), weight: 3 },
             { text: (Array.isArray(c.technologies) ? c.technologies.map((t: any) => t.name || t).join(' ') : ''), weight: 3 },
             { text: (Array.isArray(c.tools) ? c.tools.map((t: any) => t.name || t).join(' ') : ''), weight: 3 },
-            { text: c.brief || '',        weight: 2 },
+            { text: c.brief || '', weight: 2 },
             { text: c.match_reason || '', weight: 2 },
-            { text: (Array.isArray(c.work_history)
-              ? c.work_history.map((w: any) => `${w.title || ''} ${w.company || ''}`).join(' ')
-              : ''),                       weight: 2 },
-            { text: c.lnkd_notes || '',   weight: 1 },
-            { text: c.resume_text || '',  weight: 1 },
+            { text: (Array.isArray(c.work_history) ? c.work_history.map((w: any) => `${w.title || ''} ${w.company || ''}`).join(' ') : ''), weight: 2 },
+            { text: c.lnkd_notes || '', weight: 1 },
+            { text: c.resume_text || '', weight: 1 },
           ];
           const weightedText = weightedFields
             .map(f => Array(f.weight).fill(f.text.toLowerCase()).join(' '))
@@ -257,11 +260,10 @@ export default function SourcingPage() {
           const termHits = jdTerms.filter(t => weightedText.includes(t)).length;
           const termScore = jdTerms.length > 0 ? Math.round((termHits / jdTerms.length) * 100) : 0;
 
-          // === BLEND: title 60% + terms 40% ===
-          // Title match dominates — "Senior Graphic Designer" vs "Senior Graphic Designer" JD = 80%+
+          // Blend: 60% title + 40% terms
           const blendedScore = Math.round((titleScore * 0.6) + (termScore * 0.4));
 
-          // === SENIORITY ADJUSTMENT (Point 4) ===
+          // Seniority adjustment
           let seniorityPenalty = 0;
           const candidateYears = c.years_experience_total || 0;
           const isSeniorTitle = /senior|lead|principal|staff|head|manager|architect|director/i.test(candidateTitle);
@@ -271,9 +273,13 @@ export default function SourcingPage() {
           }
 
           const finalScore = Math.max(0, Math.min(100, blendedScore + seniorityPenalty));
+
+          if (titleScore > 50) {
+            console.log(`[Match] ${c.full_name} | title="${c.title}" | titleScore=${titleScore} | termScore=${termScore} | final=${finalScore}`);
+          }
+
           return { ...c, _jdScore: finalScore };
         })
-        // Point 3: Hide anything below 10% — irrelevant results
         .filter(c => c._jdScore >= 10)
         .sort((a, b) => b._jdScore - a._jdScore)
         .slice(0, 20);
@@ -281,6 +287,10 @@ export default function SourcingPage() {
       setInternalMatches(scored);
     }
     setIsMatching(false);
+  }
+
+  async function findInternalMatches() {
+    runMatching(jdRef.current || jd);
   }
 
   async function approveCandidates() {
