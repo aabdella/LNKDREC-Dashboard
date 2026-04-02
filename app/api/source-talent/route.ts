@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { extractJobTitle } from '@/lib/extractJobTitle';
 
 // ─── Supabase (service role preferred) ──────────────────────────────────────
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://clrzajerliyyddfyvggd.supabase.co';
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey =
   process.env.SUPABASE_SERVICE_ROLE_KEY ||
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
@@ -495,7 +495,7 @@ export async function POST(req: NextRequest) {
     const topSkills = extraction.topSkills;
     const detectedCompanies = extraction.detectedCompanies;
     const marketKw = extraction.marketKw;
-    const BRAVE_API_KEY = process.env.BRAVE_SEARCH_API_KEY || 'REDACTED_BRAVE_API_KEY';
+    const BRAVE_API_KEY = process.env.BRAVE_SEARCH_API_KEY || '';
 
     // Creative roles = Behance is relevant; detected from parsed title, not a hardcoded regex
     const isCreative = /designer|art.?director|creative|illustrat|visual|motion|graphic/i.test(parsedTitle);

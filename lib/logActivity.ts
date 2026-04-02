@@ -15,7 +15,7 @@ export type LogAction =
   | 'search_performed'
   | 'status_snapshot';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://clrzajerliyyddfyvggd.supabase.co';
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
 const sb = createClient(supabaseUrl, supabaseKey);

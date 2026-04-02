@@ -58,13 +58,20 @@ export async function proxy(request: NextRequest) {
 
   const isLoginPage = request.nextUrl.pathname === '/login';
   const isAdminPage = request.nextUrl.pathname.startsWith('/admin');
+  const isApiRoute = request.nextUrl.pathname.startsWith('/api');
   const isPublicAsset = request.nextUrl.pathname.startsWith('/_next') || 
-                       request.nextUrl.pathname.startsWith('/api') ||
                        request.nextUrl.pathname.includes('.');
 
   // 1. If no session and trying to access private page -> Redirect to /login
-  if (!session && !isLoginPage && !isPublicAsset) {
+  if (!session && !isLoginPage && !isPublicAsset && !isApiRoute) {
     return NextResponse.redirect(new URL('/login', request.url));
+  }
+
+  // 2. Block unauthenticated access to API routes (except /api/auth/*)
+  if (isApiRoute && !request.nextUrl.pathname.startsWith('/api/auth')) {
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
   }
 
   // 2. If session exists and trying to access /login -> Redirect to /
