@@ -104,18 +104,7 @@ export async function POST(req: NextRequest) {
     const { jd } = await req.json();
     if (!jd) return NextResponse.json({ error: 'JD required' }, { status: 400 });
 
-    // DIAGNOSTIC: log env var presence (not values)
-    console.log('[deep-crawl] ENV CHECK:', {
-      BRAVE_API_KEY: BRAVE_API_KEY ? `set (${BRAVE_API_KEY.length} chars)` : 'MISSING',
-      CF_ACCOUNT_ID: CF_ACCOUNT_ID ? `set (${CF_ACCOUNT_ID.length} chars)` : 'MISSING',
-      CF_API_TOKEN: CF_API_TOKEN ? `set (${CF_API_TOKEN.length} chars)` : 'MISSING',
-      SUPABASE_URL: supabaseUrl ? 'set' : 'MISSING',
-    });
-
-    // Also scan ALL env var names that contain 'CF' or 'CLOUD' for mismatch detection
-    const cfRelatedVars = Object.keys(process.env).filter(k => /CF_|CLOUD|BRAVE/i.test(k));
-    console.log('[deep-crawl] CF/BRAVE related env vars found:', cfRelatedVars);
-
+    // DIAGNOSTIC REMOVED — env vars confirmed present
     const { title: parsedTitle, techFallback } = extractJobTitle(jd);
     const titleLine = (parsedTitle || techFallback.slice(0, 2).join(' ') || jd.split('\n').find((l: string) => l.trim().length > 5) || 'Professional')
       .replace(/[()&]/g, ' ')
@@ -187,19 +176,74 @@ export async function POST(req: NextRequest) {
     const failed: any[] = [];
     const toInsert: any[] = [];
 
+    // Build a map of URL -> Brave snippet data for fallback
+    const braveSnippetMap: Record<string, { title: string; description: string }> = {};
+    for (const run of discoveryRuns) {
+      for (const r of (run.rawUrls || [])) {
+        if (r.url) braveSnippetMap[r.url] = { title: r.title || '', description: '' };
+      }
+    }
+
     for (let i = 0; i < extractionResults.length; i++) {
       const item = extractionResults[i];
       const targetUrl = targets[i];
+      const braveData = braveSnippetMap[targetUrl] || { title: '', description: '' };
+
+      // Helper: derive name from LinkedIn slug (e.g. "ahmed-hassan-123" -> "Ahmed Hassan")
+      function nameFromSlug(url: string): string {
+        const m = url.match(/linkedin\.com\/in\/([a-zA-Z0-9-]+)/);
+        if (!m) return '';
+        return m[1].split('-').filter(p => !/^[0-9]+$/.test(p)).map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');
+      }
+
+      // Helper: derive name+title from Brave title snippet
+      function parseFromBraveTitle(t: string): { name: string; title: string } {
+        const cleaned = t.replace(/[|].*LinkedIn.*$/i, '').trim();
+        const dash = cleaned.indexOf(' - ');
+        if (dash > 0) return { name: cleaned.substring(0, dash).trim(), title: cleaned.substring(dash + 3).split(' at ')[0].trim() };
+        return { name: cleaned.substring(0, 60), title: '' };
+      }
 
       if (!item.ok) {
-        failed.push({ url: targetUrl, phase: 'extract', error: item.error });
+        // CF failed — fall back to Brave snippet data
+        const slugName = nameFromSlug(targetUrl);
+        const braveNameTitle = parseFromBraveTitle(braveData.title);
+        const fallbackName = braveNameTitle.name || slugName;
+        if (!fallbackName) {
+          failed.push({ url: targetUrl, phase: 'extract', error: item.error });
+          continue;
+        }
+        console.log(`🦞 [Deep Search] CF failed for ${targetUrl}, using Brave fallback: ${fallbackName}`);
+        extracted.push({ url: targetUrl, candidate: { full_name: fallbackName, title: braveNameTitle.title || titleLine, source: 'brave-fallback' } });
+        toInsert.push({
+          full_name: fallbackName,
+          title: braveNameTitle.title || titleLine,
+          location: 'Egypt',
+          match_score: 40,
+          match_reason: `Discovered via Deep Search for "${titleLine}". Profile extraction was limited — review LinkedIn profile directly.`,
+          linkedin_url: targetUrl.includes('linkedin.com') ? targetUrl : null,
+          portfolio_url: targetUrl.includes('behance.net') ? targetUrl : null,
+          source: 'Deep Sourced',
+          status: 'Unvetted'
+        });
         continue;
       }
 
       const res = item.result;
       if (!res.full_name) {
-        failed.push({ url: targetUrl, phase: 'validation', error: 'Missing full_name' });
-        continue;
+        // CF returned but no name — try Brave fallback
+        const slugName = nameFromSlug(targetUrl);
+        const braveNameTitle = parseFromBraveTitle(braveData.title);
+        const fallbackName = braveNameTitle.name || slugName;
+        if (!fallbackName) {
+          failed.push({ url: targetUrl, phase: 'validation', error: 'Missing full_name, no Brave fallback available' });
+          continue;
+        }
+        console.log(`🦞 [Deep Search] CF returned no name for ${targetUrl}, using Brave fallback: ${fallbackName}`);
+        res.full_name = fallbackName;
+        if (!res.title) res.title = braveNameTitle.title || titleLine;
+        if (!res.match_reason) res.match_reason = `Discovered via Deep Search for "${titleLine}". Limited profile data — review LinkedIn profile directly.`;
+        if (!res.match_score) res.match_score = 40;
       }
 
       extracted.push({ url: targetUrl, candidate: res });
