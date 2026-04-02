@@ -104,6 +104,18 @@ export async function POST(req: NextRequest) {
     const { jd } = await req.json();
     if (!jd) return NextResponse.json({ error: 'JD required' }, { status: 400 });
 
+    // DIAGNOSTIC: log env var presence (not values)
+    console.log('[deep-crawl] ENV CHECK:', {
+      BRAVE_API_KEY: BRAVE_API_KEY ? `set (${BRAVE_API_KEY.length} chars)` : 'MISSING',
+      CF_ACCOUNT_ID: CF_ACCOUNT_ID ? `set (${CF_ACCOUNT_ID.length} chars)` : 'MISSING',
+      CF_API_TOKEN: CF_API_TOKEN ? `set (${CF_API_TOKEN.length} chars)` : 'MISSING',
+      SUPABASE_URL: supabaseUrl ? 'set' : 'MISSING',
+    });
+
+    // Also scan ALL env var names that contain 'CF' or 'CLOUD' for mismatch detection
+    const cfRelatedVars = Object.keys(process.env).filter(k => /CF_|CLOUD|BRAVE/i.test(k));
+    console.log('[deep-crawl] CF/BRAVE related env vars found:', cfRelatedVars);
+
     const { title: parsedTitle, techFallback } = extractJobTitle(jd);
     const titleLine = (parsedTitle || techFallback.slice(0, 2).join(' ') || jd.split('\n').find((l: string) => l.trim().length > 5) || 'Professional')
       .replace(/[()&]/g, ' ')
