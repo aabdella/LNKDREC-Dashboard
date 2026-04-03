@@ -1,11 +1,14 @@
 'use client';
 
 import { PowerIcon } from '@heroicons/react/24/outline';
+import { supabase } from '@/lib/supabaseClient';
 import { logoutAction } from '../actions/auth';
 
 export default function LogoutButton() {
   const handleLogout = async () => {
-    // Call the server action to sign out and redirect
+    // Sign out client-side first to clear localStorage tokens
+    await supabase.auth.signOut();
+    // Then call server action to clear cookies and redirect
     await logoutAction();
   };
 
