@@ -67,8 +67,8 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL('/login', request.url));
   }
 
-  // 2. Block unauthenticated access to API routes (except /api/auth/*)
-  if (isApiRoute && !request.nextUrl.pathname.startsWith('/api/auth')) {
+  // 2. Block unauthenticated access to API routes (except /api/auth/* and /api/me)
+  if (isApiRoute && !request.nextUrl.pathname.startsWith('/api/auth') && request.nextUrl.pathname !== '/api/me') {
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
