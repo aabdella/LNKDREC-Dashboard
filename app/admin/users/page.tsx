@@ -63,7 +63,7 @@ export default function UserManagement() {
             setMessage({ type: 'success', text: `Invitation sent to ${email}!` });
             setEmail('');
             setName('');
-            fetchUsers(); // Refresh the list
+            fetchUsers();
         } else {
             setMessage({ type: 'error', text: data.error || 'Failed to send invitation' });
         }
@@ -74,11 +74,46 @@ export default function UserManagement() {
     }
   };
 
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedUser || !newPassword) return;
+    setResettingUser(selectedUser.id);
+    setMessage(null);
+
+    try {
+      const response = await fetch('/api/admin/reset-password', {
+        method: 'POST',
+        body: JSON.stringify({ userId: selectedUser.id, newPassword }),
+        headers: { 'Content-Type': 'application/json' }
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setMessage({ type: 'success', text: `Password for ${selectedUser.name} has been updated.` });
+        setShowResetModal(false);
+        setNewPassword('');
+        setSelectedUser(null);
+      } else {
+        setMessage({ type: 'error', text: data.error || 'Failed to reset password' });
+      }
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.message || 'An unexpected error occurred' });
+    } finally {
+      setResettingUser(null);
+    }
+  };
+
+  const openResetModal = (user: PlatformUser) => {
+    setSelectedUser(user);
+    setShowResetModal(true);
+    setNewPassword('');
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 pt-12 pb-24 px-6">
       <div className="max-w-4xl mx-auto">
         
-        {/* Header */}
         <div className="flex items-center gap-4 mb-10">
             <Link href="/admin" className="p-2 hover:bg-white rounded-full transition-colors border border-transparent hover:border-slate-200">
                 <ArrowLeftIcon className="h-5 w-5 text-slate-500" />
@@ -91,7 +126,6 @@ export default function UserManagement() {
 
         <div className="grid lg:grid-cols-5 gap-10">
           
-          {/* Form Card (Invite) */}
           <div className="lg:col-span-2 space-y-8">
             <div className="bg-white rounded-3xl p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 h-fit sticky top-24">
               <div className="inline-flex items-center gap-2 p-3 bg-indigo-50 rounded-2xl mb-6 border border-indigo-100">
@@ -157,7 +191,6 @@ export default function UserManagement() {
             </div>
           </div>
 
-          {/* User List Table */}
           <div className="lg:col-span-3">
             <div className="bg-white rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 overflow-hidden">
               <div className="p-6 border-b border-slate-50 flex items-center justify-between">
@@ -185,14 +218,14 @@ export default function UserManagement() {
                   <tbody className="divide-y divide-slate-50">
                     {usersLoading ? (
                       <tr>
-                        <td colSpan={3} className="px-6 py-12 text-center text-slate-300">
+                        <td colSpan={4} className="px-6 py-12 text-center text-slate-300">
                           <ArrowPathIcon className="h-6 w-6 animate-spin mx-auto mb-2" />
                           <span className="text-xs font-medium">Fetching member list...</span>
                         </td>
                       </tr>
                     ) : users.length === 0 ? (
                       <tr>
-                        <td colSpan={3} className="px-6 py-12 text-center text-slate-400 italic text-xs">
+                        <td colSpan={4} className="px-6 py-12 text-center text-slate-400 italic text-xs">
                           No users found on platform.
                         </td>
                       </tr>
@@ -244,14 +277,12 @@ export default function UserManagement() {
           </div>
         </div>
 
-        {/* Security Note */}
         <p className="mt-12 text-center text-[10px] text-slate-400 font-medium italic">
           Access granted via official invitation only. All invites are logged in the activity stream.
         </p>
 
       </div>
 
-      {/* Password Reset Modal */}
       {showResetModal && selectedUser && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => setShowResetModal(false)}>
           <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6" onClick={e => e.stopPropagation()}>
