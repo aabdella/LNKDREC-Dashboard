@@ -217,20 +217,19 @@ export default function UserManagement() {
                       <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">User Details</th>
                       <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Role</th>
                       <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Signed In</th>
-                      <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest w-36">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50">
                     {usersLoading ? (
                       <tr>
-                        <td colSpan={4} className="px-6 py-12 text-center text-slate-300">
+                        <td colSpan={3} className="px-6 py-12 text-center text-slate-300">
                           <ArrowPathIcon className="h-6 w-6 animate-spin mx-auto mb-2" />
                           <span className="text-xs font-medium">Fetching member list...</span>
                         </td>
                       </tr>
                     ) : usersError ? (
                       <tr>
-                        <td colSpan={4} className="px-6 py-12 text-center">
+                        <td colSpan={3} className="px-6 py-12 text-center">
                           <div className="inline-flex flex-col items-center gap-2">
                             <span className="text-xs font-bold text-red-600">⚠️ {usersError}</span>
                             <button onClick={fetchUsers} className="text-[10px] font-bold text-indigo-600 hover:underline">Retry</button>
@@ -239,7 +238,7 @@ export default function UserManagement() {
                       </tr>
                     ) : users.length === 0 ? (
                       <tr>
-                        <td colSpan={4} className="px-6 py-12 text-center text-slate-400 italic text-xs">
+                        <td colSpan={3} className="px-6 py-12 text-center text-slate-400 italic text-xs">
                           No users found on platform.
                         </td>
                       </tr>
@@ -254,6 +253,12 @@ export default function UserManagement() {
                               <div>
                                 <div className="text-sm font-bold text-slate-900">{user.name}</div>
                                 <div className="text-[11px] text-slate-400 font-medium">{user.email}</div>
+                                <button
+                                  onClick={() => openResetModal(user)}
+                                  className="mt-1 text-[10px] font-bold text-indigo-500 hover:text-indigo-700 transition"
+                                >
+                                  Reset Password
+                                </button>
                               </div>
                             </div>
                           </td>
@@ -272,14 +277,6 @@ export default function UserManagement() {
                               <CalendarIcon className="h-3.5 w-3.5" />
                               {user.last_sign_in_at ? new Date(user.last_sign_in_at).toLocaleDateString() : 'Never'}
                             </div>
-                          </td>
-                          <td className="px-6 py-5">
-                            <button 
-                              onClick={() => openResetModal(user)}
-                              className="text-[10px] font-bold px-3 py-1.5 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 border border-slate-200 transition"
-                            >
-                              Reset Password
-                            </button>
                           </td>
                         </tr>
                       ))

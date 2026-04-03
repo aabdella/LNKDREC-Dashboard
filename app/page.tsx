@@ -179,8 +179,12 @@ function DashboardInner() {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user?.email) setUserEmail(session.user.email);
     });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user?.email) setUserEmail(session.user.email);
+    });
     fetchCandidates();
     fetchJobs();
+    return () => subscription.unsubscribe();
   }, []);
 
   // Auto-trigger CV generation when ?cv=<id> param is present

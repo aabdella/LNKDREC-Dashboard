@@ -89,8 +89,12 @@ export default function SourcingPage() {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user?.email) setUserEmail(session.user.email);
     });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user?.email) setUserEmail(session.user.email);
+    });
     fetchSourcedQueue();
     fetchJobs();
+    return () => subscription.unsubscribe();
   }, []);
 
   // Auto-match + reset when JD changes (debounced 600ms)
