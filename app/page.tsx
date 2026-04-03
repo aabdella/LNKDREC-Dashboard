@@ -3,7 +3,7 @@
 import { supabase } from '@/lib/supabaseClient';
 import { logActivity } from '@/lib/logActivity';
 import CandidateDetailsModal, { Candidate } from '@/components/CandidateDetailsModal';
-import { useState, useEffect, useCallback, Suspense } from 'react';
+import { useState, useEffect, useCallback, useRef, Suspense } from 'react';
 import { 
   MagnifyingGlassIcon, 
   XMarkIcon, 
@@ -61,7 +61,7 @@ export default function Dashboard() {
 
 function DashboardInner() {
   const searchParams = useSearchParams();
-  const [userEmail, setUserEmail] = useState<string>('System');
+  const userEmailRef = useRef<string>('System');
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [search, setSearch] = useState('');
@@ -177,10 +177,10 @@ function DashboardInner() {
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user?.email) setUserEmail(session.user.email);
+      if (session?.user?.email) userEmailRef.current = session.user.email;
     });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session?.user?.email) setUserEmail(session.user.email);
+      userEmailRef.current = session?.user?.email || 'System';
     });
     fetchCandidates();
     fetchJobs();
@@ -340,7 +340,7 @@ function DashboardInner() {
       work_presence: vettingData.work_presence,
       expected_salary: vettingData.expected_salary,
       notice_period: vettingData.notice_period,
-    }, 'candidate', vettingCandidate.id, userEmail);
+    }, 'candidate', vettingCandidate.id, userEmailRef.current);
     await fetchCandidates();
     setVettingCandidate(null);
     setSubmittingVetting(false);
@@ -356,7 +356,7 @@ function DashboardInner() {
           const { error: candError } = await supabase.from('candidates').update({ status: 'Vetted' }).eq('id', candidate.id);
           if (candError) alert('Error unassigning: ' + candError.message);
           else {
-            await logActivity('candidate_unassigned', candidate.full_name, {}, 'candidate', candidate.id, userEmail);
+            await logActivity('candidate_unassigned', candidate.full_name, {}, 'candidate', candidate.id, userEmailRef.current);
             fetchCandidates();
           }
       } else {
@@ -378,7 +378,7 @@ function DashboardInner() {
           else alert('Error assigning candidate: ' + error.message);
       } else {
           await supabase.from('candidates').update({ status: 'Assigned' }).eq('id', assigningCandidate.id);
-          await logActivity('candidate_assigned', assigningCandidate.full_name, { job_id: selectedJobId }, 'candidate', assigningCandidate.id, userEmail);
+          await logActivity('candidate_assigned', assigningCandidate.full_name, { job_id: selectedJobId }, 'candidate', assigningCandidate.id, userEmailRef.current);
           setAssigningCandidate(null);
           setSelectedJobId('');
           fetchCandidates();

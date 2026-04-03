@@ -67,7 +67,7 @@ type DeepSearchDebug = {
 } | null;
 
 export default function SourcingPage() {
-  const [userEmail, setUserEmail] = useState<string>('System');
+  const userEmailRef = useRef<string>('System');
   const [jd, setJd] = useState('');
   const jdRef = useRef('');
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -87,10 +87,10 @@ export default function SourcingPage() {
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user?.email) setUserEmail(session.user.email);
+      if (session?.user?.email) userEmailRef.current = session.user.email;
     });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session?.user?.email) setUserEmail(session.user.email);
+      userEmailRef.current = session?.user?.email || 'System';
     });
     fetchSourcedQueue();
     fetchJobs();
@@ -161,7 +161,7 @@ export default function SourcingPage() {
           type: 'success',
           message: `Quick Sourcing complete! Found ${data.sourced} candidates.`,
         });
-        await logActivity('sourcing_triggered', 'Sourcing Run', { candidates_found: data.sourced }, 'sourcing', undefined, userEmail);
+        await logActivity('sourcing_triggered', 'Sourcing Run', { candidates_found: data.sourced }, 'sourcing', undefined, userEmailRef.current);
         setActiveTab('sourced');
         await fetchSourcedQueue();
       }
@@ -197,7 +197,7 @@ export default function SourcingPage() {
           type: 'success',
           message: `Deep Search complete! Sourced ${data.sourced} candidates.${data.debug?.discovered ? ` Discovery found ${data.debug.discovered.length} profile URLs.` : ''}`,
         });
-        await logActivity('sourcing_triggered', 'Deep Search Run', { candidates_found: data.sourced }, 'sourcing', undefined, userEmail);
+        await logActivity('sourcing_triggered', 'Deep Search Run', { candidates_found: data.sourced }, 'sourcing', undefined, userEmailRef.current);
         setActiveTab('sourced');
         await fetchSourcedQueue();
       }
@@ -414,7 +414,7 @@ export default function SourcingPage() {
       });
       if (!insertError) {
         await supabase.from('unvetted').delete().eq('id', c.id);
-        await logActivity('candidate_approved', c.full_name, { source: c.source }, 'candidate', c.id, userEmail);
+        await logActivity('candidate_approved', c.full_name, { source: c.source }, 'candidate', c.id, userEmailRef.current);
       }
     }
     setSelectedIds([]);
