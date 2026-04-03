@@ -34,6 +34,7 @@ export async function loginAction(formData: FormData) {
       email,
       options: {
         emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || ''}/`,
+        shouldCreateUser: false,
       },
     });
     if (error) redirect(`/login?error=${encodeURIComponent(error.message)}`);
