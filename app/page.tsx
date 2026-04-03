@@ -61,6 +61,7 @@ export default function Dashboard() {
 
 function DashboardInner() {
   const searchParams = useSearchParams();
+  const [userEmail, setUserEmail] = useState<string>('System');
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [search, setSearch] = useState('');
@@ -175,6 +176,9 @@ function DashboardInner() {
   const [submittingAssignment, setSubmittingAssignment] = useState(false);
 
   useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user?.email) setUserEmail(session.user.email);
+    });
     fetchCandidates();
     fetchJobs();
   }, []);
@@ -332,7 +336,7 @@ function DashboardInner() {
       work_presence: vettingData.work_presence,
       expected_salary: vettingData.expected_salary,
       notice_period: vettingData.notice_period,
-    }, 'candidate', vettingCandidate.id);
+    }, 'candidate', vettingCandidate.id, userEmail);
     await fetchCandidates();
     setVettingCandidate(null);
     setSubmittingVetting(false);
@@ -348,7 +352,7 @@ function DashboardInner() {
           const { error: candError } = await supabase.from('candidates').update({ status: 'Vetted' }).eq('id', candidate.id);
           if (candError) alert('Error unassigning: ' + candError.message);
           else {
-            await logActivity('candidate_unassigned', candidate.full_name, {}, 'candidate', candidate.id);
+            await logActivity('candidate_unassigned', candidate.full_name, {}, 'candidate', candidate.id, userEmail);
             fetchCandidates();
           }
       } else {
@@ -370,7 +374,7 @@ function DashboardInner() {
           else alert('Error assigning candidate: ' + error.message);
       } else {
           await supabase.from('candidates').update({ status: 'Assigned' }).eq('id', assigningCandidate.id);
-          await logActivity('candidate_assigned', assigningCandidate.full_name, { job_id: selectedJobId }, 'candidate', assigningCandidate.id);
+          await logActivity('candidate_assigned', assigningCandidate.full_name, { job_id: selectedJobId }, 'candidate', assigningCandidate.id, userEmail);
           setAssigningCandidate(null);
           setSelectedJobId('');
           fetchCandidates();

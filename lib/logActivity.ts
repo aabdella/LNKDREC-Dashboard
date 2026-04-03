@@ -25,7 +25,8 @@ export async function logActivity(
   entityName: string,
   details?: Record<string, any>,
   entityType?: string,
-  entityId?: string
+  entityId?: string,
+  userEmail?: string
 ) {
   try {
     await sb.from('activity_log').insert({
@@ -35,6 +36,7 @@ export async function logActivity(
       entity_name: entityName,
       details: details || {},
       source: 'web',
+      user_email: userEmail || 'System'
     });
   } catch (e) {
     // Never let logging break the main flow

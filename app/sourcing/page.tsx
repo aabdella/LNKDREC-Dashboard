@@ -67,6 +67,7 @@ type DeepSearchDebug = {
 } | null;
 
 export default function SourcingPage() {
+  const [userEmail, setUserEmail] = useState<string>('System');
   const [jd, setJd] = useState('');
   const jdRef = useRef('');
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -85,6 +86,9 @@ export default function SourcingPage() {
   const [deepSearchDebug, setDeepSearchDebug] = useState<DeepSearchDebug>(null);
 
   useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user?.email) setUserEmail(session.user.email);
+    });
     fetchSourcedQueue();
     fetchJobs();
   }, []);
@@ -153,7 +157,7 @@ export default function SourcingPage() {
           type: 'success',
           message: `Quick Sourcing complete! Found ${data.sourced} candidates.`,
         });
-        await logActivity('sourcing_triggered', 'Sourcing Run', { candidates_found: data.sourced }, 'sourcing');
+        await logActivity('sourcing_triggered', 'Sourcing Run', { candidates_found: data.sourced }, 'sourcing', undefined, userEmail);
         setActiveTab('sourced');
         await fetchSourcedQueue();
       }
@@ -189,7 +193,7 @@ export default function SourcingPage() {
           type: 'success',
           message: `Deep Search complete! Sourced ${data.sourced} candidates.${data.debug?.discovered ? ` Discovery found ${data.debug.discovered.length} profile URLs.` : ''}`,
         });
-        await logActivity('sourcing_triggered', 'Deep Search Run', { candidates_found: data.sourced }, 'sourcing');
+        await logActivity('sourcing_triggered', 'Deep Search Run', { candidates_found: data.sourced }, 'sourcing', undefined, userEmail);
         setActiveTab('sourced');
         await fetchSourcedQueue();
       }
@@ -406,7 +410,7 @@ export default function SourcingPage() {
       });
       if (!insertError) {
         await supabase.from('unvetted').delete().eq('id', c.id);
-        await logActivity('candidate_approved', c.full_name, { source: c.source }, 'candidate', c.id);
+        await logActivity('candidate_approved', c.full_name, { source: c.source }, 'candidate', c.id, userEmail);
       }
     }
     setSelectedIds([]);
