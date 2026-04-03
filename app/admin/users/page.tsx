@@ -19,6 +19,7 @@ export default function UserManagement() {
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
   const [usersLoading, setUsersLoading] = useState(true);
+  const [usersError, setUsersError] = useState<string | null>(null);
   const [users, setUsers] = useState<PlatformUser[]>([]);
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
   const [resettingUser, setResettingUser] = useState<string | null>(null);
@@ -33,8 +34,12 @@ export default function UserManagement() {
       const data = await response.json();
       if (response.ok) {
         setUsers(data.users || []);
+        setUsersError(null);
+      } else {
+        setUsersError(data.error || `Error ${response.status}: Failed to load users`);
       }
-    } catch (err) {
+    } catch (err: any) {
+      setUsersError(err.message || 'Network error fetching users');
       console.error('Failed to fetch users:', err);
     } finally {
       setUsersLoading(false);
@@ -221,6 +226,15 @@ export default function UserManagement() {
                         <td colSpan={4} className="px-6 py-12 text-center text-slate-300">
                           <ArrowPathIcon className="h-6 w-6 animate-spin mx-auto mb-2" />
                           <span className="text-xs font-medium">Fetching member list...</span>
+                        </td>
+                      </tr>
+                    ) : usersError ? (
+                      <tr>
+                        <td colSpan={4} className="px-6 py-12 text-center">
+                          <div className="inline-flex flex-col items-center gap-2">
+                            <span className="text-xs font-bold text-red-600">⚠️ {usersError}</span>
+                            <button onClick={fetchUsers} className="text-[10px] font-bold text-indigo-600 hover:underline">Retry</button>
+                          </div>
                         </td>
                       </tr>
                     ) : users.length === 0 ? (
