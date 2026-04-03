@@ -21,6 +21,10 @@ export default function UserManagement() {
   const [usersLoading, setUsersLoading] = useState(true);
   const [users, setUsers] = useState<PlatformUser[]>([]);
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+  const [resettingUser, setResettingUser] = useState<string | null>(null);
+  const [newPassword, setNewPassword] = useState('');
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<PlatformUser | null>(null);
 
   const fetchUsers = useCallback(async () => {
     setUsersLoading(true);
@@ -175,6 +179,7 @@ export default function UserManagement() {
                       <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">User Details</th>
                       <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Role</th>
                       <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Signed In</th>
+                      <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50">
@@ -221,6 +226,14 @@ export default function UserManagement() {
                               {user.last_sign_in_at ? new Date(user.last_sign_in_at).toLocaleDateString() : 'Never'}
                             </div>
                           </td>
+                          <td className="px-6 py-5">
+                            <button 
+                              onClick={() => openResetModal(user)}
+                              className="text-[10px] font-bold px-3 py-1.5 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 border border-slate-200 transition"
+                            >
+                              Reset Password
+                            </button>
+                          </td>
                         </tr>
                       ))
                     )}
@@ -237,6 +250,53 @@ export default function UserManagement() {
         </p>
 
       </div>
+
+      {/* Password Reset Modal */}
+      {showResetModal && selectedUser && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => setShowResetModal(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-6">
+              <div>
+                <h2 className="text-xl font-bold text-slate-900">Reset Password</h2>
+                <p className="text-sm text-slate-500">User: {selectedUser.name}</p>
+              </div>
+              <button onClick={() => setShowResetModal(false)} className="text-slate-400 hover:text-slate-600">✕</button>
+            </div>
+
+            <form onSubmit={handleResetPassword} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-2">New Password</label>
+                <input
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  required
+                  minLength={6}
+                  className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-black outline-none"
+                  placeholder="Enter new password (min 6 chars)"
+                />
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowResetModal(false)}
+                  className="flex-1 px-4 py-2 text-slate-600 bg-slate-100 rounded-lg font-bold text-sm hover:bg-slate-200 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={resettingUser === selectedUser.id}
+                  className="flex-1 px-4 py-2 bg-black text-white rounded-lg font-bold text-sm hover:bg-zinc-800 transition disabled:opacity-50"
+                >
+                  {resettingUser === selectedUser.id ? 'Resetting...' : 'Update Password'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
