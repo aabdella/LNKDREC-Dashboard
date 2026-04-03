@@ -86,11 +86,12 @@ export default function SourcingPage() {
   const [deepSearchDebug, setDeepSearchDebug] = useState<DeepSearchDebug>(null);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user?.email) userEmailRef.current = session.user.email;
+    // Read session from server-side cookies (reliable after server-action login)
+    fetch('/api/me').then(r => r.json()).then(({ email }) => {
+      if (email) userEmailRef.current = email;
     });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      userEmailRef.current = session?.user?.email || 'System';
+      userEmailRef.current = session?.user?.email || userEmailRef.current;
     });
     fetchSourcedQueue();
     fetchJobs();
