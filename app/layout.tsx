@@ -70,7 +70,7 @@ export default async function RootLayout({
                       </nav>
                   </div>
                   
-                  <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-3">
                       {isSuperAdmin && (
                         <Link 
                           href="/admin" 
@@ -82,7 +82,12 @@ export default async function RootLayout({
                           Admin Dashboard
                         </Link>
                       )}
-                      <LogoutButton />
+                      <div className="flex flex-col items-end gap-0.5">
+                        <span className="text-[10px] font-medium text-zinc-500 leading-none">
+                          {session?.user?.email}
+                        </span>
+                        <LogoutButton />
+                      </div>
                   </div>
                 </div>
 
