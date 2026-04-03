@@ -37,7 +37,10 @@ export default async function RootLayout({
   );
 
   const { data: { session } } = await supabase.auth.getSession();
-  const isSuperAdmin = session?.user?.email?.endsWith('@lnkd.ai'); // Using domain check as initial proxy for Super Admin
+  // Use both domain check AND explicit role — domain is the primary gate, role is a fallback
+  const userEmail = session?.user?.email ?? '';
+  const userRole = session?.user?.user_metadata?.role ?? '';
+  const isSuperAdmin = userEmail.endsWith('@lnkd.ai') || userRole === 'super_admin';
 
   return (
     <html lang="en">
@@ -84,7 +87,7 @@ export default async function RootLayout({
                       )}
                       <div className="flex flex-col items-end gap-0.5">
                         <span className="text-[10px] font-medium text-zinc-500 leading-none">
-                          {session?.user?.email}
+                          {userEmail}
                         </span>
                         <LogoutButton />
                       </div>

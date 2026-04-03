@@ -81,7 +81,9 @@ export async function proxy(request: NextRequest) {
 
   // 3. Admin Route Protection
   if (isAdminPage) {
-    const isSuperAdmin = session?.user?.email?.endsWith('@lnkd.ai');
+    const email = session?.user?.email ?? '';
+    const role = session?.user?.user_metadata?.role ?? '';
+    const isSuperAdmin = email.endsWith('@lnkd.ai') || role === 'super_admin';
     if (!isSuperAdmin) {
       return NextResponse.redirect(new URL('/', request.url));
     }
