@@ -763,7 +763,7 @@ function CandidateCard({ candidate, onViewDetails, onVetCandidate, onToggleAssig
   const isBehance = portfolioUrl && !isGithub;
   
   return (
-    <div className={`bg-white rounded-xl shadow-sm border overflow-hidden hover:shadow-md transition group flex flex-col h-full relative ${candidate.is_highlighted ? 'border-amber-400 ring-1 ring-amber-400' : 'border-slate-200 hover:border-black/10'}`}>
+    <div className={`bg-white rounded-xl shadow-sm border hover:shadow-md transition group flex flex-col h-full relative ${candidate.is_highlighted ? 'border-amber-400 ring-1 ring-amber-400' : 'border-slate-200 hover:border-black/10'}`}>
         <button onClick={onToggleHighlight} className="absolute top-2.5 right-2.5 z-10 p-1 rounded-full bg-white/50 backdrop-blur shadow-sm hover:bg-white transition">
              {candidate.is_highlighted ? <StarSolid className="h-4 w-4 text-amber-400" /> : <StarOutline className="h-4 w-4 text-slate-300 hover:text-amber-400" />}
         </button>

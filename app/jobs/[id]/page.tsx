@@ -468,7 +468,7 @@ export default function JobDetailPage() {
       {/* Floating Pipeline Stage Picker Popup */}
       {addingToPipelineId && pipelinePopupPos && (
         <div className="fixed z-[300] bg-white border border-indigo-200 rounded-xl shadow-2xl px-4 py-3 flex flex-col gap-2 min-w-[320px]"
-          style={{ top: pipelinePopupPos.top, left: pipelinePopupPos.left, transform: "translateX(-50%)" }}
+          style={{ top: pipelinePopupPos.top, left: pipelinePopupPos.left, transform: "translateX(calc(-50% - 20%)) translateY(-40%)" }}
           onClick={e => e.stopPropagation()}
         >
           <div className="flex items-center justify-between">
