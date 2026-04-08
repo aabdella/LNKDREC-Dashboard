@@ -137,6 +137,7 @@ function DashboardInner() {
   const [addingToPipelineId, setAddingToPipelineId] = useState<string | null>(null);
   const [addToPipelineStage, setAddToPipelineStage] = useState<PipelineStage>('Sourced');
   const [movingCandidate, setMovingCandidate] = useState(false);
+  const [pipelinePopupPos, setPipelinePopupPos] = useState<{ top: number; left: number } | null>(null);
 
   // Pipeline stage picker for vetting modal
   const [showVettingPipelinePicker, setShowVettingPipelinePicker] = useState(false);
@@ -522,6 +523,8 @@ function DashboardInner() {
                 setAddToPipelineStage={setAddToPipelineStage}
                 onAddToPipeline={addCandidateToPipeline}
                 movingCandidate={movingCandidate}
+                pipelinePopupPos={pipelinePopupPos}
+                setPipelinePopupPos={setPipelinePopupPos}
               />
             ))}
           </div>
@@ -576,6 +579,8 @@ function DashboardInner() {
                               setAddToPipelineStage={setAddToPipelineStage}
                               onAddToPipeline={addCandidateToPipeline}
                               movingCandidate={movingCandidate}
+                              pipelinePopupPos={pipelinePopupPos}
+                              setPipelinePopupPos={setPipelinePopupPos}
                             />
                         ))}
                     </tbody>
@@ -583,6 +588,57 @@ function DashboardInner() {
             </div>
           </div>
         )}
+
+      {/* Floating Pipeline Stage Picker Popup */}
+      {addingToPipelineId && pipelinePopupPos && (
+        <div
+          className="fixed z-[300] bg-white border border-indigo-200 rounded-xl shadow-2xl px-4 py-3 flex flex-col gap-2 min-w-[320px]"
+          style={{ top: pipelinePopupPos.top, left: pipelinePopupPos.left }}
+          onClick={e => e.stopPropagation()}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-700">Set Pipeline Stage</span>
+            <button onClick={() => { setAddingToPipelineId(null); setPipelinePopupPos(null); }} className="text-slate-400 hover:text-slate-600 transition"><XMarkIcon className="h-4 w-4" /></button>
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {PIPELINE_STAGES.map(stage => (
+              <button
+                key={stage}
+                onClick={() => setAddToPipelineStage(stage)}
+                className={`text-xs px-2.5 py-1 rounded-full font-bold border transition ${
+                  addToPipelineStage === stage
+                    ? STAGE_COLORS[stage]
+                    : 'bg-slate-100 text-slate-600 border-slate-200 hover:border-indigo-400'
+                }`}>
+                {stage}
+              </button>
+            ))}
+          </div>
+          <div className="flex gap-2 pt-1">
+            <button
+              onClick={() => { setAddingToPipelineId(null); setPipelinePopupPos(null); }}
+              className="flex-1 px-3 py-1.5 text-xs font-semibold text-slate-600 bg-slate-100 rounded-lg hover:bg-slate-200 transition">
+              Cancel
+            </button>
+            <button
+              onClick={async () => {
+                setMovingCandidate(true);
+                const { error } = await supabase
+                  .from('candidates')
+                  .update({ pipeline_stage: addToPipelineStage, stage_changed_at: new Date().toISOString() })
+                  .eq('id', addingToPipelineId);
+                setMovingCandidate(false);
+                setAddingToPipelineId(null);
+                setPipelinePopupPos(null);
+                if (!error) fetchCandidates();
+              }}
+              disabled={movingCandidate}
+              className="flex-1 px-3 py-1.5 text-xs font-bold bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition disabled:opacity-50">
+              {movingCandidate ? 'Moving...' : `Move to ${addToPipelineStage}`}
+            </button>
+          </div>
+        </div>
+      )}
 
       {selectedCandidate && <CandidateDetailsModal candidate={selectedCandidate} onClose={() => setSelectedCandidate(null)} onUpdate={fetchCandidates} />}
 
@@ -750,7 +806,7 @@ function CandidateRow({ candidate, isSelected, onToggleSelect, onViewDetails, on
   );
 }
 
-function CandidateCard({ candidate, onViewDetails, onVetCandidate, onToggleAssign, onGenerateCV, onToggleHighlight, addingToPipelineId, addToPipelineStage, setAddingToPipelineId, setAddToPipelineStage, onAddToPipeline, movingCandidate }: any) {
+function CandidateCard({ candidate, onViewDetails, onVetCandidate, onToggleAssign, onGenerateCV, onToggleHighlight, addingToPipelineId, addToPipelineStage, setAddingToPipelineId, setAddToPipelineStage, onAddToPipeline, movingCandidate, pipelinePopupPos, setPipelinePopupPos }: any) {
   const isVetted = candidate.status === 'Vetted';
   const isAssigned = !!candidate.assigned_job_title;
   const healthScore = 0; // (Simplified for layout)
@@ -840,27 +896,17 @@ function CandidateCard({ candidate, onViewDetails, onVetCandidate, onToggleAssig
               </button>
             ) : null}
             <button onClick={onGenerateCV} className="px-2 py-1.5 bg-indigo-50 text-indigo-700 rounded border border-indigo-100 hover:bg-indigo-100 transition"><DocumentArrowDownIcon className="h-3.5 w-3.5" /></button>
-            {addingToPipelineId === candidate.id ? (
-              <div className="flex items-center gap-0.5 bg-white border border-indigo-300 rounded-lg shadow-lg px-1.5 py-1 z-10">
-                {PIPELINE_STAGES.map(stage => (
-                  <button
-                    key={stage}
-                    onClick={() => setAddToPipelineStage(stage)}
-                    className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold border transition ${addToPipelineStage === stage ? STAGE_COLORS[stage] : 'bg-slate-100 text-slate-500 border-slate-200 hover:border-indigo-400'}`}>
-                    {stage}
-                  </button>
-                ))}
-                <button onClick={() => onAddToPipeline(candidate.id)} disabled={movingCandidate} className="text-[10px] px-1.5 py-0.5 bg-indigo-600 text-white rounded-full font-bold hover:bg-indigo-700 transition disabled:opacity-50">✓</button>
-                <button onClick={() => setAddingToPipelineId(null)} className="text-[10px] text-slate-400 hover:text-slate-600"><XMarkIcon className="h-3 w-3" /></button>
-              </div>
-            ) : (
-              <button
-                onClick={() => { setAddingToPipelineId(candidate.id); setAddToPipelineStage((candidate.pipeline_stage as PipelineStage) || 'Sourced'); }}
-                className="px-2 py-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded border border-transparent hover:border-indigo-100 transition"
-                title="Set pipeline stage">
-                <PlusIcon className="h-3.5 w-3.5" />
-              </button>
-            )}
+            <button
+              onClick={(e) => {
+                setAddingToPipelineId(candidate.id);
+                setAddToPipelineStage((candidate.pipeline_stage as PipelineStage) || 'Sourced');
+                const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                setPipelinePopupPos({ top: rect.bottom + 6, left: rect.left - 60 });
+              }}
+              className="px-2 py-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded border border-transparent hover:border-indigo-100 transition"
+              title="Set pipeline stage">
+              <PlusIcon className="h-3.5 w-3.5" />
+            </button>
         </div>
         <div className={`h-1 w-full transition-all duration-300 ${candidate.is_highlighted ? 'bg-amber-400 opacity-100' : 'bg-black opacity-0 group-hover:opacity-100'}`}></div>
     </div>
