@@ -22,7 +22,7 @@ type Job = {
   description: string;
   total_openings: number;
   remaining_openings: number;
-  clients?: { id: string; name: string; industry: string } | { id: string; name: string; industry: string }[];
+  clients?: { name: string; industry: string } | { name: string; industry: string }[];
   application_count?: number;
 };
 
@@ -41,53 +41,36 @@ export default function JobDetailPage() {
   const [sortField, setSortField] = useState<'full_name' | 'years_experience_total' | 'match_score'>('match_score');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
 
-  // Helper: Supabase many-to-one returns clients as array; normalize to single object
-  function getClientName(clients: Job['clients']) {
-    if (!clients) return undefined;
-    return Array.isArray(clients) ? clients[0]?.name : clients.name;
-  }
-  function getClientIndustry(clients: Job['clients']) {
-    if (!clients) return undefined;
-    return Array.isArray(clients) ? clients[0]?.industry : clients.industry;
-  }
-
   useEffect(() => {
-    fetchJobAndCandidates();
+    if (!jobId) return;
+    fetchJob();
+    fetchCandidates();
   }, [jobId]);
 
-  async function fetchJobAndCandidates() {
-    setLoading(true);
-
-    // Fetch job — start lean
-    const { data: jobData, error: jobError } = await supabase
+  async function fetchJob() {
+    const { data } = await supabase
       .from('jobs')
       .select('id, client_id, title, location, status, description, total_openings, remaining_openings, clients(name, industry)')
       .eq('id', jobId)
       .single();
+    if (data) setJob(data);
+  }
 
-    console.log('[JobDetail] jobError:', jobError);
-    console.log('[JobDetail] jobData:', JSON.stringify(jobData, null, 2));
+  async function fetchCandidates() {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from('applications')
+      .select('candidate_id, pipeline_stage, candidates(id, full_name, title, location, years_experience_total, status, pipeline_stage)')
+      .eq('job_id', jobId);
 
-    if (jobData) {
-      // Fetch candidates via applications — lean query first (matching original working pattern)
-      // Start with minimum working query, then add fields one by one
-      const { data: appsData, error: appsError } = await supabase
-        .from('applications')
-        .select('candidate_id, pipeline_stage, candidates(id, full_name, title, years_experience_total, status, pipeline_stage)')
-        .eq('job_id', jobId);
-
-      console.log('[JobDetail] jobId:', jobId);
-      console.log('[JobDetail] appsError:', appsError);
-      console.log('[JobDetail] appsData count:', appsData?.length);
-      console.log('[JobDetail] appsData:', JSON.stringify(appsData, null, 2));
-
-      const mapped = (appsData || [])
-        .map((a: any) => ({ ...a.candidates, _pipeline_stage: a.pipeline_stage }))
+    if (data) {
+      const formatted = data
+        .map((d: any) => ({
+          ...d.candidates,
+          _pipeline_stage: d.pipeline_stage,
+        }))
         .filter((c: any) => c);
-
-      // Supabase many-to-one returns clients as array; cast via unknown to satisfy type
-      setJob(jobData as unknown as Job);
-      setCandidates(mapped);
+      setCandidates(formatted);
     }
     setLoading(false);
   }
@@ -123,8 +106,7 @@ export default function JobDetailPage() {
   const sortedCandidates = [...candidates].sort((a: any, b: any) => {
     let va = a[sortField];
     let vb = b[sortField];
-    if (typeof va === 'string') va = va.toLowerCase();
-    if (typeof vb === 'string') vb = vb.toLowerCase();
+    if (typeof va === 'string') { va = va.toLowerCase(); vb = (vb || '').toLowerCase(); }
     if (va < vb) return sortDir === 'asc' ? -1 : 1;
     if (va > vb) return sortDir === 'asc' ? 1 : -1;
     return 0;
@@ -133,17 +115,27 @@ export default function JobDetailPage() {
   function getTopTechTools(candidate: any): string[] {
     const tech = candidate.technologies || [];
     const tools = candidate.tools || [];
-    const names = [...tech, ...tools]
+    return [...tech, ...tools]
       .map((t: any) => typeof t === 'string' ? t : t?.name)
       .filter(Boolean)
       .slice(0, 4);
-    return names;
   }
 
-  function getMatchScoreColor(score: number) {
+  function getMatchScoreColor(score?: number) {
+    if (!score) return 'text-slate-400';
     if (score >= 80) return 'text-emerald-600';
     if (score >= 60) return 'text-amber-600';
     return 'text-slate-400';
+  }
+
+  function getClientName(clients?: Job['clients']) {
+    if (!clients) return undefined;
+    return Array.isArray(clients) ? clients[0]?.name : (clients as any).name;
+  }
+
+  function getClientIndustry(clients?: Job['clients']) {
+    if (!clients) return undefined;
+    return Array.isArray(clients) ? clients[0]?.industry : (clients as any).industry;
   }
 
   if (loading) {
@@ -164,7 +156,7 @@ export default function JobDetailPage() {
   }
 
   const hiredCount = (job.total_openings || 1) - (job.remaining_openings || 0);
-  const descLines = job.description?.split('\n') || [];
+  const descLines = (job.description || '').split('\n');
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
@@ -180,13 +172,12 @@ export default function JobDetailPage() {
             <div className="flex items-center gap-3 mb-1">
               <h1 className="text-2xl font-bold text-slate-900">{job.title}</h1>
               <span className={`px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${
-                job.status.toLowerCase() === 'open' ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-600'
+                job.status?.toLowerCase() === 'open' ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-600'
               }`}>
                 {job.status}
               </span>
             </div>
             <p className="text-slate-500 font-medium">{getClientName(job.clients)}</p>
-
             <div className="flex items-center gap-4 mt-2 text-sm text-slate-400">
               <span className="flex items-center gap-1"><MapPinIcon className="h-4 w-4" />{job.location}</span>
               <span className="flex items-center gap-1"><BriefcaseIcon className="h-4 w-4" />{getClientIndustry(job.clients)}</span>
@@ -276,12 +267,6 @@ export default function JobDetailPage() {
                   <th className="text-left px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">
                     Tech / Tools
                   </th>
-                  <th
-                    className="text-left px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider cursor-pointer hover:text-black select-none"
-                    onClick={() => handleSort('match_score')}
-                  >
-                    Match {sortField === 'match_score' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
-                  </th>
                   <th className="text-left px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">
                     Stage
                   </th>
@@ -315,24 +300,21 @@ export default function JobDetailPage() {
                         <div className="text-xs text-slate-400">{candidate.location || '—'}</div>
                       </td>
                       <td className="px-4 py-3 text-sm text-slate-600">
-                        {candidate.years_experience_total || candidate.years_experience || 0}+ yrs
+                        {candidate.years_experience_total || 0}+ yrs
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex flex-wrap gap-1">
-                          {topTech.map((tech: string, i: number) => (
+                          {topTech.length > 0 ? topTech.map((tech: string, i: number) => (
                             <span
                               key={i}
                               className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-medium"
                             >
                               {tech}
                             </span>
-                          ))}
+                          )) : (
+                            <span className="text-slate-300 text-xs">—</span>
+                          )}
                         </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className={`text-sm font-bold ${getMatchScoreColor(candidate.match_score)}`}>
-                          {candidate.match_score || 0}%
-                        </span>
                       </td>
                       <td className="px-4 py-3">
                         {candidate._pipeline_stage ? (
@@ -345,7 +327,7 @@ export default function JobDetailPage() {
                       </td>
                       <td className="px-4 py-3 text-right">
                         <button
-                          onClick={() => setSelectedCandidate(candidate)}
+                          onClick={() => setSelectedCandidate(candidate as Candidate)}
                           className="text-xs font-semibold text-slate-500 hover:text-black transition"
                         >
                           Details
@@ -365,7 +347,7 @@ export default function JobDetailPage() {
         <CandidateDetailsModal
           candidate={selectedCandidate}
           onClose={() => setSelectedCandidate(null)}
-          onUpdate={fetchJobAndCandidates}
+          onUpdate={fetchCandidates}
         />
       )}
     </div>
