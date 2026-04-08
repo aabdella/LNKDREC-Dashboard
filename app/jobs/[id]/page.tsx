@@ -28,13 +28,14 @@ type Job = {
 
 export default function JobDetailPage() {
   const params = useParams();
-  const jobId = params.id as string;
+  const jobId = Array.isArray(params.id) ? params.id[0] : params.id as string;
 
   const [job, setJob] = useState<Job | null>(null);
   const [candidates, setCandidates] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
   const [showDescription, setShowDescription] = useState(false);
+  const [debugJobId, setDebugJobId] = useState<string>('');
 
   // Selection state
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -43,6 +44,7 @@ export default function JobDetailPage() {
 
   useEffect(() => {
     if (!jobId) return;
+    setDebugJobId(jobId);
     fetchJob();
     fetchCandidates();
   }, [jobId]);
@@ -144,6 +146,7 @@ export default function JobDetailPage() {
     return (
       <div className="max-w-6xl mx-auto px-4 py-12 text-center">
         <div className="animate-pulse text-slate-400">Loading job details...</div>
+        {debugJobId && <div className="mt-4 text-xs text-slate-400 break-all">JobID from URL: {debugJobId}</div>}
       </div>
     );
   }
