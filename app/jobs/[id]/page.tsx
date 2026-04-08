@@ -75,7 +75,8 @@ export default function JobDetailPage() {
         .map((a: any) => ({ ...a.candidates, _pipeline_stage: a.pipeline_stage }))
         .filter((c: any) => c);
 
-      setJob(jobData);
+      // Supabase many-to-one returns clients as array; cast via unknown to satisfy type
+      setJob(jobData as unknown as Job);
       setCandidates(mapped);
     }
     setLoading(false);
@@ -174,10 +175,11 @@ export default function JobDetailPage() {
                 {job.status}
               </span>
             </div>
-            <p className="text-slate-500 font-medium">{job.clients?.name}</p>
+            <p className="text-slate-500 font-medium">{job.clients?.[0]?.name}</p>
+
             <div className="flex items-center gap-4 mt-2 text-sm text-slate-400">
               <span className="flex items-center gap-1"><MapPinIcon className="h-4 w-4" />{job.location}</span>
-              <span className="flex items-center gap-1"><BriefcaseIcon className="h-4 w-4" />{job.clients?.industry}</span>
+              <span className="flex items-center gap-1"><BriefcaseIcon className="h-4 w-4" />{job.clients?.[0]?.industry}</span>
               <span className="flex items-center gap-1">
                 <UserIcon className="h-4 w-4" />
                 {hiredCount} of {job.total_openings || 1} filled
