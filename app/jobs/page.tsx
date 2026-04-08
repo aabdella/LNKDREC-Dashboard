@@ -1,6 +1,7 @@
 'use client';
 
 import { supabase } from '@/lib/supabaseClient';
+import Link from 'next/link';
 import { useState, useEffect } from 'react';
 import { BriefcaseIcon, PlusIcon, MapPinIcon, XMarkIcon, PencilIcon, UserIcon, FunnelIcon } from '@heroicons/react/24/outline';
 
@@ -260,15 +261,12 @@ export default function JobsPage() {
                                 <span className="text-xs text-slate-400 font-medium">
                                     {job.application_count || 0} Candidates Assigned
                                 </span>
-                                <button 
-                                    onClick={() => {
-                                        setSelectedJob(job);
-                                        fetchAssignedCandidates(job.id);
-                                    }}
+                                <Link 
+                                    href={`/jobs/${job.id}`}
                                     className="text-black text-sm font-semibold hover:underline"
                                 >
-                                    View Details
-                                </button>
+                                    View Candidates
+                                </Link>
                             </div>
                         </div>
                     ))}
