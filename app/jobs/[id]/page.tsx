@@ -429,12 +429,6 @@ export default function JobDetailPage() {
                         </td>
                         <td className="px-4 py-3 text-right">
                           <div className="flex items-center justify-end gap-2">
-                            <button
-                              onClick={() => { const c = candidate; setCvCandidate(c as Candidate); }}
-                              className="text-xs font-semibold text-slate-400 hover:text-indigo-600 transition"
-                              title="Generate CV">
-                              <DocumentArrowDownIcon className="h-4 w-4" />
-                            </button>
                             {addingToPipelineId === candidate.id ? (
                               <div className="flex items-center gap-1 bg-white border border-indigo-300 rounded-lg shadow-lg px-2 py-1.5 z-10">
                                 {PIPELINE_STAGES.map(stage => (
@@ -472,6 +466,12 @@ export default function JobDetailPage() {
                                 <PlusIcon className="h-4 w-4" />
                               </button>
                             )}
+                            <button
+                              onClick={() => { const c = candidate; setCvCandidate(c as Candidate); }}
+                              className="text-xs font-semibold text-slate-400 hover:text-indigo-600 transition"
+                              title="Generate CV">
+                              <DocumentArrowDownIcon className="h-4 w-4" />
+                            </button>
                             <button
                               onClick={() => openCandidateDetails(candidate)}
                               className="text-xs font-semibold text-slate-500 hover:text-black transition disabled:opacity-50"

@@ -72,6 +72,7 @@ export default function CandidateDetailsModal({
 }) {
     const [isEditing, setIsEditing] = useState(false);
     const [isEditingMatch, setIsEditingMatch] = useState(false);
+    const [isEditingVetting, setIsEditingVetting] = useState(false);
     const [interactions, setInteractions] = useState<any[]>([]);
     const [loadingInteractions, setLoadingInteractions] = useState(false);
     const [newInteraction, setNewInteraction] = useState({ type: 'LinkedIn Message', content: '' });
@@ -630,6 +631,140 @@ export default function CandidateDetailsModal({
                         ></textarea>
                     </div>
 
+                    <div className="pt-6 border-t border-slate-100 space-y-4">
+                        <div className="flex items-center justify-between">
+                            <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">📋 Vetting Details</h3>
+                            <div className="flex items-center gap-2">
+                                {vettingData?.vetted_at && (
+                                    <span className="text-xs text-slate-400">Vetted: {new Date(vettingData.vetted_at).toLocaleDateString()}</span>
+                                )}
+                                <button
+                                    onClick={() => {
+                                        if (!isEditingVetting) fetchVetting();
+                                        setIsEditingVetting(!isEditingVetting);
+                                    }}
+                                    className="text-xs px-3 py-1 bg-indigo-600 text-white rounded-full font-semibold hover:bg-indigo-700 transition">
+                                    {isEditingVetting ? 'Done' : '✏️ Edit'}
+                                </button>
+                            </div>
+                        </div>
+                        <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
+                            {loadingVetting ? (
+                                <div className="text-sm text-slate-400 animate-pulse">Loading...</div>
+                            ) : isEditingVetting ? (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-xs font-medium text-slate-600 mb-1">English Proficiency</label>
+                                        <select
+                                            className="w-full border border-slate-300 rounded-md p-2 text-sm focus:ring-1 focus:ring-black outline-none appearance-none bg-white"
+                                            value={vettingData?.english_proficiency || ''}
+                                            onChange={e => handleVettingChange('english_proficiency', e.target.value)}
+                                        >
+                                            <option value="">Select...</option>
+                                            <option value="Excellent">Excellent</option>
+                                            <option value="Good">Good</option>
+                                            <option value="Fair">Fair</option>
+                                            <option value="Poor">Poor</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-medium text-slate-600 mb-1">Notice Period</label>
+                                        <input
+                                            type="text"
+                                            className="w-full border border-slate-300 rounded-md p-2 text-sm focus:ring-1 focus:ring-black outline-none appearance-none bg-white"
+                                            placeholder="e.g. 1 month, 2 weeks"
+                                            value={vettingData?.notice_period || ''}
+                                            onChange={e => handleVettingChange('notice_period', e.target.value)}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-medium text-slate-600 mb-1">Current Salary</label>
+                                        <input
+                                            type="text"
+                                            className="w-full border border-slate-300 rounded-md p-2 text-sm focus:ring-1 focus:ring-black outline-none appearance-none bg-white"
+                                            placeholder="e.g. $80k"
+                                            value={vettingData?.current_salary || ''}
+                                            onChange={e => handleVettingChange('current_salary', e.target.value)}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-medium text-slate-600 mb-1">Expected Salary</label>
+                                        <input
+                                            type="text"
+                                            className="w-full border border-slate-300 rounded-md p-2 text-sm focus:ring-1 focus:ring-black outline-none appearance-none bg-white"
+                                            placeholder="e.g. $100k"
+                                            value={vettingData?.expected_salary || ''}
+                                            onChange={e => handleVettingChange('expected_salary', e.target.value)}
+                                        />
+                                    </div>
+                                    <div className="md:col-span-2">
+                                        <label className="block text-xs font-medium text-slate-600 mb-1">Work Presence</label>
+                                        <select
+                                            className="w-full border border-slate-300 rounded-md p-2 text-sm focus:ring-1 focus:ring-black outline-none appearance-none bg-white"
+                                            value={vettingData?.work_presence || 'Hybrid'}
+                                            onChange={e => handleVettingChange('work_presence', e.target.value)}
+                                        >
+                                            <option value="On-site">On-site</option>
+                                            <option value="Hybrid">Hybrid</option>
+                                            <option value="Remote">Remote</option>
+                                        </select>
+                                    </div>
+                                    <div className="md:col-span-2">
+                                        <label className="block text-xs font-medium text-slate-600 mb-1">Benefits (comma-separated)</label>
+                                        <input
+                                            type="text"
+                                            className="w-full border border-slate-300 rounded-md p-2 text-sm focus:ring-1 focus:ring-black outline-none appearance-none bg-white"
+                                            placeholder="Health, 401k, stock..."
+                                            value={Array.isArray(vettingData?.benefits) ? vettingData.benefits.join(', ') : ''}
+                                            onChange={e => handleVettingChange('benefits', e.target.value.split(',').map(s => s.trim()).filter(Boolean))}
+                                        />
+                                    </div>
+                                    <div className="md:col-span-2">
+                                        <label className="block text-xs font-medium text-slate-600 mb-1">Notes</label>
+                                        <textarea
+                                            rows={4}
+                                            className="w-full border border-slate-300 rounded-md p-2 text-sm focus:ring-1 focus:ring-black outline-none appearance-none bg-white resize-y"
+                                            placeholder="Additional vetting notes..."
+                                            value={vettingData?.notes || ''}
+                                            onChange={e => handleVettingChange('notes', e.target.value)}
+                                        />
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-xs font-medium text-slate-500 mb-1">English Proficiency</label>
+                                        <div className="text-sm font-semibold text-slate-800">{vettingData?.english_proficiency || <span className="text-slate-300 italic">Not set</span>}</div>
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-medium text-slate-500 mb-1">Notice Period</label>
+                                        <div className="text-sm font-semibold text-slate-800">{vettingData?.notice_period || <span className="text-slate-300 italic">Not set</span>}</div>
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-medium text-slate-500 mb-1">Current Salary</label>
+                                        <div className="text-sm font-semibold text-slate-800">{vettingData?.current_salary || <span className="text-slate-300 italic">Not set</span>}</div>
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-medium text-slate-500 mb-1">Expected Salary</label>
+                                        <div className="text-sm font-semibold text-slate-800">{vettingData?.expected_salary || <span className="text-slate-300 italic">Not set</span>}</div>
+                                    </div>
+                                    <div className="md:col-span-2">
+                                        <label className="block text-xs font-medium text-slate-500 mb-1">Work Presence</label>
+                                        <div className="text-sm font-semibold text-slate-800">{vettingData?.work_presence || <span className="text-slate-300 italic">Not set</span>}</div>
+                                    </div>
+                                    <div className="md:col-span-2">
+                                        <label className="block text-xs font-medium text-slate-500 mb-1">Benefits</label>
+                                        <div className="text-sm font-semibold text-slate-800">{Array.isArray(vettingData?.benefits) && vettingData.benefits.length > 0 ? vettingData.benefits.join(', ') : <span className="text-slate-300 italic">Not set</span>}</div>
+                                    </div>
+                                    <div className="md:col-span-2">
+                                        <label className="block text-xs font-medium text-slate-500 mb-1">Notes</label>
+                                        <div className="text-sm text-slate-700 whitespace-pre-wrap">{vettingData?.notes || <span className="text-slate-300 italic">No notes</span>}</div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
                     <div className="flex justify-end gap-3 pt-6 border-t border-slate-100">
                         <button type="button" onClick={() => setIsEditing(false)} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-md transition">Cancel</button>
                         <button type="submit" disabled={saving} className="px-6 py-2 bg-black text-white font-semibold rounded-md hover:bg-zinc-800 transition disabled:opacity-50">
@@ -757,13 +892,18 @@ export default function CandidateDetailsModal({
                                 <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
                                     <div className="flex items-center justify-between mb-3">
                                         <h4 className="font-bold text-slate-800 text-sm">Vetting Details</h4>
-                                        {vettingData?.vetted_at && (
-                                            <span className="text-xs text-slate-400">Vetted: {new Date(vettingData.vetted_at).toLocaleDateString()}</span>
-                                        )}
+                                        <button
+                                            onClick={() => {
+                                                if (!isEditingVetting) fetchVetting();
+                                                setIsEditingVetting(!isEditingVetting);
+                                            }}
+                                            className="text-xs px-3 py-1 bg-indigo-600 text-white rounded-full font-semibold hover:bg-indigo-700 transition">
+                                            {isEditingVetting ? 'Done' : '✏️ Edit'}
+                                        </button>
                                     </div>
                                     {loadingVetting ? (
                                         <div className="text-sm text-slate-400 animate-pulse">Loading...</div>
-                                    ) : isEditing ? (
+                                    ) : isEditingVetting ? (
                                         <div className="space-y-3">
                                             <div>
                                                 <label className="block text-xs font-medium text-slate-600 mb-1">English Proficiency</label>
