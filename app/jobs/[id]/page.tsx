@@ -435,16 +435,12 @@ export default function JobDetailPage() {
                                 setAddingToPipelineId(candidate.id);
                                 setAddToPipelineStage((candidate.pipeline_stage as PipelineStage) || 'Sourced');
                                 const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                                const POPUP_HEIGHT = 180;
                                 const POPUP_WIDTH = 320;
-                                const viewportHeight = window.innerHeight;
                                 const viewportWidth = window.innerWidth;
-                                let top = rect.bottom + 6;
-                                let left = rect.left - 160; // center under button (half of 320px min-width)
-                                if (top + POPUP_HEIGHT > viewportHeight) top = rect.top - POPUP_HEIGHT - 6;
-                                if (left + POPUP_WIDTH > viewportWidth) left = viewportWidth - POPUP_WIDTH - 8;
+                                let left = rect.left + rect.width / 2 - POPUP_WIDTH / 2;
                                 if (left < 8) left = 8;
-                                setPipelinePopupPos({ top, left });
+                                if (left + POPUP_WIDTH > viewportWidth) left = viewportWidth - POPUP_WIDTH - 8;
+                                setPipelinePopupPos({ top: rect.bottom + 8, left });
                               }}
                               className="text-xs font-semibold text-slate-400 hover:text-indigo-600 transition"
                               title="Set pipeline stage">
@@ -477,20 +473,20 @@ export default function JobDetailPage() {
       {/* Floating Pipeline Stage Picker Popup */}
       {addingToPipelineId && pipelinePopupPos && (
         <div
-          className="fixed z-[300] bg-white border border-indigo-200 rounded-xl shadow-xl px-3 py-2.5 flex flex-col gap-2 min-w-[260px]"
-          style={{ top: pipelinePopupPos.top, left: pipelinePopupPos.left, transform: "translateX(calc(-50% - 20%)) translateY(-40%)" }}
+          className="fixed z-[300] bg-white border border-indigo-200 rounded-xl shadow-2xl px-4 py-3 flex flex-col gap-2 min-w-[320px]"
+          style={{ top: pipelinePopupPos.top, left: pipelinePopupPos.left, transform: "translateX(-50%)" }}
           onClick={e => e.stopPropagation()}
         >
           <div className="flex items-center justify-between">
-            <span className="text-[10px] font-bold text-slate-700">Set Pipeline Stage</span>
-            <button onClick={() => { setAddingToPipelineId(null); setPipelinePopupPos(null); }} className="text-slate-400 hover:text-slate-600"><XMarkIcon className="h-3.5 w-3.5" /></button>
+            <span className="text-xs font-bold text-slate-700">Set Pipeline Stage</span>
+            <button onClick={() => { setAddingToPipelineId(null); setPipelinePopupPos(null); }} className="text-slate-400 hover:text-slate-600 transition"><XMarkIcon className="h-4 w-4" /></button>
           </div>
-          <div className="flex flex-wrap gap-1">
+          <div className="flex flex-wrap gap-1.5">
             {PIPELINE_STAGES.map(stage => (
               <button
                 key={stage}
                 onClick={() => setAddToPipelineStage(stage)}
-                className={`text-[10px] px-2 py-0.5 rounded-full font-bold border transition ${
+                className={`text-xs px-2.5 py-1 rounded-full font-bold border transition ${
                   addToPipelineStage === stage
                     ? STAGE_COLORS[stage]
                     : 'bg-slate-100 text-slate-600 border-slate-200 hover:border-indigo-400'
@@ -499,22 +495,29 @@ export default function JobDetailPage() {
               </button>
             ))}
           </div>
-          <button
-            onClick={async () => {
-              setMovingCandidate(true);
-              const { error } = await supabase
-                .from('candidates')
-                .update({ pipeline_stage: addToPipelineStage, stage_changed_at: new Date().toISOString() })
-                .eq('id', addingToPipelineId);
-              setMovingCandidate(false);
-              setAddingToPipelineId(null);
-              setPipelinePopupPos(null);
-              if (!error) fetchCandidates();
-            }}
-            disabled={movingCandidate}
-            className="w-full px-2 py-1.5 text-[11px] font-bold bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition disabled:opacity-50">
-            {movingCandidate ? 'Moving...' : `Move to ${addToPipelineStage}`}
-          </button>
+          <div className="flex gap-2 pt-1">
+            <button
+              onClick={() => { setAddingToPipelineId(null); setPipelinePopupPos(null); }}
+              className="flex-1 px-3 py-1.5 text-xs font-semibold text-slate-600 bg-slate-100 rounded-lg hover:bg-slate-200 transition">
+              Cancel
+            </button>
+            <button
+              onClick={async () => {
+                setMovingCandidate(true);
+                const { error } = await supabase
+                  .from('candidates')
+                  .update({ pipeline_stage: addToPipelineStage, stage_changed_at: new Date().toISOString() })
+                  .eq('id', addingToPipelineId);
+                setMovingCandidate(false);
+                setAddingToPipelineId(null);
+                setPipelinePopupPos(null);
+                if (!error) fetchCandidates();
+              }}
+              disabled={movingCandidate}
+              className="flex-1 px-3 py-1.5 text-xs font-bold bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition disabled:opacity-50">
+              {movingCandidate ? 'Moving...' : `Move to ${addToPipelineStage}`}
+            </button>
+          </div>
         </div>
       )}
 
