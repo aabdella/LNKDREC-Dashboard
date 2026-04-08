@@ -28,7 +28,6 @@ type Job = {
 
 export default function JobDetailPage() {
   const params = useParams();
-  const router = useRouter();
   const jobId = params.id as string;
 
   const [job, setJob] = useState<Job | null>(null);
