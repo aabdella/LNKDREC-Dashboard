@@ -184,6 +184,9 @@ export default function JobDetailPage() {
   const [loading, setLoading] = useState(true);
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
   const [cvCandidate, setCvCandidate] = useState<Candidate | null>(null);
+  const [cvGenerating, setCvGenerating] = useState(false);
+  const [cvGeneratingIndex, setCvGeneratingIndex] = useState(0);
+  const [cvGeneratingTotal, setCvGeneratingTotal] = useState(0);
   const [showDescription, setShowDescription] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [sortField, setSortField] = useState<'full_name' | 'years_experience_total'>('full_name');
@@ -231,9 +234,48 @@ export default function JobDetailPage() {
     setLoadingCandidateId(null);
   }
 
-  async function openCvModal(candidate: any) {
-    const { data } = await supabase.from('candidates').select('*').eq('id', candidate.id).single();
-    if (data) setCvCandidate(data as Candidate);
+  async function downloadCvForCandidate(candidate: any) {
+    const { pdf } = await import('@react-pdf/renderer');
+    const { CVTemplateA, CVTemplateB } = await import('@/app/cv-templates');
+    let logoBase64 = '';
+    try {
+      const res = await fetch('/logo.jpg');
+      const blob = await res.blob();
+      logoBase64 = await new Promise<string>((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.readAsDataURL(blob);
+      });
+    } catch {}
+    const doc = <CVTemplateA candidate={candidate} privacy={{ linkedin: true, portfolio: true, email: false, phone: false }} logoBase64={logoBase64} vetting={null} egpRate={47} />;
+    const blob = await pdf(doc).toBlob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${candidate.full_name.replace(/[ ]+/g, '_')}_CV.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  async function generateSelectedCVs() {
+    const selected = candidates.filter((c: any) => selectedIds.has(c.id));
+    if (selected.length === 0) return;
+    setCvGenerating(true);
+    setCvGeneratingTotal(selected.length);
+    for (let i = 0; i < selected.length; i++) {
+      setCvGeneratingIndex(i + 1);
+      const { data } = await supabase.from('candidates').select('*').eq('id', selected[i].id).single();
+      if (data) {
+        try { await downloadCvForCandidate(data); } catch {}
+        await new Promise(r => setTimeout(r, 800));
+      }
+    }
+    setCvGenerating(false);
+    setCvGeneratingIndex(0);
+    setCvGeneratingTotal(0);
+    clearSelection();
   }
 
   if (loading) return <div className="max-w-6xl mx-auto px-4 py-12 text-center"><div className="animate-pulse text-slate-400">Loading...</div></div>;
@@ -301,9 +343,13 @@ export default function JobDetailPage() {
             {selectedIds.size > 0 && (
               <div className="flex items-center gap-3">
                 <span className="text-sm text-slate-500">{selectedIds.size} selected</span>
-                <button onClick={() => { const sel = candidates.filter((c) => selectedIds.has(c.id)); if (sel[0]) openCvModal(sel[0]); }}
-                  className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg transition flex items-center gap-1.5">
-                  <DocumentArrowDownIcon className="h-3.5 w-3.5" /> Generate CV
+                <button onClick={generateSelectedCVs} disabled={cvGenerating}
+                  className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg transition flex items-center gap-1.5 disabled:opacity-60">
+                  {cvGenerating ? (
+                    <><span className="animate-pulse">Generating {cvGeneratingIndex}/{cvGeneratingTotal}...</span></>
+                  ) : (
+                    <><DocumentArrowDownIcon className="h-3.5 w-3.5" /> Generate CVs</>
+                  )}
                 </button>
                 <button onClick={clearSelection} className="text-xs text-slate-400 hover:text-slate-600 transition">Clear</button>
               </div>
@@ -364,7 +410,7 @@ export default function JobDetailPage() {
                         <td className="px-4 py-3 text-right">
                           <div className="flex items-center justify-end gap-2">
                             <button
-                              onClick={() => openCvModal(candidate)}
+                              onClick={() => { const c = candidate; setCvCandidate(c as Candidate); }}
                               className="text-xs font-semibold text-slate-400 hover:text-indigo-600 transition"
                               title="Generate CV">
                               <DocumentArrowDownIcon className="h-4 w-4" />
