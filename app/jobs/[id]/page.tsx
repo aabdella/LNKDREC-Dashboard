@@ -48,32 +48,22 @@ export default function JobDetailPage() {
   async function fetchJobAndCandidates() {
     setLoading(true);
 
-    // Fetch job
-    const { data: jobData } = await supabase
+    // Fetch job — start lean
+    const { data: jobData, error: jobError } = await supabase
       .from('jobs')
-      .select('*, clients(name, industry)')
+      .select('id, title, location, status, description, total_openings, remaining_openings, clients(name, industry)')
       .eq('id', jobId)
       .single();
 
+    console.log('[JobDetail] jobError:', jobError);
+    console.log('[JobDetail] jobData:', JSON.stringify(jobData, null, 2));
+
     if (jobData) {
       // Fetch candidates via applications — lean query first (matching original working pattern)
+      // Start with minimum working query, then add fields one by one
       const { data: appsData, error: appsError } = await supabase
         .from('applications')
-        .select(`
-          candidate_id,
-          pipeline_stage,
-          stage_changed_at,
-          candidates (
-            id, full_name, title, location,
-            years_experience_total, years_experience,
-            match_score, match_reason,
-            technologies, tools, skills,
-            status, pipeline_stage, pipeline_order,
-            portfolio_url, linkedin_url,
-            email, phone, work_history, brief,
-            education, courses_certificates
-          )
-        `)
+        .select('candidate_id, pipeline_stage, candidates(id, full_name, title, years_experience_total, status, pipeline_stage)')
         .eq('job_id', jobId);
 
       console.log('[JobDetail] jobId:', jobId);
@@ -82,7 +72,7 @@ export default function JobDetailPage() {
       console.log('[JobDetail] appsData:', JSON.stringify(appsData, null, 2));
 
       const mapped = (appsData || [])
-        .map((a: any) => ({ ...a.candidates, _pipeline_stage: a.pipeline_stage, _stage_changed_at: a.stage_changed_at }))
+        .map((a: any) => ({ ...a.candidates, _pipeline_stage: a.pipeline_stage }))
         .filter((c: any) => c);
 
       setJob(jobData);
