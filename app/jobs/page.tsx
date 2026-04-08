@@ -2,7 +2,7 @@
 
 import { supabase } from '@/lib/supabaseClient';
 import Link from 'next/link';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { BriefcaseIcon, PlusIcon, MapPinIcon, XMarkIcon, PencilIcon, UserIcon, FunnelIcon } from '@heroicons/react/24/outline';
 
 type Client = {
@@ -29,6 +29,8 @@ export default function JobsPage() {
     const [clients, setClients] = useState<Client[]>([]);
     const [loading, setLoading] = useState(true);
     const [filterClientId, setFilterClientId] = useState<string>('all');
+    const [debouncedClientId, setDebouncedClientId] = useState<string>('all');
+    const filterTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     
     // Modals
     const [showClientModal, setShowClientModal] = useState(false);
@@ -44,6 +46,10 @@ export default function JobsPage() {
 
     useEffect(() => {
         fetchData();
+
+        return () => {
+            if (filterTimeoutRef.current) clearTimeout(filterTimeoutRef.current);
+        };
     }, []);
 
     async function fetchAssignedCandidates(jobId: string) {
@@ -166,9 +172,16 @@ export default function JobsPage() {
         }
     }
 
-    const filteredJobs = filterClientId === 'all' 
-        ? jobs 
-        : jobs.filter(j => j.client_id === filterClientId);
+    function handleFilterChange(e: React.ChangeEvent<HTMLSelectElement>) {
+        const val = e.target.value;
+        setFilterClientId(val);
+        if (filterTimeoutRef.current) clearTimeout(filterTimeoutRef.current);
+        filterTimeoutRef.current = setTimeout(() => setDebouncedClientId(val), 300);
+    }
+
+    const filteredJobs = debouncedClientId === 'all'
+        ? jobs
+        : jobs.filter(j => j.client_id === debouncedClientId);
 
     return (
         <div className="max-w-7xl mx-auto px-4 py-8">
@@ -186,7 +199,7 @@ export default function JobsPage() {
                         </div>
                         <select 
                             value={filterClientId}
-                            onChange={(e) => setFilterClientId(e.target.value)}
+                            onChange={handleFilterChange}
                             className="block w-full pl-10 pr-3 py-2 border border-slate-200 rounded-lg text-sm font-semibold bg-white text-slate-700 hover:border-slate-400 focus:outline-none focus:ring-2 focus:ring-black transition shadow-sm appearance-none cursor-pointer"
                         >
                             <option value="all">All Companies</option>
@@ -275,7 +288,7 @@ export default function JobsPage() {
                         <div className="col-span-full text-center py-12 bg-slate-50 rounded-lg border border-dashed border-slate-300">
                             <h3 className="text-slate-900 font-medium mb-1">No Jobs Found</h3>
                             <p className="text-slate-500 text-sm mb-4">Try clearing your filters or posting a new job.</p>
-                            <button onClick={() => setFilterClientId('all')} className="text-blue-600 hover:underline text-sm font-semibold">Clear Filters</button>
+                            <button onClick={() => { setFilterClientId('all'); setDebouncedClientId('all'); }} className="text-blue-600 hover:underline text-sm font-semibold">Clear Filters</button>
                         </div>
                     )}
                 </div>
