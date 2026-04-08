@@ -75,7 +75,7 @@ export default function JobDetailPage() {
         .map((a: any) => ({ ...a.candidates, _pipeline_stage: a.pipeline_stage }))
         .filter((c: any) => c);
 
-      setJob(jobData);
+      setJob(jobData as Job);
       setCandidates(mapped);
     }
     setLoading(false);
