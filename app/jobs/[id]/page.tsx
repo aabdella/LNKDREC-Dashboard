@@ -82,7 +82,7 @@ export default function JobDetailPage() {
 
       const mapped = (appsData || [])
         .map((a: any) => a.candidates)
-        .filter((c: any) => c && c.status !== 'Rejected' && c.status !== 'Hired');
+        .filter((c: any) => c);
 
       setJob(jobData);
       setCandidates(mapped);
