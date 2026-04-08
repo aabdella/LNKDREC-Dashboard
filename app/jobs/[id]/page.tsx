@@ -34,6 +34,7 @@ export default function JobDetailPage() {
   const [candidates, setCandidates] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
+  const [loadingCandidateId, setLoadingCandidateId] = useState<string | null>(null);
   const [showDescription, setShowDescription] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [sortField, setSortField] = useState<'full_name' | 'years_experience_total' | 'match_score'>('match_score');
@@ -88,6 +89,17 @@ export default function JobDetailPage() {
     } else {
       setSelectedIds(new Set(sortedCandidates.map((c: any) => c.id)));
     }
+  }
+
+  async function openCandidateDetails(candidate: any) {
+    setLoadingCandidateId(candidate.id);
+    const { data } = await supabase
+      .from('candidates')
+      .select('*')
+      .eq('id', candidate.id)
+      .single();
+    if (data) setSelectedCandidate(data as Candidate);
+    setLoadingCandidateId(null);
   }
 
   function clearSelection() {
@@ -280,10 +292,11 @@ export default function JobDetailPage() {
                       </td>
                       <td className="px-4 py-3 text-right">
                         <button
-                          onClick={() => setSelectedCandidate(candidate as Candidate)}
-                          className="text-xs font-semibold text-slate-500 hover:text-black transition"
+                          onClick={() => openCandidateDetails(candidate)}
+                          className="text-xs font-semibold text-slate-500 hover:text-black transition disabled:opacity-50"
+                          disabled={loadingCandidateId === candidate.id}
                         >
-                          Details
+                          {loadingCandidateId === candidate.id ? 'Loading...' : 'Details'}
                         </button>
                       </td>
                     </tr>
