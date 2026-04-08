@@ -435,7 +435,16 @@ export default function JobDetailPage() {
                                 setAddingToPipelineId(candidate.id);
                                 setAddToPipelineStage((candidate.pipeline_stage as PipelineStage) || 'Sourced');
                                 const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                                setPipelinePopupPos({ top: rect.bottom + 6, left: rect.left - 80 });
+                                const POPUP_HEIGHT = 180;
+                                const POPUP_WIDTH = 320;
+                                const viewportHeight = window.innerHeight;
+                                const viewportWidth = window.innerWidth;
+                                let top = rect.bottom + 6;
+                                let left = rect.left - 160; // center under button (half of 320px min-width)
+                                if (top + POPUP_HEIGHT > viewportHeight) top = rect.top - POPUP_HEIGHT - 6;
+                                if (left + POPUP_WIDTH > viewportWidth) left = viewportWidth - POPUP_WIDTH - 8;
+                                if (left < 8) left = 8;
+                                setPipelinePopupPos({ top, left });
                               }}
                               className="text-xs font-semibold text-slate-400 hover:text-indigo-600 transition"
                               title="Set pipeline stage">

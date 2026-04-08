@@ -854,7 +854,7 @@ function CandidateCard({ candidate, onViewDetails, onVetCandidate, onToggleAssig
               <PlusIcon className="h-3.5 w-3.5" />
             </button>
             {addingToPipelineId === candidate.id && (
-              <div className="absolute bottom-full left-0 mb-1 z-20 bg-white border border-indigo-200 rounded-xl shadow-xl px-3 py-2.5 flex flex-col gap-2 min-w-[260px]"
+              <div className="absolute left-1/2 -translate-x-1/2 top-[56px] z-20 bg-white border border-indigo-200 rounded-xl shadow-xl px-3 py-2.5 flex flex-col gap-2 min-w-[260px]"
                 onClick={e => e.stopPropagation()}>
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] font-bold text-slate-700">Set Pipeline Stage</span>
