@@ -51,7 +51,7 @@ export default function JobDetailPage() {
     // Fetch job — start lean
     const { data: jobData, error: jobError } = await supabase
       .from('jobs')
-      .select('id, title, location, status, description, total_openings, remaining_openings, clients(name, industry)')
+      .select('id, client_id, title, location, status, description, total_openings, remaining_openings, clients(name, industry)')
       .eq('id', jobId)
       .single();
 
@@ -75,7 +75,7 @@ export default function JobDetailPage() {
         .map((a: any) => ({ ...a.candidates, _pipeline_stage: a.pipeline_stage }))
         .filter((c: any) => c);
 
-      setJob(jobData as Job);
+      setJob(jobData);
       setCandidates(mapped);
     }
     setLoading(false);
