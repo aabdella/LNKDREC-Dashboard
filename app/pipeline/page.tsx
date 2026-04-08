@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import { supabase } from '@/lib/supabaseClient';
 import CandidateDetailsModal, { Candidate } from '@/components/CandidateDetailsModal';
@@ -249,6 +249,8 @@ export default function PipelinePage() {
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
   const [rejectionContext, setRejectionContext] = useState<{ candidate: Candidate; stage: string } | null>(null);
   const [collapsedStages, setCollapsedStages] = useState<Record<string, boolean>>({ Rejected: true });
+  const INITIAL_LOAD = 10;
+  const [displayedCount, setDisplayedCount] = useState(INITIAL_LOAD);
 
   // ─── Fetch ───────────────────────────────────────────────────────────────────
 
@@ -280,7 +282,7 @@ export default function PipelinePage() {
 
   // ─── Group by stage (sorted by pipeline_order) ────────────────────────────────
 
-  const stageMap = useCallback(() => {
+  const stageMap = useMemo(() => {
     const map: Record<string, Candidate[]> = {};
     STAGES.forEach((s) => (map[s.id] = []));
     candidates.forEach((c) => {
@@ -296,8 +298,12 @@ export default function PipelinePage() {
         return ao - bo;
       });
     });
+    // Apply displayed count limit per stage group
+    Object.keys(map).forEach((stageId) => {
+      map[stageId] = map[stageId].slice(0, displayedCount);
+    });
     return map;
-  }, [candidates]);
+  }, [candidates, displayedCount]);
 
   // ─── Remove from pipeline ─────────────────────────────────────────────────────
 
@@ -323,7 +329,7 @@ export default function PipelinePage() {
       const isSameStage = newStage === oldStage;
 
       // Build current grouped state to calculate new orders
-      const grouped = stageMap();
+      const grouped = stageMap;
 
       // Move candidate in the target column
       const targetList = [...(grouped[newStage] || [])];
@@ -479,8 +485,9 @@ export default function PipelinePage() {
 
   // ─── Render ───────────────────────────────────────────────────────────────────
 
-  const grouped = stageMap();
+  const grouped = stageMap;
   const total = candidates.length;
+  const totalRemaining = candidates.length - displayedCount;
 
   return (
     <div className="flex flex-col h-[calc(100vh-68px)] bg-white">
@@ -552,6 +559,14 @@ export default function PipelinePage() {
                 />
               ))}
             </div>
+            {totalRemaining > 0 && (
+              <button
+                onClick={() => setDisplayedCount((d) => d + INITIAL_LOAD)}
+                className="w-full py-2 text-sm text-indigo-600 hover:text-indigo-700 font-semibold"
+              >
+                Load more ({totalRemaining} remaining)
+              </button>
+            )}
           </div>
         </DragDropContext>
       )}
