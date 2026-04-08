@@ -23,28 +23,24 @@ type Job = {
   total_openings: number;
   remaining_openings: number;
   clients?: { name: string; industry: string } | { name: string; industry: string }[];
-  application_count?: number;
 };
 
 export default function JobDetailPage() {
   const params = useParams();
-  const jobId = Array.isArray(params.id) ? params.id[0] : params.id as string;
+  const rawId = params?.id;
+  const jobId = Array.isArray(rawId) ? rawId[0] : (rawId as string | undefined);
 
   const [job, setJob] = useState<Job | null>(null);
   const [candidates, setCandidates] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
   const [showDescription, setShowDescription] = useState(false);
-  const [debugJobId, setDebugJobId] = useState<string>('');
-
-  // Selection state
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [sortField, setSortField] = useState<'full_name' | 'years_experience_total' | 'match_score'>('match_score');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
 
   useEffect(() => {
     if (!jobId) return;
-    setDebugJobId(jobId);
     fetchJob();
     fetchCandidates();
   }, [jobId]);
@@ -63,7 +59,7 @@ export default function JobDetailPage() {
     setLoading(true);
     const { data, error } = await supabase
       .from('applications')
-      .select('candidate_id, candidates(id, full_name, title, location, status, pipeline_stage)')
+      .select('candidate_id, candidates(id, full_name, title, location, years_experience_total, status, pipeline_stage, match_score, match_reason, technologies, tools, email, phone)')
       .eq('job_id', jobId);
     console.error('[JobDetail] fetchCandidates error:', JSON.stringify(error));
 
@@ -125,13 +121,6 @@ export default function JobDetailPage() {
       .slice(0, 4);
   }
 
-  function getMatchScoreColor(score?: number) {
-    if (!score) return 'text-slate-400';
-    if (score >= 80) return 'text-emerald-600';
-    if (score >= 60) return 'text-amber-600';
-    return 'text-slate-400';
-  }
-
   function getClientName(clients?: Job['clients']) {
     if (!clients) return undefined;
     return Array.isArray(clients) ? clients[0]?.name : (clients as any).name;
@@ -146,7 +135,7 @@ export default function JobDetailPage() {
     return (
       <div className="max-w-6xl mx-auto px-4 py-12 text-center">
         <div className="animate-pulse text-slate-400">Loading job details...</div>
-        {debugJobId && <div className="mt-4 text-xs text-slate-400 break-all">JobID from URL: {debugJobId}</div>}
+        {jobId && <div className="mt-4 text-xs text-slate-400 break-all">JobID: {jobId}</div>}
       </div>
     );
   }
@@ -165,7 +154,6 @@ export default function JobDetailPage() {
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
-      {/* Back link */}
       <Link href="/jobs" className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-black mb-6 transition">
         <ArrowLeftIcon className="h-4 w-4" /> Back to Jobs
       </Link>
@@ -194,7 +182,6 @@ export default function JobDetailPage() {
           </div>
         </div>
 
-        {/* Job Description */}
         {job.description && (
           <div className="border-t border-slate-100 pt-4">
             <button
@@ -227,12 +214,7 @@ export default function JobDetailPage() {
           {selectedIds.size > 0 && (
             <div className="flex items-center gap-3">
               <span className="text-sm text-slate-500">{selectedIds.size} selected</span>
-              <button
-                onClick={clearSelection}
-                className="text-xs text-slate-400 hover:text-slate-600 transition"
-              >
-                Clear
-              </button>
+              <button onClick={clearSelection} className="text-xs text-slate-400 hover:text-slate-600 transition">Clear</button>
             </div>
           )}
         </div>
@@ -247,37 +229,18 @@ export default function JobDetailPage() {
               <thead>
                 <tr className="border-b border-slate-100 bg-slate-50/50">
                   <th className="text-left px-4 py-3">
-                    <input
-                      type="checkbox"
-                      checked={selectedIds.size === sortedCandidates.length}
-                      onChange={toggleSelectAll}
-                      className="rounded border-slate-300"
-                    />
+                    <input type="checkbox" checked={selectedIds.size === sortedCandidates.length} onChange={toggleSelectAll} className="rounded border-slate-300" />
                   </th>
-                  <th
-                    className="text-left px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider cursor-pointer hover:text-black select-none"
-                    onClick={() => handleSort('full_name')}
-                  >
+                  <th className="text-left px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider cursor-pointer hover:text-black select-none" onClick={() => handleSort('full_name')}>
                     Name {sortField === 'full_name' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
                   </th>
-                  <th className="text-left px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">
-                    Job Title
-                  </th>
-                  <th
-                    className="text-left px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider cursor-pointer hover:text-black select-none"
-                    onClick={() => handleSort('years_experience_total')}
-                  >
+                  <th className="text-left px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">Job Title</th>
+                  <th className="text-left px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider cursor-pointer hover:text-black select-none" onClick={() => handleSort('years_experience_total')}>
                     Yrs Exp {sortField === 'years_experience_total' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
                   </th>
-                  <th className="text-left px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">
-                    Tech / Tools
-                  </th>
-                  <th className="text-left px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">
-                    Stage
-                  </th>
-                  <th className="text-right px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">
-                    Actions
-                  </th>
+                  <th className="text-left px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">Tech / Tools</th>
+                  <th className="text-left px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">Stage</th>
+                  <th className="text-right px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -285,17 +248,9 @@ export default function JobDetailPage() {
                   const topTech = getTopTechTools(candidate);
                   const isSelected = selectedIds.has(candidate.id);
                   return (
-                    <tr
-                      key={candidate.id}
-                      className={`border-b border-slate-50 hover:bg-slate-50/50 transition ${isSelected ? 'bg-indigo-50/40' : ''}`}
-                    >
+                    <tr key={candidate.id} className={`border-b border-slate-50 hover:bg-slate-50/50 transition ${isSelected ? 'bg-indigo-50/40' : ''}`}>
                       <td className="px-4 py-3">
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          onChange={() => toggleSelect(candidate.id)}
-                          className="rounded border-slate-300"
-                        />
+                        <input type="checkbox" checked={isSelected} onChange={() => toggleSelect(candidate.id)} className="rounded border-slate-300" />
                       </td>
                       <td className="px-4 py-3">
                         <div className="font-semibold text-sm text-slate-900">{candidate.full_name}</div>
@@ -310,12 +265,7 @@ export default function JobDetailPage() {
                       <td className="px-4 py-3">
                         <div className="flex flex-wrap gap-1">
                           {topTech.length > 0 ? topTech.map((tech: string, i: number) => (
-                            <span
-                              key={i}
-                              className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-medium"
-                            >
-                              {tech}
-                            </span>
+                            <span key={i} className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-medium">{tech}</span>
                           )) : (
                             <span className="text-slate-300 text-xs">—</span>
                           )}
@@ -323,9 +273,7 @@ export default function JobDetailPage() {
                       </td>
                       <td className="px-4 py-3">
                         {candidate._pipeline_stage ? (
-                          <span className="text-xs font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
-                            {candidate._pipeline_stage}
-                          </span>
+                          <span className="text-xs font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded">{candidate._pipeline_stage}</span>
                         ) : (
                           <span className="text-slate-300 text-xs">—</span>
                         )}
@@ -347,7 +295,6 @@ export default function JobDetailPage() {
         )}
       </div>
 
-      {/* Candidate Details Modal */}
       {selectedCandidate && (
         <CandidateDetailsModal
           candidate={selectedCandidate}
