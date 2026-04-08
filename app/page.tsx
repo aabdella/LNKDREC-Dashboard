@@ -811,6 +811,8 @@ function CandidateCard({ candidate, onViewDetails, onVetCandidate, onToggleAssig
                     </span>
                   )}
                 </div>
+              ) : isAssigned ? (
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-purple-100 text-purple-700 border-purple-200 flex items-center gap-1 uppercase tracking-wider">Assigned</span>
               ) : isVetted ? (
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-blue-100 text-blue-700 border-blue-200 flex items-center gap-1 uppercase tracking-wider">Vetted</span>
               ) : (
