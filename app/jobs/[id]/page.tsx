@@ -440,7 +440,8 @@ export default function JobDetailPage() {
                                 let left = rect.left + rect.width / 2 - POPUP_WIDTH / 2;
                                 if (left < 8) left = 8;
                                 if (left + POPUP_WIDTH > viewportWidth) left = viewportWidth - POPUP_WIDTH - 8;
-                                setPipelinePopupPos({ top: rect.bottom + 8, left });
+                                const topAdjust = Math.round(rect.height * 0.2);
+                                setPipelinePopupPos({ top: rect.bottom - topAdjust + 8, left });
                               }}
                               className="text-xs font-semibold text-slate-400 hover:text-indigo-600 transition"
                               title="Set pipeline stage">
