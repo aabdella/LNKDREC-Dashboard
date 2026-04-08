@@ -14,7 +14,8 @@ import {
   PencilSquareIcon, 
   Squares2X2Icon, 
   ListBulletIcon, 
-  DocumentArrowDownIcon, 
+  DocumentArrowDownIcon,
+  PlusIcon, 
   TrashIcon,
   StarIcon as StarOutline,
   ClockIcon
@@ -133,6 +134,9 @@ function DashboardInner() {
   const [vettingCandidate, setVettingCandidate] = useState<Candidate | null>(null);
   const [assigningCandidate, setAssigningCandidate] = useState<Candidate | null>(null);
   const [cvCandidate, setCvCandidate] = useState<Candidate | null>(null);
+  const [addingToPipelineId, setAddingToPipelineId] = useState<string | null>(null);
+  const [addToPipelineStage, setAddToPipelineStage] = useState<PipelineStage>('Sourced');
+  const [movingCandidate, setMovingCandidate] = useState(false);
 
   // Pipeline stage picker for vetting modal
   const [showVettingPipelinePicker, setShowVettingPipelinePicker] = useState(false);
@@ -153,6 +157,20 @@ function DashboardInner() {
     } else {
       showToast(`${vettingCandidate.full_name} moved to ${vettingPipelineStage} ✓`);
       setVettingCandidate(prev => prev ? { ...prev, pipeline_stage: vettingPipelineStage } : prev);
+      fetchCandidates();
+    }
+  }
+
+  async function addCandidateToPipeline(candidateId: string) {
+    if (!addToPipelineStage) return;
+    setMovingCandidate(true);
+    const { error } = await supabase
+      .from('candidates')
+      .update({ pipeline_stage: addToPipelineStage, stage_changed_at: new Date().toISOString() })
+      .eq('id', candidateId);
+    setMovingCandidate(false);
+    setAddingToPipelineId(null);
+    if (!error) {
       fetchCandidates();
     }
   }
@@ -498,6 +516,12 @@ function DashboardInner() {
                 onToggleAssign={() => toggleAssignment(candidate)}
                 onGenerateCV={() => setCvCandidate(candidate)}
                 onToggleHighlight={() => toggleHighlight(candidate)}
+                addingToPipelineId={addingToPipelineId}
+                addToPipelineStage={addToPipelineStage}
+                setAddingToPipelineId={setAddingToPipelineId}
+                setAddToPipelineStage={setAddToPipelineStage}
+                onAddToPipeline={addCandidateToPipeline}
+                movingCandidate={movingCandidate}
               />
             ))}
           </div>
@@ -546,6 +570,12 @@ function DashboardInner() {
                               onToggleAssign={() => toggleAssignment(c)} 
                               onGenerateCV={() => setCvCandidate(c)} 
                               onToggleHighlight={() => toggleHighlight(c)}
+                              addingToPipelineId={addingToPipelineId}
+                              addToPipelineStage={addToPipelineStage}
+                              setAddingToPipelineId={setAddingToPipelineId}
+                              setAddToPipelineStage={setAddToPipelineStage}
+                              onAddToPipeline={addCandidateToPipeline}
+                              movingCandidate={movingCandidate}
                             />
                         ))}
                     </tbody>
@@ -720,7 +750,7 @@ function CandidateRow({ candidate, isSelected, onToggleSelect, onViewDetails, on
   );
 }
 
-function CandidateCard({ candidate, onViewDetails, onVetCandidate, onToggleAssign, onGenerateCV, onToggleHighlight }: any) {
+function CandidateCard({ candidate, onViewDetails, onVetCandidate, onToggleAssign, onGenerateCV, onToggleHighlight, addingToPipelineId, addToPipelineStage, setAddingToPipelineId, setAddToPipelineStage, onAddToPipeline, movingCandidate }: any) {
   const isVetted = candidate.status === 'Vetted';
   const isAssigned = !!candidate.assigned_job_title;
   const healthScore = 0; // (Simplified for layout)
@@ -810,6 +840,27 @@ function CandidateCard({ candidate, onViewDetails, onVetCandidate, onToggleAssig
               </button>
             ) : null}
             <button onClick={onGenerateCV} className="px-2 py-1.5 bg-indigo-50 text-indigo-700 rounded border border-indigo-100 hover:bg-indigo-100 transition"><DocumentArrowDownIcon className="h-3.5 w-3.5" /></button>
+            {addingToPipelineId === candidate.id ? (
+              <div className="flex items-center gap-0.5 bg-white border border-indigo-300 rounded-lg shadow-lg px-1.5 py-1 z-10">
+                {PIPELINE_STAGES.map(stage => (
+                  <button
+                    key={stage}
+                    onClick={() => setAddToPipelineStage(stage)}
+                    className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold border transition ${addToPipelineStage === stage ? STAGE_COLORS[stage] : 'bg-slate-100 text-slate-500 border-slate-200 hover:border-indigo-400'}`}>
+                    {stage}
+                  </button>
+                ))}
+                <button onClick={() => onAddToPipeline(candidate.id)} disabled={movingCandidate} className="text-[10px] px-1.5 py-0.5 bg-indigo-600 text-white rounded-full font-bold hover:bg-indigo-700 transition disabled:opacity-50">✓</button>
+                <button onClick={() => setAddingToPipelineId(null)} className="text-[10px] text-slate-400 hover:text-slate-600"><XMarkIcon className="h-3 w-3" /></button>
+              </div>
+            ) : (
+              <button
+                onClick={() => { setAddingToPipelineId(candidate.id); setAddToPipelineStage((candidate.pipeline_stage as PipelineStage) || 'Sourced'); }}
+                className="px-2 py-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded border border-transparent hover:border-indigo-100 transition"
+                title="Set pipeline stage">
+                <PlusIcon className="h-3.5 w-3.5" />
+              </button>
+            )}
         </div>
         <div className={`h-1 w-full transition-all duration-300 ${candidate.is_highlighted ? 'bg-amber-400 opacity-100' : 'bg-black opacity-0 group-hover:opacity-100'}`}></div>
     </div>
