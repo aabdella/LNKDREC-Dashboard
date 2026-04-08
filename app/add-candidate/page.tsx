@@ -1,375 +1,445 @@
 'use client';
 
 import { supabase } from '@/lib/supabaseClient';
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { CloudArrowUpIcon, DocumentIcon, XMarkIcon, CheckCircleIcon, UserPlusIcon } from '@heroicons/react/24/outline';
+import {
+  CloudArrowUpIcon,
+  DocumentIcon,
+  XMarkIcon,
+  CheckIcon,
+  UserPlusIcon,
+  ChevronDownIcon,
+  ChevronUpIcon,
+  TrashIcon,
+} from '@heroicons/react/24/outline';
+
+interface PendingForm {
+  id: string;
+  file: File | null;
+  formData: any;
+  unvettedId: string | null;
+  saving: boolean;
+  savingError: string;
+  uploadError: string;
+  expanded: boolean;
+  uploadProgress: 'idle' | 'loading' | 'done' | 'error';
+}
+
+let formCounter = 0;
+const newFormId = () => `form-${++formCounter}-${Date.now()}`;
+
+const EMPTY_FORM = () => ({
+  full_name: '',
+  title: '',
+  email: '',
+  phone: '',
+  location: '',
+  years_experience_total: 0,
+  linkedin_url: '',
+  portfolio_url: '',
+  match_reason: '',
+  source: 'PDF Upload',
+  status: 'New',
+  match_score: 10,
+  technologies: [],
+  tools: [],
+  work_history: [],
+  resume_url: '',
+  resume_text: '',
+  lnkd_notes: '',
+});
 
 export default function AddCandidate() {
   const router = useRouter();
-  const [file, setFile] = useState<File | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
-  
-  // Form State
-  const [showForm, setShowForm] = useState(false);
-  const [isManual, setIsManual] = useState(false);
-  const [formData, setFormData] = useState<any>({});
-  const [unvettedId, setUnvettedId] = useState<string | null>(null);
+  const [pendingForms, setPendingForms] = useState<PendingForm[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleManualEntry = () => {
-    setFormData({
-      full_name: '',
-      title: '',
-      email: '',
-      phone: '',
-      location: '',
-      years_experience_total: 0,
-      linkedin_url: '',
-      portfolio_url: '',
-      match_reason: '',
-      source: 'Manual Entry',
-      status: 'New',
-      match_score: 0,
-      technologies: [],
-      tools: [],
-      work_history: []
-    });
-    setIsManual(true);
-    setShowForm(true);
-  };
+  // ─── Upload ────────────────────────────────────────────────
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setFile(e.target.files[0]);
-      setError('');
-    }
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+    addNewForms(files);
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  const handleUpload = async () => {
-    if (!file) return;
-    setLoading(true);
-    setError('');
+  const addNewForms = (files: File[]) => {
+    const newForms: PendingForm[] = files.map((file) => ({
+      id: newFormId(),
+      file,
+      formData: EMPTY_FORM(),
+      unvettedId: null,
+      saving: false,
+      savingError: '',
+      uploadError: '',
+      expanded: true,
+      uploadProgress: 'idle',
+    }));
+    setPendingForms((prev) => [...prev, ...newForms]);
+    newForms.forEach((form) => uploadFile(form.id, form.file!));
+  };
+
+  const uploadFile = async (formId: string, file: File) => {
+    setPendingForms((prev) =>
+      prev.map((f) =>
+        f.id === formId ? { ...f, uploadProgress: 'loading' as const, uploadError: '' } : f
+      )
+    );
 
     try {
       const uploadData = new FormData();
       uploadData.append('file', file);
-
-      const response = await fetch('/api/upload-cv', {
-        method: 'POST',
-        body: uploadData,
-      });
-
+      const response = await fetch('/api/upload-cv', { method: 'POST', body: uploadData });
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error || 'Upload failed');
       }
-
       const { candidate, table } = await response.json();
-      
-      // Populate form with extracted data
-      setFormData({
-        full_name: candidate.full_name || '',
-        title: candidate.title || '',
-        email: candidate.email || '',
-        phone: candidate.phone || '',
-        location: candidate.location || '',
-        years_experience_total: candidate.years_experience_total || 0,
-        linkedin_url: candidate.linkedin_url || '',
-        portfolio_url: candidate.portfolio_url || '',
-        match_reason: candidate.match_reason || '',
-        source: 'PDF Upload',
-        status: 'New',
-        match_score: candidate.match_score || 10,
-        resume_url: candidate.resume_url,
-        resume_text: candidate.resume_text,
-        lnkd_notes: candidate.lnkd_notes || '',
-        technologies: [], // Default empty arrays for complex fields
-        tools: [],
-        work_history: []
-      });
-      
-      if (table === 'unvetted') {
-          setUnvettedId(candidate.id);
-      }
-      
-      setShowForm(true);
-      setIsManual(false);
-      setFile(null); // Clear file input
-      
+
+      setPendingForms((prev) =>
+        prev.map((f) =>
+          f.id === formId
+            ? {
+                ...f,
+                formData: {
+                  full_name: candidate.full_name || '',
+                  title: candidate.title || '',
+                  email: candidate.email || '',
+                  phone: candidate.phone || '',
+                  location: candidate.location || '',
+                  years_experience_total: candidate.years_experience_total || 0,
+                  linkedin_url: candidate.linkedin_url || '',
+                  portfolio_url: candidate.portfolio_url || '',
+                  match_reason: candidate.match_reason || '',
+                  source: 'PDF Upload',
+                  status: 'New',
+                  match_score: candidate.match_score || 10,
+                  resume_url: candidate.resume_url || '',
+                  resume_text: candidate.resume_text || '',
+                  lnkd_notes: candidate.lnkd_notes || '',
+                  technologies: [],
+                  tools: [],
+                  work_history: [],
+                },
+                unvettedId: table === 'unvetted' ? candidate.id : null,
+                uploadProgress: 'done' as const,
+              }
+            : f
+        )
+      );
     } catch (err: any) {
-      console.error(err);
-      setError(err.message || 'Something went wrong');
-    } finally {
-      setLoading(false);
+      setPendingForms((prev) =>
+        prev.map((f) =>
+          f.id === formId
+            ? { ...f, uploadProgress: 'error' as const, uploadError: err.message || 'Upload failed' }
+            : f
+        )
+      );
     }
   };
 
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSaving(true);
-    setError('');
+  const retryUpload = (formId: string) => {
+    const form = pendingForms.find((f) => f.id === formId);
+    if (form?.file) uploadFile(formId, form.file);
+  };
 
+  // ─── Per-form actions ────────────────────────────────────────
+
+  const handleInputChange = (formId: string, field: string, value: any) => {
+    setPendingForms((prev) =>
+      prev.map((f) =>
+        f.id === formId ? { ...f, formData: { ...f.formData, [field]: value } } : f
+      )
+    );
+  };
+
+  const toggleExpand = (formId: string) => {
+    setPendingForms((prev) =>
+      prev.map((f) => (f.id === formId ? { ...f, expanded: !f.expanded } : f))
+    );
+  };
+
+  const removeForm = (formId: string) => {
+    setPendingForms((prev) => prev.filter((f) => f.id !== formId));
+  };
+
+  const handleManualEntry = () => {
+    const form: PendingForm = {
+      id: newFormId(),
+      file: null,
+      formData: { ...EMPTY_FORM(), source: 'Manual Entry' },
+      unvettedId: null,
+      saving: false,
+      savingError: '',
+      uploadError: '',
+      expanded: true,
+      uploadProgress: 'done',
+    };
+    setPendingForms((prev) => [...prev, form]);
+  };
+
+  const saveForm = async (formId: string) => {
+    const form = pendingForms.find((f) => f.id === formId);
+    if (!form) return;
+    setPendingForms((prev) =>
+      prev.map((f) => (f.id === formId ? { ...f, saving: true, savingError: '' } : f))
+    );
     try {
-        // 1. Insert into main candidates table
-        const { data: insertedCandidate, error: insertError } = await supabase
-            .from('candidates')
-            .insert(formData)
-            .select()
-            .single();
-
-        if (insertError) throw insertError;
-
-        // 2. Trigger Background Enrichment (Async)
-        // We do this AFTER saving so the user isn't blocked.
-        if (insertedCandidate.resume_text) {
-             fetch('/api/enrich-candidate', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    candidate_id: insertedCandidate.id,
-                    resume_text: insertedCandidate.resume_text
-                })
-             }).catch(err => console.error('Background enrichment failed:', err));
-        }
-
-        // 3. Delete from unvetted if it exists there
-        if (unvettedId) {
-            await supabase.from('unvetted').delete().eq('id', unvettedId);
-        }
-
-        // 4. Success & Redirect
-        alert('Candidate saved! Background enrichment started.');
-        router.push('/'); // Redirect to main list
-        
+      const { data: insertedCandidate, error: insertError } = await supabase
+        .from('candidates').insert(form.formData).select().single();
+      if (insertError) throw insertError;
+      if (insertedCandidate.resume_text) {
+        fetch('/api/enrich-candidate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ candidate_id: insertedCandidate.id, resume_text: insertedCandidate.resume_text }),
+        }).catch((err) => console.error('Background enrichment failed:', err));
+      }
+      if (form.unvettedId) {
+        await supabase.from('unvetted').delete().eq('id', form.unvettedId);
+      }
+      // Remove from stack (Option A)
+      setPendingForms((prev) => prev.filter((f) => f.id !== formId));
     } catch (err: any) {
-        console.error('Save error:', err);
-        setError('Failed to save candidate: ' + err.message);
-        setSaving(false);
+      setPendingForms((prev) =>
+        prev.map((f) =>
+          f.id === formId ? { ...f, saving: false, savingError: err.message || 'Save failed' } : f
+        )
+      );
     }
   };
 
-  const handleInputChange = (field: string, value: any) => {
-      setFormData((prev: any) => ({ ...prev, [field]: value }));
+  // ─── Batch actions ──────────────────────────────────────────
+
+  const saveAll = async () => {
+    const toSave = pendingForms.filter((f) => f.uploadProgress === 'done');
+    await Promise.all(toSave.map((f) => saveForm(f.id)));
   };
+
+  const discardAll = () => setPendingForms([]);
+
+  // ─── Helpers ────────────────────────────────────────────────
+
+  const completedCount = pendingForms.filter((f) => f.uploadProgress === 'done').length;
+  const loadingCount = pendingForms.filter((f) => f.uploadProgress === 'loading').length;
+  const errorCount = pendingForms.filter((f) => f.uploadProgress === 'error').length;
+  const canSaveAll = completedCount > 0 && loadingCount === 0;
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8">
-      <h1 className="text-2xl font-bold text-slate-900 mb-2">Add Candidate</h1>
-      
-      {!showForm ? (
-          <>
-            <p className="text-slate-500 mb-8">Upload a CV (PDF) to automatically parse or add a candidate manually.</p>
-            <div className="bg-white p-8 rounded-xl shadow-sm border border-slate-200">
-                {/* Upload Area */}
-                <div className="border-2 border-dashed border-slate-300 rounded-lg p-12 flex flex-col items-center justify-center text-center hover:bg-slate-50 transition cursor-pointer relative">
-                    <input 
-                        type="file" 
-                        accept=".pdf" 
-                        onChange={handleFileChange} 
-                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                    />
-                    <CloudArrowUpIcon className="h-12 w-12 text-slate-400 mb-4" />
-                    <p className="text-lg font-medium text-slate-700">
-                        {file ? file.name : 'Drag & drop or click to upload PDF'}
-                    </p>
-                    <p className="text-sm text-slate-400 mt-2">Maximum file size: 5MB</p>
-                </div>
+    <div className="max-w-5xl mx-auto px-4 py-8">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">Add Candidates</h1>
+          <p className="text-sm text-slate-500 mt-1">
+            {pendingForms.length === 0
+              ? 'Upload CVs or add candidates manually'
+              : `${completedCount} ready · ${loadingCount} uploading · ${errorCount} failed`}
+          </p>
+        </div>
+        {pendingForms.length > 0 && (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={discardAll}
+              className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-lg transition"
+            >
+              Discard All
+            </button>
+            <button
+              onClick={saveAll}
+              disabled={!canSaveAll}
+              className="px-4 py-2 text-sm font-bold bg-black text-white rounded-lg hover:bg-zinc-800 transition disabled:opacity-40 flex items-center gap-2"
+            >
+              <CheckIcon className="h-4 w-4" />
+              Save All ({completedCount})
+            </button>
+          </div>
+        )}
+      </div>
 
-                {/* Manual Entry Button */}
-                <div className="mt-8 flex items-center gap-4">
-                    <div className="flex-grow h-px bg-slate-100"></div>
-                    <span className="text-slate-400 text-sm font-medium">OR</span>
-                    <div className="flex-grow h-px bg-slate-100"></div>
-                </div>
+      {/* Upload Zone */}
+      <div className="bg-white p-8 rounded-xl shadow-sm border border-slate-200 mb-6">
+        <div
+          className="border-2 border-dashed border-slate-300 rounded-lg p-10 flex flex-col items-center justify-center text-center hover:bg-slate-50 transition cursor-pointer"
+          onClick={() => fileInputRef.current?.click()}
+        >
+          <input ref={fileInputRef} type="file" accept=".pdf" multiple onChange={handleFileChange} className="hidden" />
+          <CloudArrowUpIcon className="h-10 w-10 text-slate-400 mb-3" />
+          <p className="text-base font-medium text-slate-700">Drop PDFs here or click to upload — multiple files supported</p>
+          <p className="text-sm text-slate-400 mt-2">Maximum file size: 5MB per file</p>
+        </div>
+        <div className="mt-6 flex items-center gap-4">
+          <div className="flex-grow h-px bg-slate-100" />
+          <span className="text-slate-400 text-sm font-medium">OR</span>
+          <div className="flex-grow h-px bg-slate-100" />
+        </div>
+        <div className="mt-6 flex justify-center">
+          <button
+            onClick={handleManualEntry}
+            className="flex items-center gap-2 px-6 py-3 border border-slate-200 rounded-lg text-slate-700 font-semibold hover:bg-slate-50 transition shadow-sm"
+          >
+            <UserPlusIcon className="h-5 w-5" />
+            Add Candidate Manually
+          </button>
+        </div>
+      </div>
 
-                <div className="mt-8 flex justify-center">
-                    <button 
-                        onClick={handleManualEntry}
-                        className="flex items-center gap-2 px-6 py-3 border border-slate-200 rounded-lg text-slate-700 font-semibold hover:bg-slate-50 transition shadow-sm"
-                    >
-                        <UserPlusIcon className="h-5 w-5" />
-                        Add Candidate Manually
-                    </button>
-                </div>
+      {/* Pending Forms */}
+      {pendingForms.length > 0 && (
+        <div className="space-y-4">
+          {pendingForms.map((form, idx) => (
+            <FormCard
+              key={form.id}
+              form={form}
+              index={idx + 1}
+              onInputChange={handleInputChange}
+              onToggleExpand={toggleExpand}
+              onRemove={removeForm}
+              onSave={saveForm}
+              onRetry={retryUpload}
+            />
+          ))}
+        </div>
+      )}
 
-                {/* Selected File & Actions */}
-                {file && (
-                    <div className="mt-6 flex justify-end gap-3">
-                        <button 
-                            onClick={() => setFile(null)} 
-                            className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-md transition"
-                            disabled={loading}
-                        >
-                            Cancel
-                        </button>
-                        <button 
-                            onClick={handleUpload} 
-                            disabled={loading}
-                            className="px-6 py-2 bg-black text-white font-semibold rounded-md hover:bg-zinc-800 transition disabled:opacity-50 flex items-center gap-2"
-                        >
-                            {loading ? 'Processing...' : 'Upload & Parse'}
-                        </button>
-                    </div>
-                )}
-                 {/* Error Message */}
-                {error && (
-                    <div className="mt-6 p-4 bg-red-50 text-red-700 rounded-lg border border-red-100 flex items-center gap-2">
-                        <XMarkIcon className="h-5 w-5" />
-                        {error}
-                    </div>
-                )}
+      {pendingForms.length === 0 && (
+        <div className="text-center py-20 text-slate-400">
+          <DocumentIcon className="h-12 w-12 mx-auto mb-3 opacity-40" />
+          <p>No candidates pending — upload a CV to get started</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Form Card ────────────────────────────────────────────────────────────────
+
+interface FormCardProps {
+  form: PendingForm;
+  index: number;
+  onInputChange: (formId: string, field: string, value: any) => void;
+  onToggleExpand: (formId: string) => void;
+  onRemove: (formId: string) => void;
+  onSave: (formId: string) => void;
+  onRetry: (formId: string) => void;
+}
+
+function FormCard({ form, index, onInputChange, onToggleExpand, onRemove, onSave, onRetry }: FormCardProps) {
+  const { formData, saving, savingError, uploadError, expanded, uploadProgress } = form;
+  const isLoading = uploadProgress === 'loading';
+  const isError = uploadProgress === 'error';
+  const isDone = uploadProgress === 'done';
+
+  const field = (label: string, fieldKey: string, type = 'text', placeholder = '') => (
+    <div>
+      <label className="block text-xs font-medium text-slate-700 mb-1">{label}</label>
+      <input
+        type={type}
+        placeholder={placeholder}
+        className="w-full border border-slate-300 rounded-md p-2 text-sm focus:ring-2 focus:ring-black outline-none"
+        value={formData[fieldKey] ?? ''}
+        onChange={(e) => onInputChange(form.id, fieldKey, e.target.value)}
+      />
+    </div>
+  );
+
+  return (
+    <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+      {/* Card Header */}
+      <div
+        className="flex items-center gap-3 px-5 py-4 cursor-pointer select-none hover:bg-slate-50 transition"
+        onClick={() => onToggleExpand(form.id)}
+      >
+        <span className="text-xs font-bold text-slate-400 w-5 text-right">{index}</span>
+
+        {isLoading && <div className="h-4 w-4 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin flex-shrink-0" />}
+        {isError && <div className="h-4 w-4 rounded-full bg-red-500 flex items-center justify-center flex-shrink-0"><XMarkIcon className="h-3 w-3 text-white" /></div>}
+        {isDone && <div className="h-4 w-4 rounded-full bg-green-500 flex items-center justify-center flex-shrink-0"><CheckIcon className="h-3 w-3 text-white" /></div>}
+
+        <div className="flex-grow min-w-0">
+          <p className="text-sm font-semibold text-slate-900 truncate">
+            {form.file?.name || formData.full_name || 'New Candidate'}
+          </p>
+          <p className="text-xs text-slate-400">
+            {isLoading && 'Uploading & parsing...'}
+            {isError && (uploadError || 'Upload failed')}
+            {isDone && (formData.full_name || 'Ready to review')}
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {!isLoading && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onRemove(form.id); }}
+              className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-md transition"
+              title="Remove"
+            >
+              <TrashIcon className="h-4 w-4" />
+            </button>
+          )}
+          {isError && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onRetry(form.id); }}
+              className="px-3 py-1 text-xs font-semibold text-indigo-600 hover:bg-indigo-50 rounded-md transition"
+            >
+              Retry
+            </button>
+          )}
+          <button className="p-1 text-slate-400">
+            {expanded ? <ChevronUpIcon className="h-4 w-4" /> : <ChevronDownIcon className="h-4 w-4" />}
+          </button>
+        </div>
+      </div>
+
+      {/* Expanded Form */}
+      {expanded && (
+        <div className="px-5 pb-5 border-t border-slate-100">
+          {savingError && (
+            <div className="mt-4 p-3 bg-red-50 text-red-700 rounded-lg text-sm flex items-start gap-2">
+              <XMarkIcon className="h-4 w-4 mt-0.5 flex-shrink-0" />
+              {savingError}
             </div>
-          </>
-      ) : (
-          <form onSubmit={handleSave} className="bg-white p-8 rounded-xl shadow-sm border border-slate-200 animate-fade-in">
-              <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-100">
-                  <div className={`${isManual ? 'bg-blue-100 text-blue-600' : 'bg-green-100 text-green-600'} p-2 rounded-full`}>
-                      {isManual ? <UserPlusIcon className="h-6 w-6" /> : <CheckCircleIcon className="h-6 w-6" />}
-                  </div>
-                  <div>
-                      <h2 className="text-lg font-bold text-slate-900">
-                          {isManual ? 'Add Candidate Details' : 'Review & Save Candidate'}
-                      </h2>
-                      <p className="text-sm text-slate-500">
-                          {isManual ? 'Enter the candidate information manually.' : 'Extracted from PDF. Please verify details.'}
-                      </p>
-                  </div>
-              </div>
+          )}
 
-              {error && (
-                <div className="mb-6 p-4 bg-red-50 text-red-700 rounded-lg border border-red-100 flex items-center gap-2">
-                    <XMarkIcon className="h-5 w-5" />
-                    {error}
-                </div>
-              )}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-4">
+            <div className="col-span-full">{field('Full Name *', 'full_name')}</div>
+            <div className="col-span-full">{field('Job Title', 'title')}</div>
+            {field('Email', 'email', 'email')}
+            {field('Phone', 'phone')}
+            {field('Location', 'location')}
+            {field('Years of Experience', 'years_experience_total', 'number')}
+            {field('LinkedIn URL', 'linkedin_url', 'url', 'https://linkedin.com/in/...')}
+            {field('Portfolio URL', 'portfolio_url', 'url', 'https://...')}
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                  {/* Full Name */}
-                  <div className="col-span-full md:col-span-1">
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Full Name</label>
-                      <input 
-                          type="text" 
-                          required
-                          className="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-black outline-none"
-                          value={formData.full_name}
-                          onChange={e => handleInputChange('full_name', e.target.value)}
-                      />
-                  </div>
+            <div className="col-span-full">
+              <label className="block text-xs font-medium text-slate-700 mb-1">Summary / Notes</label>
+              <textarea
+                className="w-full border border-slate-300 rounded-md p-2 text-sm focus:ring-2 focus:ring-black outline-none min-h-[80px]"
+                value={formData.match_reason}
+                onChange={(e) => onInputChange(form.id, 'match_reason', e.target.value)}
+                placeholder="Candidate summary or notes..."
+              />
+            </div>
+          </div>
 
-                   {/* Title */}
-                   <div className="col-span-full md:col-span-1">
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Job Title</label>
-                      <input 
-                          type="text" 
-                          className="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-black outline-none"
-                          value={formData.title}
-                          onChange={e => handleInputChange('title', e.target.value)}
-                          placeholder="e.g. Graphic Designer"
-                      />
-                  </div>
-
-                  {/* Email */}
-                  <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
-                      <input 
-                          type="email" 
-                          className="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-black outline-none"
-                          value={formData.email}
-                          onChange={e => handleInputChange('email', e.target.value)}
-                      />
-                  </div>
-
-                  {/* Phone */}
-                  <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Phone</label>
-                      <input 
-                          type="text" 
-                          className="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-black outline-none"
-                          value={formData.phone}
-                          onChange={e => handleInputChange('phone', e.target.value)}
-                      />
-                  </div>
-                  
-                  {/* Location */}
-                  <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Location</label>
-                      <input 
-                          type="text" 
-                          className="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-black outline-none"
-                          value={formData.location}
-                          onChange={e => handleInputChange('location', e.target.value)}
-                      />
-                  </div>
-
-                   {/* Years Exp */}
-                   <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Years of Experience</label>
-                      <input 
-                          type="number" 
-                          className="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-black outline-none"
-                          value={formData.years_experience_total}
-                          onChange={e => handleInputChange('years_experience_total', parseInt(e.target.value) || 0)}
-                      />
-                  </div>
-
-                  {/* LinkedIn */}
-                  <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">LinkedIn URL</label>
-                      <input 
-                          type="url" 
-                          className="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-black outline-none"
-                          value={formData.linkedin_url}
-                          onChange={e => handleInputChange('linkedin_url', e.target.value)}
-                          placeholder="https://linkedin.com/in/..."
-                      />
-                  </div>
-
-                  {/* Portfolio */}
-                  <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Portfolio URL</label>
-                      <input 
-                          type="url" 
-                          className="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-black outline-none"
-                          value={formData.portfolio_url}
-                          onChange={e => handleInputChange('portfolio_url', e.target.value)}
-                          placeholder="https://behance.net/..."
-                      />
-                  </div>
-              </div>
-
-              {/* Match Reason / Summary */}
-              <div className="mb-6">
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Summary / Notes</label>
-                  <textarea 
-                      className="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-black outline-none min-h-[100px]"
-                      value={formData.match_reason}
-                      onChange={e => handleInputChange('match_reason', e.target.value)}
-                      placeholder="Candidate summary or notes..."
-                  ></textarea>
-              </div>
-
-              {/* Hidden Fields for Resume URL/Text */}
-              <input type="hidden" value={formData.resume_url || ''} />
-
-              <div className="flex justify-end gap-3 pt-6 border-t border-slate-100">
-                  <button 
-                      type="button"
-                      onClick={() => setShowForm(false)} 
-                      className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-md transition"
-                  >
-                      Cancel
-                  </button>
-                  <button 
-                      type="submit" 
-                      disabled={saving}
-                      className="px-6 py-2 bg-black text-white font-semibold rounded-md hover:bg-zinc-800 transition disabled:opacity-50 flex items-center gap-2"
-                  >
-                      {saving ? 'Saving...' : 'Save Candidate'}
-                  </button>
-              </div>
-          </form>
+          <div className="flex justify-end gap-3 pt-4 mt-4 border-t border-slate-100">
+            <button
+              onClick={() => onRemove(form.id)}
+              disabled={saving}
+              className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-lg transition disabled:opacity-50"
+            >
+              Remove
+            </button>
+            <button
+              onClick={() => onSave(form.id)}
+              disabled={saving}
+              className="px-4 py-2 text-sm font-bold bg-black text-white rounded-lg hover:bg-zinc-800 transition disabled:opacity-50 flex items-center gap-2"
+            >
+              {saving ? 'Saving...' : 'Save'}
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );
