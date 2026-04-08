@@ -77,6 +77,19 @@ export default function CandidateDetailsModal({
     const [newInteraction, setNewInteraction] = useState({ type: 'LinkedIn Message', content: '' });
     const [submittingInteraction, setSubmittingInteraction] = useState(false);
 
+    const [vettingData, setVettingData] = useState<{
+        id?: string;
+        english_proficiency: string;
+        notice_period: string;
+        current_salary: string;
+        expected_salary: string;
+        work_presence: string;
+        benefits: string[];
+        notes: string;
+        vetted_at?: string;
+    } | null>(null);
+    const [loadingVetting, setLoadingVetting] = useState(false);
+
     const [formData, setFormData] = useState<Candidate>({
         ...candidate,
         work_history: Array.isArray(candidate.work_history) ? candidate.work_history : [],
@@ -95,6 +108,7 @@ export default function CandidateDetailsModal({
                 tools: Array.isArray(candidate.tools) ? candidate.tools : []
             });
             fetchInteractions();
+            fetchVetting();
         }
     }, [candidate]);
 
@@ -109,6 +123,19 @@ export default function CandidateDetailsModal({
         if (error) console.error('Error fetching interactions:', error);
         else setInteractions(data || []);
         setLoadingInteractions(false);
+    }
+
+    async function fetchVetting() {
+        if (!candidate.id) return;
+        setLoadingVetting(true);
+        const { data, error } = await supabase
+          .from('vettings')
+          .select('*')
+          .eq('candidate_id', candidate.id)
+          .order('vetted_at', { ascending: false })
+          .limit(1);
+        if (data && data.length > 0) setVettingData(data[0]);
+        setLoadingVetting(false);
     }
 
     async function submitInteraction() {
@@ -131,6 +158,10 @@ export default function CandidateDetailsModal({
         }
         setSubmittingInteraction(false);
     }
+
+    const handleChange = (field: keyof Candidate, value: any) => {
+        setFormData(prev => ({ ...prev, [field]: value }));
+    };
 
     const handleSave = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -161,6 +192,25 @@ export default function CandidateDetailsModal({
         const { error } = await supabase.from('candidates').update(payload).eq('id', candidate.id);
         
         if (!error) {
+            // Also update vettings table
+            if (vettingData) {
+                const vettingPayload = {
+                    candidate_id: candidate.id,
+                    english_proficiency: vettingData.english_proficiency,
+                    notice_period: vettingData.notice_period,
+                    current_salary: vettingData.current_salary,
+                    expected_salary: vettingData.expected_salary,
+                    work_presence: vettingData.work_presence,
+                    benefits: vettingData.benefits,
+                    notes: vettingData.notes,
+                    vetted_at: vettingData.id ? undefined : new Date().toISOString(),
+                };
+                if (vettingData.id) {
+                    await supabase.from('vettings').update(vettingPayload).eq('id', vettingData.id);
+                } else {
+                    await supabase.from('vettings').insert(vettingPayload);
+                }
+            }
             setIsEditing(false);
             onUpdate();
         } else {
@@ -185,9 +235,19 @@ export default function CandidateDetailsModal({
         setSavingMatch(false);
     };
 
-    const handleChange = (field: keyof Candidate, value: any) => {
-        setFormData(prev => ({ ...prev, [field]: value }));
+    const handleToggleEdit = () => {
+        if (!isEditing) {
+            fetchVetting();
+        }
+        setIsEditing(!isEditing);
     };
+
+    function handleVettingChange(field: string, value: any) {
+        setVettingData(prev => prev ? { ...prev, [field]: value } : {
+            english_proficiency: '', notice_period: '', current_salary: '',
+            expected_salary: '', work_presence: 'Hybrid', benefits: [], notes: '', [field]: value
+        });
+    }
 
     const addWorkHistory = () => {
         const newEntry: WorkHistory = { company: '', title: '', start_date: '', end_date: '', years: 0, brief: '' };
@@ -690,64 +750,206 @@ export default function CandidateDetailsModal({
                     )}
 
                     <div className="pt-6 border-t border-slate-100">
-                        <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">💬 Interaction Timeline</h3>
-                        <div className="bg-white p-2.5 rounded-lg border border-slate-100 mb-6 shadow-sm">
-                            <div className="flex flex-col sm:flex-row gap-2.5 mb-2">
-                                <select 
-                                    className="sm:w-1/3 border border-slate-200 rounded text-sm p-1.5 outline-none focus:ring-1 focus:ring-black bg-slate-50"
-                                    value={newInteraction.type}
-                                    onChange={e => setNewInteraction({...newInteraction, type: e.target.value})}
-                                >
-                                    <option>LinkedIn</option>
-                                    <option>Email</option>
-                                    <option>Call</option>
-                                    <option>Interview</option>
-                                    <option>Offer</option>
-                                    <option>Feedback</option>
-                                </select>
-                                <textarea 
-                                    className="sm:w-2/3 flex-grow border border-slate-200 rounded text-sm p-1.5 outline-none focus:ring-1 focus:ring-black min-h-[36px]"
-                                    placeholder="Quick notes..."
-                                    value={newInteraction.content}
-                                    onChange={e => setNewInteraction({...newInteraction, content: e.target.value})}
-                                />
-                            </div>
-                            <div className="flex justify-end">
-                                <button 
-                                    onClick={submitInteraction}
-                                    disabled={submittingInteraction || !newInteraction.content.trim()}
-                                    className="bg-black text-white px-5 py-1 rounded text-xs font-bold hover:bg-zinc-800 transition disabled:opacity-50"
-                                >
-                                    {submittingInteraction ? '...' : 'Log Interaction'}
-                                </button>
-                            </div>
-                        </div>
-
-                        <div className="space-y-4">
-                            {loadingInteractions ? (
-                                <div className="text-center py-4 text-slate-400 text-sm animate-pulse">Loading history...</div>
-                            ) : interactions.length > 0 ? (
-                                interactions.map((it) => (
-                                    <div key={it.id} className="flex gap-4 relative">
-                                        <div className="w-px bg-slate-200 absolute left-2.5 top-8 bottom-0"></div>
-                                        <div className="h-5 w-5 rounded-full bg-slate-200 shrink-0 mt-1.5 flex items-center justify-center text-[10px] z-10">💬</div>
-                                        <div className="pb-4">
-                                            <div className="flex items-center gap-2 mb-1">
-                                                <span className="text-xs font-bold text-slate-900 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">{it.type}</span>
-                                                <span className="text-[10px] text-slate-400 font-medium">{new Date(it.created_at).toLocaleString()}</span>
-                                            </div>
-                                            <p className="text-sm text-slate-600 whitespace-pre-wrap">{it.content}</p>
-                                        </div>
+                        <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">📋 Vetting Details &amp; 💬 Interactions</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            {/* Left: Vetting Details */}
+                            <div className="space-y-3">
+                                <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
+                                    <div className="flex items-center justify-between mb-3">
+                                        <h4 className="font-bold text-slate-800 text-sm">Vetting Details</h4>
+                                        {vettingData?.vetted_at && (
+                                            <span className="text-xs text-slate-400">Vetted: {new Date(vettingData.vetted_at).toLocaleDateString()}</span>
+                                        )}
                                     </div>
-                                ))
-                            ) : (
-                                <p className="text-center py-8 text-slate-400 text-sm italic">No interactions logged yet.</p>
-                            )}
+                                    {loadingVetting ? (
+                                        <div className="text-sm text-slate-400 animate-pulse">Loading...</div>
+                                    ) : isEditing ? (
+                                        <div className="space-y-3">
+                                            <div>
+                                                <label className="block text-xs font-medium text-slate-600 mb-1">English Proficiency</label>
+                                                <select
+                                                    className="w-full border border-slate-300 rounded-md p-2 text-sm focus:ring-1 focus:ring-black outline-none appearance-none bg-white"
+                                                    value={vettingData?.english_proficiency || ''}
+                                                    onChange={e => handleVettingChange('english_proficiency', e.target.value)}
+                                                >
+                                                    <option value="">Select...</option>
+                                                    <option value="Excellent">Excellent</option>
+                                                    <option value="Good">Good</option>
+                                                    <option value="Fair">Fair</option>
+                                                    <option value="Poor">Poor</option>
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-medium text-slate-600 mb-1">Notice Period</label>
+                                                <input
+                                                    type="text"
+                                                    className="w-full border border-slate-300 rounded-md p-2 text-sm focus:ring-1 focus:ring-black outline-none appearance-none bg-white"
+                                                    placeholder="e.g. 1 month, 2 weeks"
+                                                    value={vettingData?.notice_period || ''}
+                                                    onChange={e => handleVettingChange('notice_period', e.target.value)}
+                                                />
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <div>
+                                                    <label className="block text-xs font-medium text-slate-600 mb-1">Current Salary</label>
+                                                    <input
+                                                        type="text"
+                                                        className="w-full border border-slate-300 rounded-md p-2 text-sm focus:ring-1 focus:ring-black outline-none appearance-none bg-white"
+                                                        placeholder="e.g. $80k"
+                                                        value={vettingData?.current_salary || ''}
+                                                        onChange={e => handleVettingChange('current_salary', e.target.value)}
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-medium text-slate-600 mb-1">Expected Salary</label>
+                                                    <input
+                                                        type="text"
+                                                        className="w-full border border-slate-300 rounded-md p-2 text-sm focus:ring-1 focus:ring-black outline-none appearance-none bg-white"
+                                                        placeholder="e.g. $100k"
+                                                        value={vettingData?.expected_salary || ''}
+                                                        onChange={e => handleVettingChange('expected_salary', e.target.value)}
+                                                    />
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-medium text-slate-600 mb-1">Work Presence</label>
+                                                <select
+                                                    className="w-full border border-slate-300 rounded-md p-2 text-sm focus:ring-1 focus:ring-black outline-none appearance-none bg-white"
+                                                    value={vettingData?.work_presence || 'Hybrid'}
+                                                    onChange={e => handleVettingChange('work_presence', e.target.value)}
+                                                >
+                                                    <option value="On-site">On-site</option>
+                                                    <option value="Hybrid">Hybrid</option>
+                                                    <option value="Remote">Remote</option>
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-medium text-slate-600 mb-1">Benefits (comma-separated)</label>
+                                                <input
+                                                    type="text"
+                                                    className="w-full border border-slate-300 rounded-md p-2 text-sm focus:ring-1 focus:ring-black outline-none appearance-none bg-white"
+                                                    placeholder="Health, 401k, stock..."
+                                                    value={Array.isArray(vettingData?.benefits) ? vettingData.benefits.join(', ') : (vettingData?.benefits || '')}
+                                                    onChange={e => handleVettingChange('benefits', e.target.value.split(',').map(s => s.trim()).filter(Boolean))}
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-medium text-slate-600 mb-1">Notes</label>
+                                                <textarea
+                                                    rows={3}
+                                                    className="w-full border border-slate-300 rounded-md p-2 text-sm focus:ring-1 focus:ring-black outline-none appearance-none bg-white resize-y"
+                                                    placeholder="Additional vetting notes..."
+                                                    value={vettingData?.notes || ''}
+                                                    onChange={e => handleVettingChange('notes', e.target.value)}
+                                                />
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-2 text-sm">
+                                            <div className="flex justify-between">
+                                                <span className="text-slate-500">English:</span>
+                                                <span className="font-medium text-slate-800">{vettingData?.english_proficiency || <span className="text-slate-300 italic">Not set</span>}</span>
+                                            </div>
+                                            <div className="flex justify-between">
+                                                <span className="text-slate-500">Notice Period:</span>
+                                                <span className="font-medium text-slate-800">{vettingData?.notice_period || <span className="text-slate-300 italic">Not set</span>}</span>
+                                            </div>
+                                            <div className="flex justify-between">
+                                                <span className="text-slate-500">Current Salary:</span>
+                                                <span className="font-medium text-slate-800">{vettingData?.current_salary || <span className="text-slate-300 italic">Not set</span>}</span>
+                                            </div>
+                                            <div className="flex justify-between">
+                                                <span className="text-slate-500">Expected Salary:</span>
+                                                <span className="font-medium text-slate-800">{vettingData?.expected_salary || <span className="text-slate-300 italic">Not set</span>}</span>
+                                            </div>
+                                            <div className="flex justify-between">
+                                                <span className="text-slate-500">Work Presence:</span>
+                                                <span className="font-medium text-slate-800">{vettingData?.work_presence || <span className="text-slate-300 italic">Not set</span>}</span>
+                                            </div>
+                                            {vettingData?.benefits && vettingData.benefits.length > 0 && (
+                                                <div className="pt-1">
+                                                    <span className="text-slate-500 block mb-1">Benefits:</span>
+                                                    <div className="flex flex-wrap gap-1">
+                                                        {vettingData.benefits.map((b, i) => (
+                                                            <span key={i} className="bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded text-xs border border-emerald-100">{b}</span>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+                                            {vettingData?.notes && (
+                                                <div className="pt-1 border-t border-slate-100 mt-2">
+                                                    <span className="text-slate-500 block mb-1">Notes:</span>
+                                                    <p className="text-slate-700 whitespace-pre-wrap">{vettingData.notes}</p>
+                                                </div>
+                                            )}
+                                            {!vettingData && <p className="text-slate-400 italic text-xs">No vetting data yet. Click Edit to add.</p>}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Right: Interaction Timeline */}
+                            <div>
+                                <h4 className="font-bold text-slate-800 text-sm mb-3">💬 Interaction Timeline</h4>
+                                <div className="bg-white p-2.5 rounded-lg border border-slate-100 mb-4 shadow-sm">
+                                    <div className="flex flex-col sm:flex-row gap-2.5 mb-2">
+                                        <select 
+                                            className="sm:w-1/3 border border-slate-200 rounded text-sm p-1.5 outline-none focus:ring-1 focus:ring-black bg-slate-50 appearance-none"
+                                            value={newInteraction.type}
+                                            onChange={e => setNewInteraction({...newInteraction, type: e.target.value})}
+                                        >
+                                            <option>LinkedIn</option>
+                                            <option>Email</option>
+                                            <option>Call</option>
+                                            <option>Interview</option>
+                                            <option>Offer</option>
+                                            <option>Feedback</option>
+                                        </select>
+                                        <textarea 
+                                            className="sm:w-2/3 flex-grow border border-slate-200 rounded text-sm p-1.5 outline-none focus:ring-1 focus:ring-black min-h-[36px] appearance-none bg-white"
+                                            placeholder="Quick notes..."
+                                            value={newInteraction.content}
+                                            onChange={e => setNewInteraction({...newInteraction, content: e.target.value})}
+                                        />
+                                    </div>
+                                    <div className="flex justify-end">
+                                        <button 
+                                            onClick={submitInteraction}
+                                            disabled={submittingInteraction || !newInteraction.content.trim()}
+                                            className="bg-black text-white px-5 py-1 rounded text-xs font-bold hover:bg-zinc-800 transition disabled:opacity-50"
+                                        >
+                                            {submittingInteraction ? '...' : 'Log Interaction'}
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-3 max-h-[300px] overflow-y-auto">
+                                    {loadingInteractions ? (
+                                        <div className="text-center py-4 text-slate-400 text-sm animate-pulse">Loading history...</div>
+                                    ) : interactions.length > 0 ? (
+                                        interactions.map((it) => (
+                                            <div key={it.id} className="flex gap-3 relative">
+                                                <div className="w-px bg-slate-200 absolute left-2.5 top-8 bottom-0"></div>
+                                                <div className="h-5 w-5 rounded-full bg-slate-200 shrink-0 mt-1 flex items-center justify-center text-[10px] z-10">💬</div>
+                                                <div className="pb-3">
+                                                    <div className="flex items-center gap-2 mb-0.5">
+                                                        <span className="text-xs font-bold text-slate-900 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">{it.type}</span>
+                                                        <span className="text-[10px] text-slate-400 font-medium">{new Date(it.created_at).toLocaleString()}</span>
+                                                    </div>
+                                                    <p className="text-sm text-slate-600 whitespace-pre-wrap">{it.content}</p>
+                                                </div>
+                                            </div>
+                                        ))
+                                    ) : (
+                                        <p className="text-center py-8 text-slate-400 text-sm italic">No interactions logged yet.</p>
+                                    )}
+                                </div>
+                            </div>
                         </div>
                     </div>
 
                     <div className="flex gap-4 pt-4">
-                        <button onClick={() => setIsEditing(true)} className="flex-1 bg-white border border-slate-300 text-slate-700 text-center py-2.5 rounded-lg font-semibold hover:bg-slate-50 transition flex items-center justify-center gap-2">
+                        <button onClick={handleToggleEdit} className="flex-1 bg-white border border-slate-300 text-slate-700 text-center py-2.5 rounded-lg font-semibold hover:bg-slate-50 transition flex items-center justify-center gap-2">
                             <PencilSquareIcon className="h-5 w-5" /> Edit Profile
                         </button>
                     </div>
