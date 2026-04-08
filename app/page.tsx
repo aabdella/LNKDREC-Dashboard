@@ -813,7 +813,7 @@ function CandidateCard({ candidate, onViewDetails, onVetCandidate, onToggleAssig
                 </div>
               ) : isAssigned ? (
                 <div className="flex flex-col items-end">
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-green-100 text-green-700 border-green-200 flex items-center gap-1 uppercase tracking-wider">Matched</span>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-green-100 text-green-700 border-green-200 flex items-center gap-1 capitalize">Matched</span>
                   {candidate.assigned_company_name && (
                     <span className="text-[9px] font-bold text-slate-500 mt-0.5 text-right leading-tight max-w-[100px] truncate">
                       {candidate.assigned_company_name}
@@ -821,9 +821,9 @@ function CandidateCard({ candidate, onViewDetails, onVetCandidate, onToggleAssig
                   )}
                 </div>
               ) : isVetted ? (
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-blue-100 text-blue-700 border-blue-200 flex items-center gap-1 uppercase tracking-wider">Vetted</span>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-blue-100 text-blue-700 border-blue-200 flex items-center gap-1 capitalize">Vetted</span>
               ) : (
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-slate-50 text-slate-400 border-slate-200 uppercase tracking-wider">New</span>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-slate-50 text-slate-400 border-slate-200 capitalize">New</span>
               )}
           </div>
 
