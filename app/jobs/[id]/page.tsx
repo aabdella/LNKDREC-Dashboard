@@ -11,9 +11,12 @@ import {
   BriefcaseIcon,
   UserIcon,
   DocumentArrowDownIcon,
-  XMarkIcon
+  XMarkIcon,
+  PlusIcon
 } from '@heroicons/react/24/outline';
 import { Candidate } from '@/components/CandidateDetailsModal';
+import { PIPELINE_STAGES, STAGE_COLORS } from '@/lib/constants';
+type PipelineStage = (typeof PIPELINE_STAGES)[number];
 
 type Job = {
   id: string;
@@ -183,6 +186,9 @@ export default function JobDetailPage() {
   const [candidates, setCandidates] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
+  const [addingToPipelineId, setAddingToPipelineId] = useState<string | null>(null);
+  const [addToPipelineStage, setAddToPipelineStage] = useState<PipelineStage>('Sourced');
+  const [movingCandidate, setMovingCandidate] = useState(false);
   const [cvCandidate, setCvCandidate] = useState<Candidate | null>(null);
   const [cvGenerating, setCvGenerating] = useState(false);
   const [cvGeneratingIndex, setCvGeneratingIndex] = useState(0);
@@ -276,6 +282,20 @@ export default function JobDetailPage() {
     setCvGeneratingIndex(0);
     setCvGeneratingTotal(0);
     clearSelection();
+  }
+
+  async function addCandidateToPipeline(candidateId: string) {
+    if (!addToPipelineStage) return;
+    setMovingCandidate(true);
+    const { error } = await supabase
+      .from('candidates')
+      .update({ pipeline_stage: addToPipelineStage, stage_changed_at: new Date().toISOString() })
+      .eq('id', candidateId);
+    setMovingCandidate(false);
+    setAddingToPipelineId(null);
+    if (!error) {
+      fetchCandidates();
+    }
   }
 
   if (loading) return <div className="max-w-6xl mx-auto px-4 py-12 text-center"><div className="animate-pulse text-slate-400">Loading...</div></div>;
@@ -415,6 +435,43 @@ export default function JobDetailPage() {
                               title="Generate CV">
                               <DocumentArrowDownIcon className="h-4 w-4" />
                             </button>
+                            {addingToPipelineId === candidate.id ? (
+                              <div className="flex items-center gap-1 bg-white border border-indigo-300 rounded-lg shadow-lg px-2 py-1.5 z-10">
+                                {PIPELINE_STAGES.map(stage => (
+                                  <button
+                                    key={stage}
+                                    onClick={() => setAddToPipelineStage(stage)}
+                                    className={`text-xs px-2 py-0.5 rounded-full font-bold border transition ${
+                                      addToPipelineStage === stage
+                                        ? STAGE_COLORS[stage]
+                                        : 'bg-slate-100 text-slate-500 border-slate-200 hover:border-indigo-400'
+                                    }`}>
+                                    {stage}
+                                  </button>
+                                ))}
+                                <button
+                                  onClick={() => addCandidateToPipeline(candidate.id)}
+                                  disabled={movingCandidate}
+                                  className="text-xs px-2 py-0.5 bg-indigo-600 text-white rounded-full font-bold hover:bg-indigo-700 transition disabled:opacity-50 ml-1">
+                                  {movingCandidate ? '...' : '✓'}
+                                </button>
+                                <button
+                                  onClick={() => setAddingToPipelineId(null)}
+                                  className="text-xs text-slate-400 hover:text-slate-600 ml-1">
+                                  <XMarkIcon className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => {
+                                  setAddingToPipelineId(candidate.id);
+                                  setAddToPipelineStage((candidate.pipeline_stage as PipelineStage) || 'Sourced');
+                                }}
+                                className="text-xs font-semibold text-slate-400 hover:text-indigo-600 transition"
+                                title="Add to pipeline">
+                                <PlusIcon className="h-4 w-4" />
+                              </button>
+                            )}
                             <button
                               onClick={() => openCandidateDetails(candidate)}
                               className="text-xs font-semibold text-slate-500 hover:text-black transition disabled:opacity-50"
