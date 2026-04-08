@@ -724,6 +724,9 @@ function CandidateCard({ candidate, onViewDetails, onVetCandidate, onToggleAssig
   const isVetted = candidate.status === 'Vetted';
   const isAssigned = !!candidate.assigned_job_title;
   const healthScore = 0; // (Simplified for layout)
+  const portfolioUrl = candidate.portfolio_url;
+  const isGithub = portfolioUrl?.includes('github.com');
+  const isBehance = portfolioUrl && !isGithub;
   
   return (
     <div className={`bg-white rounded-xl shadow-sm border overflow-hidden hover:shadow-md transition group flex flex-col h-full relative ${candidate.is_highlighted ? 'border-amber-400 ring-1 ring-amber-400' : 'border-slate-200 hover:border-black/10'}`}>
@@ -749,18 +752,23 @@ function CandidateCard({ candidate, onViewDetails, onVetCandidate, onToggleAssig
                       <svg className="h-3 w-3 fill-current" viewBox="0 0 24 24"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 0 1-2.063-2.065 2.064 2.064 0 1 1 2.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z" /></svg>
                     </a>
                   )}
-                  {candidate.portfolio_url && (
-                    <a href={candidate.portfolio_url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-[#1769ff] hover:text-[#0052cc] transition">
-                      <svg className="h-3 w-3 fill-current" viewBox="0 0 24 24"><path d="M22 7h-7V5h7v2zm1.726 10c-.442 1.297-2.029 3-5.101 3-3.074 0-5.564-1.729-5.564-5.675 0-3.91 2.325-5.92 5.466-5.92 3.082 0 4.964 1.782 5.375 4.426.078.506.109 1.188.095 2.14H15.97c.13 1.202.836 1.883 2.168 1.883.902 0 1.574-.413 1.798-1.102l2.79.273zm-5.188-4h3.954c-.07-1.03-.677-1.867-1.886-1.867-1.246 0-1.972.875-2.114 1.867zM8.207 10.5c.367-.51.602-1.154.602-1.946C8.809 6.604 7.672 5.5 5.758 5.5H0v13h6.05c2.114 0 3.561-1.222 3.561-3.233 0-1.313-.538-2.254-1.404-2.767zM2.337 7.773h2.947c.876 0 1.418.44 1.418 1.204 0 .82-.588 1.24-1.498 1.24H2.337V7.773zm3.265 8.454H2.337v-2.84h3.207c1.002 0 1.607.505 1.607 1.42 0 .944-.568 1.42-1.549 1.42z" /></svg>
+                  {portfolioUrl && isGithub && (
+                    <a href={portfolioUrl} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-[#24292f] hover:text-[#4a4a4a] transition">
+                      <svg className="h-3 w-3 fill-current" viewBox="0 0 24 24">
+                        <path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0 1 12 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/>
+                      </svg>
+                    </a>
+                  )}
+                  {portfolioUrl && isBehance && (
+                    <a href={portfolioUrl} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-[#1769ff] hover:text-[#0052cc] transition">
+                      <svg className="h-3 w-3 fill-current" viewBox="0 0 24 24">
+                        <path d="M22 7h-7V5h7v2zm1.726 10c-.442 1.297-2.029 3-5.101 3-3.074 0-5.564-1.729-5.564-5.675 0-3.91 2.325-5.92 5.466-5.92 3.082 0 4.964 1.782 5.375 4.426.078.506.109 1.188.095 2.14H15.97c.13 1.202.836 1.883 2.168 1.883.902 0 1.574-.413 1.798-1.102l2.79.273zm-5.188-4h3.954c-.07-1.03-.677-1.867-1.886-1.867-1.246 0-1.972.875-2.114 1.867zM8.207 10.5c.367-.51.602-1.154.602-1.946C8.809 6.604 7.672 5.5 5.758 5.5H0v13h6.05c2.114 0 3.561-1.222 3.561-3.233 0-1.313-.538-2.254-1.404-2.767zM2.337 7.773h2.947c.876 0 1.418.44 1.418 1.204 0 .82-.588 1.24-1.498 1.24H2.337V7.773zm3.265 8.454H2.337v-2.84h3.207c1.002 0 1.607.505 1.607 1.42 0 .944-.568 1.42-1.549 1.42z"/>
+                      </svg>
                     </a>
                   )}
                 </div>
               </div>
               {candidate.status === 'Hired' ? (
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-600 text-white flex items-center gap-1 uppercase tracking-wider"><CheckBadgeIcon className="h-2.5 w-2.5" /> Hired</span>
-              ) : candidate.status === 'Offer' ? (
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 border border-indigo-200 flex items-center gap-1 uppercase tracking-wider"><DocumentArrowDownIcon className="h-2.5 w-2.5" /> Offer</span>
-              ) : isAssigned ? (
                 <div className="flex flex-col items-end">
                   <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-green-100 text-green-700 border-green-200 flex items-center gap-1"><BriefcaseIcon className="h-2.5 w-2.5" /> Matched</span>
                   {candidate.assigned_company_name && (
