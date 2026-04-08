@@ -804,7 +804,7 @@ function CandidateCard({ candidate, onViewDetails, onVetCandidate, onToggleAssig
               </div>
               {candidate.status === 'Hired' ? (
                 <div className="flex flex-col items-end">
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-green-100 text-green-700 border-green-200 flex items-center gap-1"><BriefcaseIcon className="h-2.5 w-2.5" /> Hired</span>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-600 text-white flex items-center gap-1"><BriefcaseIcon className="h-2.5 w-2.5" /> Hired</span>
                   {candidate.assigned_company_name && (
                     <span className="text-[9px] font-bold text-slate-500 mt-0.5 text-right leading-tight max-w-[100px] truncate">
                       {candidate.assigned_company_name}
@@ -813,7 +813,7 @@ function CandidateCard({ candidate, onViewDetails, onVetCandidate, onToggleAssig
                 </div>
               ) : isAssigned ? (
                 <div className="flex flex-col items-end">
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-purple-100 text-purple-700 border-purple-200 flex items-center gap-1 uppercase tracking-wider">Matched</span>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-green-100 text-green-700 border-green-200 flex items-center gap-1 uppercase tracking-wider">Matched</span>
                   {candidate.assigned_company_name && (
                     <span className="text-[9px] font-bold text-slate-500 mt-0.5 text-right leading-tight max-w-[100px] truncate">
                       {candidate.assigned_company_name}
