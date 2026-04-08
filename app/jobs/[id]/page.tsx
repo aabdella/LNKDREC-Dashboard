@@ -3,16 +3,13 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabaseClient';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import CandidateDetailsModal from '@/components/CandidateDetailsModal';
 import { 
   ArrowLeftIcon,
   MapPinIcon,
   BriefcaseIcon,
-  UserIcon,
-  PencilIcon,
-  DocumentTextIcon,
-  CheckIcon
+  UserIcon
 } from '@heroicons/react/24/outline';
 import { Candidate } from '@/components/CandidateDetailsModal';
 
@@ -60,8 +57,8 @@ export default function JobDetailPage() {
       .single();
 
     if (jobData) {
-      // Fetch candidates via applications
-      const { data: appsData } = await supabase
+      // Fetch candidates via applications — lean query first (matching original working pattern)
+      const { data: appsData, error: appsError } = await supabase
         .from('applications')
         .select(`
           candidate_id,
@@ -80,8 +77,13 @@ export default function JobDetailPage() {
         `)
         .eq('job_id', jobId);
 
+      console.log('[JobDetail] jobId:', jobId);
+      console.log('[JobDetail] appsError:', appsError);
+      console.log('[JobDetail] appsData count:', appsData?.length);
+      console.log('[JobDetail] appsData:', JSON.stringify(appsData, null, 2));
+
       const mapped = (appsData || [])
-        .map((a: any) => a.candidates)
+        .map((a: any) => ({ ...a.candidates, _pipeline_stage: a.pipeline_stage, _stage_changed_at: a.stage_changed_at }))
         .filter((c: any) => c);
 
       setJob(jobData);
@@ -332,9 +334,9 @@ export default function JobDetailPage() {
                         </span>
                       </td>
                       <td className="px-4 py-3">
-                        {candidate.pipeline_stage ? (
+                        {candidate._pipeline_stage ? (
                           <span className="text-xs font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
-                            {candidate.pipeline_stage}
+                            {candidate._pipeline_stage}
                           </span>
                         ) : (
                           <span className="text-slate-300 text-xs">—</span>
