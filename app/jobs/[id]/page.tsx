@@ -48,20 +48,22 @@ export default function JobDetailPage() {
   }, [jobId]);
 
   async function fetchJob() {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('jobs')
-      .select('id, client_id, title, location, status, description, total_openings, remaining_openings, clients(name, industry)')
+      .select('*, clients(name, industry)')
       .eq('id', jobId)
       .single();
-    if (data) setJob(data);
+    console.error('[JobDetail] fetchJob error:', JSON.stringify(error));
+    if (data) setJob(data as Job);
   }
 
   async function fetchCandidates() {
     setLoading(true);
     const { data, error } = await supabase
       .from('applications')
-      .select('candidate_id, pipeline_stage, candidates(id, full_name, title, location, years_experience_total, status, pipeline_stage)')
+      .select('candidate_id, candidates(id, full_name, title, location, status, pipeline_stage)')
       .eq('job_id', jobId);
+    console.error('[JobDetail] fetchCandidates error:', JSON.stringify(error));
 
     if (data) {
       const formatted = data
