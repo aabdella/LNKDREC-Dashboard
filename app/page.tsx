@@ -61,6 +61,7 @@ export default function Dashboard() {
 }
 
 function DashboardInner() {
+  const INITIAL_LOAD = 10;
   const searchParams = useSearchParams();
   const userEmailRef = useRef<string>('System');
   const [candidates, setCandidates] = useState<Candidate[]>([]);
@@ -69,6 +70,7 @@ function DashboardInner() {
   const [filter, setFilter] = useState('All');
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [displayedCount, setDisplayedCount] = useState(INITIAL_LOAD);
   const [selectedListIds, setSelectedListIds] = useState<string[]>([]);
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
   
@@ -455,6 +457,12 @@ function DashboardInner() {
     );
   });
 
+  const visibleGridCandidates = filteredCandidates.slice(0, displayedCount);
+
+  useEffect(() => {
+    setDisplayedCount(INITIAL_LOAD);
+  }, [search, filter, viewMode]);
+
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
         {toast && (
@@ -506,26 +514,38 @@ function DashboardInner() {
         {loading ? (
           <div className="text-center py-20 text-slate-400 animate-pulse">Loading talent pool...</div>
         ) : viewMode === 'grid' ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredCandidates.map((candidate) => (
-              <CandidateCard 
-                key={candidate.id} 
-                candidate={candidate} 
-                onViewDetails={() => setSelectedCandidate(candidate)} 
-                onVetCandidate={() => openVettingModal(candidate)}
-                onToggleAssign={() => toggleAssignment(candidate)}
-                onGenerateCV={() => setCvCandidate(candidate)}
-                onToggleHighlight={() => toggleHighlight(candidate)}
-                addingToPipelineId={addingToPipelineId}
-                addToPipelineStage={addToPipelineStage}
-                setAddingToPipelineId={setAddingToPipelineId}
-                setAddToPipelineStage={setAddToPipelineStage}
-                onAddToPipeline={addCandidateToPipeline}
-                movingCandidate={movingCandidate}
-                onOpenPipelinePopup={(id: string, stage: PipelineStage) => { setAddingToPipelineId(id); setAddToPipelineStage(stage); }}
-                onClosePipelinePopup={() => { setAddingToPipelineId(null); }}
-              />
-            ))}
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {visibleGridCandidates.map((candidate) => (
+                <CandidateCard 
+                  key={candidate.id} 
+                  candidate={candidate} 
+                  onViewDetails={() => setSelectedCandidate(candidate)} 
+                  onVetCandidate={() => openVettingModal(candidate)}
+                  onToggleAssign={() => toggleAssignment(candidate)}
+                  onGenerateCV={() => setCvCandidate(candidate)}
+                  onToggleHighlight={() => toggleHighlight(candidate)}
+                  addingToPipelineId={addingToPipelineId}
+                  addToPipelineStage={addToPipelineStage}
+                  setAddingToPipelineId={setAddingToPipelineId}
+                  setAddToPipelineStage={setAddToPipelineStage}
+                  onAddToPipeline={addCandidateToPipeline}
+                  movingCandidate={movingCandidate}
+                  onOpenPipelinePopup={(id: string, stage: PipelineStage) => { setAddingToPipelineId(id); setAddToPipelineStage(stage); }}
+                  onClosePipelinePopup={() => { setAddingToPipelineId(null); }}
+                />
+              ))}
+            </div>
+            {displayedCount < filteredCandidates.length && (
+              <div className="flex justify-center">
+                <button
+                  onClick={() => setDisplayedCount(prev => prev + INITIAL_LOAD)}
+                  className="px-4 py-2 rounded-lg border border-slate-200 bg-white text-sm font-semibold text-slate-700 hover:bg-slate-50 transition"
+                >
+                  Load more ({filteredCandidates.length - displayedCount} remaining)
+                </button>
+              </div>
+            )}
           </div>
         ) : (
           <div className="space-y-3">
