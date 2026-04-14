@@ -437,8 +437,15 @@ export default function SourcingPage() {
   };
 
   const toggleSelectAll = () => {
-    if (selectedIds.length === sourcedQueue.length) setSelectedIds([]);
-    else setSelectedIds(sourcedQueue.map(c => c.id));
+    const isInternal = activeTab === 'internal';
+    const currentList = isInternal ? internalMatches : sourcedQueue;
+    const allSelected = selectedIds.length === currentList.length && currentList.length > 0;
+
+    if (allSelected) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(currentList.map(c => c.id));
+    }
   };
 
   return (
@@ -837,10 +844,28 @@ export default function SourcingPage() {
                   </p>
                 </div>
               ) : (
-                <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                <>
+                  {selectedIds.length > 0 && (
+                    <div className="bg-indigo-50 border border-indigo-100 p-4 rounded-lg flex items-center justify-between">
+                      <span className="text-sm font-bold text-indigo-900">{selectedIds.length} Selected</span>
+                      <div className="flex gap-2">
+                        <button onClick={() => setSelectedIds([])} className="px-4 py-2 bg-white border text-slate-600 text-xs font-bold rounded-md">Clear</button>
+                      </div>
+                    </div>
+                  )}
+                  <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
                   <table className="w-full text-left">
                     <thead className="bg-slate-50 border-b">
                       <tr className="text-xs font-bold text-slate-500 uppercase">
+                        <th className="px-4 py-4 w-10">
+                          <input
+                            type="checkbox"
+                            className="rounded border-slate-300"
+                            checked={internalMatches.length > 0 && selectedIds.length === internalMatches.length}
+                            onChange={toggleSelectAll}
+                            title={selectedIds.length === internalMatches.length ? 'Deselect all' : 'Select all'}
+                          />
+                        </th>
                         <th className="px-4 py-4">Candidate</th>
                         <th className="px-4 py-4">JD Fit</th>
                         <th className="px-4 py-4">Stage</th>
@@ -849,7 +874,8 @@ export default function SourcingPage() {
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {internalMatches.map((c: any) => (
-                        <tr key={c.id} className="hover:bg-slate-50 transition">
+                        <tr key={c.id} className={`hover:bg-slate-50 transition cursor-pointer ${selectedIds.includes(c.id) ? 'bg-indigo-50/30' : ''}`} onClick={() => toggleSelect(c.id)}>
+                          <td className="px-4 py-4"><input type="checkbox" checked={selectedIds.includes(c.id)} onChange={() => toggleSelect(c.id)} /></td>
                           <td className="px-4 py-4">
                             <div className="font-bold text-slate-900">{c.full_name}</div>
                             <div className="text-[11px] text-slate-500">{c.title}</div>
@@ -923,7 +949,15 @@ export default function SourcingPage() {
                 <table className="w-full text-left">
                   <thead className="bg-slate-50 border-b">
                     <tr className="text-xs font-bold text-slate-500 uppercase">
-                      <th className="px-4 py-4 w-10"></th>
+                      <th className="px-4 py-4 w-10">
+                        <input
+                          type="checkbox"
+                          className="rounded border-slate-300"
+                          checked={sourcedQueue.length > 0 && selectedIds.length === sourcedQueue.length}
+                          onChange={toggleSelectAll}
+                          title={selectedIds.length === sourcedQueue.length ? 'Deselect all' : 'Select all'}
+                        />
+                      </th>
                       <th className="px-4 py-4">Candidate</th>
                       <th className="px-4 py-4">Match Analysis</th>
                       <th className="px-4 py-4">Source</th>
