@@ -5,6 +5,7 @@ import { logActivity } from '@/lib/logActivity';
 import { extractJobTitle } from '@/lib/extractJobTitle';
 import { getTechFamilyScore, TECH_FAMILIES } from '@/lib/techFamilies';
 import { useState, useEffect, useRef, useCallback } from 'react';
+import CandidateDetailsModal, { Candidate } from '@/components/CandidateDetailsModal';
 import { BriefcaseIcon, CloudArrowUpIcon, TrashIcon, CheckCircleIcon, SparklesIcon } from '@heroicons/react/24/outline';
 
 // Types
@@ -16,7 +17,7 @@ type Job = {
   status?: string;
 };
 
-type Candidate = {
+type SourcingCandidate = {
   id: string;
   full_name: string;
   title: string;
@@ -74,7 +75,7 @@ export default function SourcingPage() {
   const [selectedJobId, setSelectedJobId] = useState<string>('');
   const [internalMatches, setInternalMatches] = useState<Candidate[]>([]);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [sourcedQueue, setSourcedQueue] = useState<Candidate[]>([]);
+  const [sourcedQueue, setSourcedQueue] = useState<SourcingCandidate[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isSourcing, setIsSourcing] = useState(false);
   const [isDeepCrawling, setIsDeepCrawling] = useState(false);
@@ -82,6 +83,7 @@ export default function SourcingPage() {
   const [activeTab, setActiveTab] = useState<'internal' | 'sourced'>('internal');
   const [sourcingAlert, setSourcingAlert] = useState<SourcingAlert>(null);
   const [matchDebug, setMatchDebug] = useState<MatchDebug>(null);
+  const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
   const [quickSourceDebug, setQuickSourceDebug] = useState<QuickSourceDebug>(null);
   const [deepSearchDebug, setDeepSearchDebug] = useState<DeepSearchDebug>(null);
 
@@ -868,7 +870,7 @@ export default function SourcingPage() {
                         <tr key={c.id} className={`hover:bg-slate-50 transition cursor-pointer ${selectedIds.includes(c.id) ? 'bg-indigo-50/30' : ''}`} onClick={() => toggleSelect(c.id)}>
                           <td className="px-4 py-4"><input type="checkbox" checked={selectedIds.includes(c.id)} onChange={() => toggleSelect(c.id)} /></td>
                           <td className="px-4 py-4">
-                            <div className="font-bold text-slate-900">{c.full_name}</div>
+                            <div className="font-bold text-slate-900 cursor-pointer hover:text-indigo-600" onClick={(e) => { e.stopPropagation(); setSelectedCandidate(c); }}>{c.full_name}</div>
                             <div className="text-[11px] text-slate-500">{c.title}</div>
                             <div className="text-[11px] text-slate-400">{c.location}</div>
                           </td>
@@ -982,6 +984,13 @@ export default function SourcingPage() {
           )}
         </div>
       </div>
+      {selectedCandidate && (
+        <CandidateDetailsModal
+          candidate={selectedCandidate}
+          onClose={() => setSelectedCandidate(null)}
+          onUpdate={fetchSourcedQueue}
+        />
+      )}
     </div>
   );
 }
