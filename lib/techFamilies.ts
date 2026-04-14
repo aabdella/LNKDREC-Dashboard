@@ -25,7 +25,7 @@ export const TECH_FAMILIES: Record<string, string[]> = {
   ],
   hpc: [
     'CUDA', 'NCCL', 'MPI', 'OpenMPI', 'Slurm', 'InfiniBand',
-    'NVLink', 'MLPerf', 'DCGM', 'HPC', 'GPU',
+    'NVLink', 'MLPerf', 'DCGM', 'Nsight', 'HPC', 'GPU',
   ],
   cloud: [
     'AWS', 'GCP', 'Azure', 'DigitalOcean', 'Oracle Cloud',
