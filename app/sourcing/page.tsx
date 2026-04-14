@@ -844,16 +844,7 @@ export default function SourcingPage() {
                   </p>
                 </div>
               ) : (
-                <>
-                  {selectedIds.length > 0 && (
-                    <div className="bg-indigo-50 border border-indigo-100 p-4 rounded-lg flex items-center justify-between">
-                      <span className="text-sm font-bold text-indigo-900">{selectedIds.length} Selected</span>
-                      <div className="flex gap-2">
-                        <button onClick={() => setSelectedIds([])} className="px-4 py-2 bg-white border text-slate-600 text-xs font-bold rounded-md">Clear</button>
-                      </div>
-                    </div>
-                  )}
-                  <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
                   <table className="w-full text-left">
                     <thead className="bg-slate-50 border-b">
                       <tr className="text-xs font-bold text-slate-500 uppercase">
