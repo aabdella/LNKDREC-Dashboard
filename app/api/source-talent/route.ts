@@ -189,7 +189,15 @@ function extractKeywords(jd: string): ExtractionResult {
     'AIOps', 'MLOps', 'DevOps', 'SRE', 'HPC',
     'CI/CD', 'Agile', 'Scrum',
   ];
-  const foundKnownTech = KNOWN_TECH.filter(t => text.includes(t.toLowerCase()));
+  const foundKnownTech = KNOWN_TECH.filter(t => {
+    const tl = t.toLowerCase();
+    // Pass 1: substring match (anywhere in text)
+    if (!text.includes(tl)) return false;
+    // Pass 2: confirm it's a real word boundary match, not a substring inside another word
+    // e.g. "insights" contains "nsight" but "Nsight" is a standalone word
+    const re = new RegExp(`\\b${tl.replace(/[+]/g, '\\+')}\\b`, 'i');
+    return re.test(text);
+  });
 
   // 2. Capitalized / ALL-CAPS tokens in JD that aren't title words or stop words
   const skillTokenPattern = /\b([A-Z][a-zA-Z0-9+#.\-]{1,}|[A-Z]{2,}[0-9]*)\b/g;
