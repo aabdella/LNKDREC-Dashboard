@@ -48,7 +48,7 @@ const KNOWN_TECH_TERMS = [
   'PostgreSQL', 'MySQL', 'MongoDB', 'Redis', 'Elasticsearch',
   'Kafka', 'Spark', 'Flink', 'Airflow', 'dbt',
   'PyTorch', 'TensorFlow', 'JAX', 'scikit-learn', 'Pandas', 'NumPy',
-  'CUDA', 'GPU', 'NCCL', 'MPI', 'Slurm', 'InfiniBand', 'MLPerf', 'DCGM', 'Nsight',
+  'CUDA', 'GPU', 'NCCL', 'MPI', 'Slurm', 'InfiniBand', 'MLPerf', 'DCGM',
   'Prometheus', 'Grafana', 'OpenTelemetry', 'Datadog', 'New Relic',
   'Figma', 'Photoshop', 'Illustrator', 'InDesign', 'After Effects', 'Premiere',
   'Sketch', 'Adobe XD',
