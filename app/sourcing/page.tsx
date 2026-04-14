@@ -867,7 +867,7 @@ export default function SourcingPage() {
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {internalMatches.map((c: any) => (
-                        <tr key={c.id} className={`hover:bg-slate-50 transition cursor-pointer ${selectedIds.includes(c.id) ? 'bg-indigo-50/30' : ''}`} onClick={() => toggleSelect(c.id)}>
+                        <tr key={c.id} className={`hover:bg-slate-50 transition ${selectedIds.includes(c.id) ? 'bg-indigo-50/30' : ''}`}>
                           <td className="px-4 py-4"><input type="checkbox" checked={selectedIds.includes(c.id)} onChange={() => toggleSelect(c.id)} /></td>
                           <td className="px-4 py-4">
                             <div className="font-bold text-slate-900 cursor-pointer hover:text-indigo-600" onClick={(e) => { e.stopPropagation(); setSelectedCandidate(c); }}>{c.full_name}</div>
@@ -958,7 +958,7 @@ export default function SourcingPage() {
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {sourcedQueue.map(c => (
-                      <tr key={c.id} className={`hover:bg-slate-50 transition cursor-pointer ${selectedIds.includes(c.id) ? 'bg-indigo-50/30' : ''}`} onClick={() => toggleSelect(c.id)}>
+                      <tr key={c.id} className={`hover:bg-slate-50 transition ${selectedIds.includes(c.id) ? 'bg-indigo-50/30' : ''}`}>
                         <td className="px-4 py-4"><input type="checkbox" checked={selectedIds.includes(c.id)} onChange={() => toggleSelect(c.id)} /></td>
                         <td className="px-4 py-4">
                           <div className="font-bold text-slate-900">{c.full_name}</div>
