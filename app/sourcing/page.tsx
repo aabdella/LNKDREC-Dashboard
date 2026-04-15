@@ -224,7 +224,7 @@ export default function SourcingPage() {
 
     const { data } = await supabase
       .from('candidates')
-      .select('*')
+      .select('*, applications(job_id, jobs(title, clients(name)))')
       .not('pipeline_stage', 'eq', 'Rejected')
       .limit(200);
 
@@ -396,9 +396,15 @@ export default function SourcingPage() {
 
           const finalScore = Math.max(0, Math.min(100, blendedScore + seniorityPenalty));
 
+          // Enrich assigned job/company from applications join (same logic as candidates page)
+          const apps = c.applications;
+          const firstApp = Array.isArray(apps) ? apps[0] : apps;
+          const jobClients = firstApp?.jobs?.clients;
+          const companyName = Array.isArray(jobClients) ? jobClients[0]?.name : jobClients?.name;
+
           console.log(`[Match] ${c.full_name} | jobTitle="${c.title}" | titleScore=${titleScore} | techFamily=${techFamilyScore} | termScore=${termScore} | techFB=${techFallbackScore} | blended=${blendedScore} | final=${finalScore}`);
 
-          return { ...c, _jdScore: finalScore, _titleScore: titleScore, _termScore: termScore, _techFamilyScore: techFamilyScore, _techFallbackScore: techFallbackScore };
+          return { ...c, assigned_company_name: companyName ?? undefined, assigned_job_title: firstApp?.jobs?.title ?? undefined, _jdScore: finalScore, _titleScore: titleScore, _termScore: termScore, _techFamilyScore: techFamilyScore, _techFallbackScore: techFallbackScore };
         })
         .filter(c => c._jdScore >= 10)
         .sort((a, b) => b._jdScore - a._jdScore)
