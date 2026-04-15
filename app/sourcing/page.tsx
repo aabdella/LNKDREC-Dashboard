@@ -320,7 +320,10 @@ export default function SourcingPage() {
           // ── Component A: Job Title Match (PRIMARY — 65%) ──────────────────
           let titleScore = 0;
           if (titleExtracted && titleKeywords.length > 0 && candidateTitle) {
-            const hits = titleKeywords.filter(k => candidateTitle.includes(k)).length;
+            const hits = titleKeywords.filter(k => {
+              const re = new RegExp(`\\b${k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+              return re.test(candidateTitle);
+            }).length;
             const keywordRatio = hits / titleKeywords.length;
             const exactPhrase = cleanedTitleLine.replace(/\s+/g, ' ');
             const exactBonus = candidateTitle.includes(exactPhrase) ? 20 : 0;
@@ -342,7 +345,10 @@ export default function SourcingPage() {
           const weightedText = weightedFields
             .map(f => Array(f.weight).fill(f.text.toLowerCase()).join(' '))
             .join(' ');
-          const termHits = jdTerms.filter(t => weightedText.includes(t)).length;
+          const termHits = jdTerms.filter(t => {
+            const re = new RegExp(`\\b${t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+            return re.test(weightedText);
+          }).length;
           const termScore = jdTerms.length > 0 ? Math.round((termHits / jdTerms.length) * 100) : 0;
 
           // ── Component C: Tech family score (20%) ──────────────────────────
