@@ -7,7 +7,7 @@ import { getTechFamilyScore, TECH_FAMILIES } from '@/lib/techFamilies';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import CandidateDetailsModal, { Candidate } from '@/components/CandidateDetailsModal';
 import SharedCandidateCard from '@/components/SharedCandidateCard';
-import { BriefcaseIcon, CloudArrowUpIcon, TrashIcon, CheckCircleIcon, SparklesIcon, ClockIcon, BuildingOfficeIcon } from '@heroicons/react/24/outline';
+import { BriefcaseIcon, CloudArrowUpIcon, TrashIcon, CheckCircleIcon, SparklesIcon } from '@heroicons/react/24/outline';
 
 // Types
 type Job = {
@@ -87,7 +87,7 @@ export default function SourcingPage() {
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
   const [quickSourceDebug, setQuickSourceDebug] = useState<QuickSourceDebug>(null);
   const [deepSearchDebug, setDeepSearchDebug] = useState<DeepSearchDebug>(null);
-  const [hoveredMatchId, setHoveredMatchId] = useState<string | null>(null);
+  const [hoveredMatchId, setHoveredMatchId] = useState<any | null>(null);
 
   useEffect(() => {
     // Read session from server-side cookies (reliable after server-action login)
@@ -877,22 +877,28 @@ export default function SourcingPage() {
                       {internalMatches.map((c: any) => (
                         <tr key={c.id} className={`hover:bg-slate-50 transition ${selectedIds.includes(c.id) ? 'bg-indigo-50/30' : ''}`}>
                           <td className="px-4 py-4"><input type="checkbox" checked={selectedIds.includes(c.id)} onChange={() => toggleSelect(c.id)} /></td>
-                          <td className="px-4 py-4">
+                          <td className="px-4 py-4 align-top">
                             <div
                               className="font-bold text-slate-900 cursor-pointer hover:text-indigo-600 w-fit"
-                              onClick={(e) => { e.stopPropagation(); setSelectedCandidate(c); }}
-                              onMouseEnter={() => setHoveredMatchId(c.id)}
+                              onClick={() => setSelectedCandidate(c)}
+                              onMouseEnter={() => setHoveredMatchId(c)}
                               onMouseLeave={() => setHoveredMatchId(null)}
                             >
                               {c.full_name}
                             </div>
-                            {hoveredMatchId === c.id && (
+                            {hoveredMatchId?.id === c.id && (
                               <div
-                                className="absolute z-50 mt-2 w-80"
-                                onMouseEnter={() => setHoveredMatchId(c.id)}
+                                className="mt-2 w-80"
+                                onMouseEnter={() => setHoveredMatchId(c)}
                                 onMouseLeave={() => setHoveredMatchId(null)}
                               >
-                                <SharedCandidateCard candidate={c} />
+                                <SharedCandidateCard
+                                  candidate={c}
+                                  onViewDetails={() => setSelectedCandidate(c)}
+                                  onVetCandidate={() => {}}
+                                  onToggleAssign={() => {}}
+                                  onToggleHighlight={() => {}}
+                                />
                               </div>
                             )}
                             <div className="text-[11px] text-slate-500">{c.title}</div>
