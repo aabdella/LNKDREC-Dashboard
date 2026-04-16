@@ -274,7 +274,7 @@ function DashboardInner() {
           brief,
           education,
           candidate_interactions(type, created_at),
-          applications(job_id)
+          applications(job_id, jobs(title, clients(name)))
         `)
         .order('created_at', { ascending: false })
         .range(pageToFetch * PAGE_SIZE, (pageToFetch + 1) * PAGE_SIZE - 1)
@@ -290,10 +290,13 @@ function DashboardInner() {
           (a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
         );
         const last = sortedInteractions[0];
+        const firstApp = c.applications?.[0];
         return {
           ...c,
           last_interaction_type: last?.type,
           last_interaction_at: last?.created_at,
+          assigned_job_title: firstApp?.jobs?.title || null,
+          assigned_company_name: firstApp?.jobs?.clients?.name || null,
         };
       });
 
