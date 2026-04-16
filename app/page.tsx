@@ -3,7 +3,7 @@
 import { supabase } from '@/lib/supabaseClient';
 import { logActivity } from '@/lib/logActivity';
 import CandidateDetailsModal, { Candidate } from '@/components/CandidateDetailsModal';
-import { useState, useEffect, useCallback, useRef, Suspense } from 'react';
+import { useState, useEffect, useCallback, useRef, Suspense, useMemo } from 'react';
 import { 
   MagnifyingGlassIcon, 
   XMarkIcon, 
@@ -23,6 +23,7 @@ import {
 import { StarIcon as StarSolid } from '@heroicons/react/24/solid';
 import { useRouter } from 'next/navigation';
 import { useSearchParams } from 'next/navigation';
+import React from 'react';
 
 // Types
 type Tool = { name: string; years: number };
@@ -60,17 +61,22 @@ export default function Dashboard() {
   );
 }
 
+const PAGE_SIZE = 20;
+
 function DashboardInner() {
   const INITIAL_LOAD = 10;
   const searchParams = useSearchParams();
   const userEmailRef = useRef<string>('System');
   const [candidates, setCandidates] = useState<Candidate[]>([]);
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+  const [totalCount, setTotalCount] = useState(0);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [filter, setFilter] = useState('All');
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-  const [displayedCount, setDisplayedCount] = useState(INITIAL_LOAD);
   const [selectedListIds, setSelectedListIds] = useState<string[]>([]);
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
   
@@ -195,6 +201,21 @@ function DashboardInner() {
   const [selectedJobId, setSelectedJobId] = useState('');
   const [submittingAssignment, setSubmittingAssignment] = useState(false);
 
+  // Debounce search — prevents filter from running on every keystroke
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  // Reset page + hasMore when search/filter changes so fetchCandidates does a fresh load
+  useEffect(() => {
+    setPage(0);
+    setHasMore(true);
+    setCandidates([]);
+    fetchCandidates();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedSearch, filter]);
+
   useEffect(() => {
     // Read session from server-side cookies (reliable after server-action login)
     fetch('/api/me').then(r => r.json()).then(({ email }) => {
@@ -203,7 +224,7 @@ function DashboardInner() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       userEmailRef.current = session?.user?.email || userEmailRef.current;
     });
-    fetchCandidates();
+    if (candidates.length === 0) fetchCandidates();
     fetchJobs();
     return () => subscription.unsubscribe();
   }, []);
@@ -218,49 +239,73 @@ function DashboardInner() {
     }
   }, [searchParams, candidates]);
 
-  async function fetchCandidates() {
-    setLoading(true);
-    const { data, error } = await supabase
-      .from('candidates')
-      .select(`
-        *,
-        candidate_interactions (
-          type,
-          created_at
-        ),
-        applications (
-          job_id,
-          jobs (
-            title,
-            clients (
-              name
-            )
-          )
-        )
-      `)
-      .order('created_at', { ascending: false });
+  async function fetchCandidates(fetchType?: 'refresh' | 'load-more') {
+    if (fetchType === 'load-more' && !hasMore) return;
 
-    if (error) {
-      console.error('Error fetching candidates:', error);
+    setLoading(true);
+    const pageToFetch = fetchType === 'load-more' ? page + 1 : 0;
+
+    // Parallel: count query + paginated data fetch
+    const [countResult, dataResult] = await Promise.all([
+      supabase.from('candidates').select('id', { count: 'exact', head: true }),
+      supabase
+        .from('candidates')
+        .select(`
+          id,
+          full_name,
+          title,
+          location,
+          years_experience_total,
+          match_score,
+          match_reason,
+          source,
+          lnkd_notes,
+          portfolio_url,
+          linkedin_url,
+          status,
+          email,
+          phone,
+          skills,
+          created_at,
+          pipeline_stage,
+          pipeline_order,
+          stage_changed_at,
+          is_highlighted,
+          brief,
+          education,
+          candidate_interactions(type, created_at),
+          applications(job_id)
+        `)
+        .order('created_at', { ascending: false })
+        .range(pageToFetch * PAGE_SIZE, (pageToFetch + 1) * PAGE_SIZE - 1)
+    ]);
+
+    if (countResult.count !== null) setTotalCount(countResult.count);
+
+    if (dataResult.error) {
+      console.error('Error fetching candidates:', dataResult.error);
     } else {
-      const formattedData = data.map((c: any) => {
+      const formattedData = (dataResult.data || []).map((c: any) => {
         const sortedInteractions = (c.candidate_interactions || []).sort(
           (a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
         );
         const last = sortedInteractions[0];
-        const application = c.applications?.[0];
-        const jobInfo = application?.jobs;
-        const clientInfo = Array.isArray(jobInfo?.clients) ? jobInfo.clients[0] : jobInfo?.clients;
-        
         return {
           ...c,
           last_interaction_type: last?.type,
           last_interaction_at: last?.created_at,
-          assigned_job_title: jobInfo?.title,
-          assigned_company_name: clientInfo?.name
         };
       });
-      setCandidates(formattedData);
+
+      if (fetchType === 'load-more') {
+        setCandidates(prev => [...prev, ...formattedData]);
+        setPage(p => p + 1);
+      } else {
+        setCandidates(formattedData);
+        setPage(0);
+      }
+
+      setHasMore(formattedData.length === PAGE_SIZE);
     }
     setLoading(false);
   }
@@ -425,7 +470,8 @@ function DashboardInner() {
 
   // Filter Logic
   const filteredCandidates = candidates.filter(c => {
-    const q = search.toLowerCase();
+    const q = debouncedSearch.toLowerCase();
+    if (!q) return true;
 
     // 1. Status Filter
     if (filter !== 'All') {
@@ -447,7 +493,6 @@ function DashboardInner() {
       checkString(c.match_reason) ||
       checkString(c.source) ||
       checkString(c.lnkd_notes) ||
-      checkString(c.resume_text) ||
       (c.years_experience && c.years_experience.toString().includes(q)) ||
       checkArray(c.tools || [], 'name') ||
       checkArray(c.technologies || [], 'name') ||
@@ -455,13 +500,9 @@ function DashboardInner() {
       checkArray(c.work_history || [], 'company') ||
       checkArray(c.work_history || [], 'title')
     );
-  });
+  }, [debouncedSearch, filter, candidates]);
 
-  const visibleGridCandidates = filteredCandidates.slice(0, displayedCount);
-
-  useEffect(() => {
-    setDisplayedCount(INITIAL_LOAD);
-  }, [search, filter, viewMode]);
+  // No JS-side slice — DB pagination handles it
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
@@ -497,7 +538,7 @@ function DashboardInner() {
             </select>
           </div>
           <div className="flex items-center gap-3">
-            <div className="text-sm text-slate-500 font-medium whitespace-nowrap">Showing {filteredCandidates.length} Candidates</div>
+            <div className="text-sm text-slate-500 font-medium whitespace-nowrap">Showing {totalCount} Candidates</div>
             <div className="flex items-center border border-slate-200 rounded-lg overflow-hidden bg-white">
               <button
                 onClick={() => setViewMode('grid')}
@@ -516,7 +557,7 @@ function DashboardInner() {
         ) : viewMode === 'grid' ? (
           <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {visibleGridCandidates.map((candidate) => (
+              {candidates.map((candidate) => (
                 <CandidateCard 
                   key={candidate.id} 
                   candidate={candidate} 
@@ -536,13 +577,13 @@ function DashboardInner() {
                 />
               ))}
             </div>
-            {displayedCount < filteredCandidates.length && (
+            {hasMore && candidates.length > 0 && (
               <div className="flex justify-center">
                 <button
-                  onClick={() => setDisplayedCount(prev => prev + INITIAL_LOAD)}
+                  onClick={() => fetchCandidates('load-more')}
                   className="px-4 py-2 rounded-lg border border-slate-200 bg-white text-sm font-semibold text-slate-700 hover:bg-slate-50 transition"
                 >
-                  Load more ({filteredCandidates.length - displayedCount} remaining)
+                  Load more
                 </button>
               </div>
             )}
@@ -725,7 +766,7 @@ function DashboardInner() {
   );
 }
 
-function CandidateRow({ candidate, isSelected, onToggleSelect, onViewDetails, onVetCandidate, onToggleAssign, onGenerateCV, onToggleHighlight }: any) {
+const CandidateRow = React.memo(function CandidateRow({ candidate, isSelected, onToggleSelect, onViewDetails, onVetCandidate, onToggleAssign, onGenerateCV, onToggleHighlight }: any) {
   const isVetted = candidate.status === 'Vetted';
   const isAssigned = !!candidate.assigned_job_title;
   const initials = candidate.full_name?.split(' ').slice(0, 2).map((p: any) => p[0]).join('').toUpperCase() || '?';
@@ -772,9 +813,9 @@ function CandidateRow({ candidate, isSelected, onToggleSelect, onViewDetails, on
       </td>
     </tr>
   );
-}
+});
 
-function CandidateCard({ candidate, onViewDetails, onVetCandidate, onToggleAssign, onGenerateCV, onToggleHighlight, addingToPipelineId, addToPipelineStage, setAddingToPipelineId, setAddToPipelineStage, onAddToPipeline, movingCandidate, onOpenPipelinePopup, onClosePipelinePopup }: any) {
+const CandidateCard = React.memo(function CandidateCard({ candidate, onViewDetails, onVetCandidate, onToggleAssign, onGenerateCV, onToggleHighlight, addingToPipelineId, addToPipelineStage, setAddingToPipelineId, setAddToPipelineStage, onAddToPipeline, movingCandidate, onOpenPipelinePopup, onClosePipelinePopup }: any) {
   const isVetted = candidate.status === 'Vetted';
   const isAssigned = !!candidate.assigned_job_title;
   const healthScore = 0; // (Simplified for layout)
@@ -915,7 +956,7 @@ function CandidateCard({ candidate, onViewDetails, onVetCandidate, onToggleAssig
         <div className={`h-1 w-full transition-all duration-300 ${candidate.is_highlighted ? 'bg-amber-400 opacity-100' : 'bg-black opacity-0 group-hover:opacity-100'}`}></div>
     </div>
   );
-}
+});
 
 // ─── CV EXPORT MODAL & PDF TEMPLATES ────────────────────────────────────────
 
