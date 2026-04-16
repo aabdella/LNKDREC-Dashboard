@@ -272,7 +272,6 @@ function DashboardInner() {
           stage_changed_at,
           is_highlighted,
           brief,
-          education,
           candidate_interactions(type, created_at),
           applications(job_id, jobs(title, clients(name)))
         `)

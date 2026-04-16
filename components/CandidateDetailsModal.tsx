@@ -237,9 +237,6 @@ export default function CandidateDetailsModal({
     };
 
     const handleToggleEdit = () => {
-        if (!isEditing) {
-            fetchVetting();
-        }
         setIsEditing(!isEditing);
     };
 
