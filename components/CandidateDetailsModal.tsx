@@ -108,8 +108,8 @@ export default function CandidateDetailsModal({
                 technologies: Array.isArray(candidate.technologies) ? candidate.technologies : [],
                 tools: Array.isArray(candidate.tools) ? candidate.tools : []
             });
-            fetchInteractions();
-            fetchVetting();
+            // Fetch both in parallel — no need to block on one before starting the other
+            Promise.all([fetchInteractions(), fetchVetting()]);
         }
     }, [candidate]);
 
@@ -117,10 +117,10 @@ export default function CandidateDetailsModal({
         setLoadingInteractions(true);
         const { data, error } = await supabase
           .from('candidate_interactions')
-          .select('*')
+          .select('type, content, created_at, created_by')
           .eq('candidate_id', candidate.id)
           .order('created_at', { ascending: false });
-    
+
         if (error) console.error('Error fetching interactions:', error);
         else setInteractions(data || []);
         setLoadingInteractions(false);
@@ -131,7 +131,7 @@ export default function CandidateDetailsModal({
         setLoadingVetting(true);
         const { data, error } = await supabase
           .from('vettings')
-          .select('*')
+          .select('id, english_proficiency, notice_period, current_salary, expected_salary, work_presence, benefits, notes, vetted_at')
           .eq('candidate_id', candidate.id)
           .order('vetted_at', { ascending: false })
           .limit(1);
@@ -640,8 +640,7 @@ export default function CandidateDetailsModal({
                                 )}
                                 <button
                                     onClick={() => {
-                                        if (!isEditingVetting) fetchVetting();
-                                        setIsEditingVetting(!isEditingVetting);
+                                        if (!isEditingVetting) setIsEditingVetting(!isEditingVetting);
                                     }}
                                     className="text-xs px-3 py-1 bg-indigo-600 text-white rounded-full font-semibold hover:bg-indigo-700 transition">
                                     {isEditingVetting ? 'Done' : '✏️ Edit'}
@@ -894,8 +893,7 @@ export default function CandidateDetailsModal({
                                         <h4 className="font-bold text-slate-800 text-sm">Vetting Details</h4>
                                         <button
                                             onClick={() => {
-                                                if (!isEditingVetting) fetchVetting();
-                                                setIsEditingVetting(!isEditingVetting);
+                                                if (!isEditingVetting) setIsEditingVetting(!isEditingVetting);
                                             }}
                                             className="text-xs px-3 py-1 bg-indigo-600 text-white rounded-full font-semibold hover:bg-indigo-700 transition">
                                             {isEditingVetting ? 'Done' : '✏️ Edit'}
