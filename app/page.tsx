@@ -260,7 +260,8 @@ function DashboardInner() {
         // and would cause a 42883 error that crashes the entire .or() — exclude it
         query = query.or(
           `full_name.ilike.${wildcard},title.ilike.${wildcard},location.ilike.${wildcard},` +
-          `match_reason.ilike.${wildcard},source.ilike.${wildcard},lnkd_notes.ilike.${wildcard}`
+          `match_reason.ilike.${wildcard},source.ilike.${wildcard},lnkd_notes.ilike.${wildcard},` +
+          `resume_text.ilike.${wildcard}`
         );
       }
 
@@ -298,6 +299,7 @@ function DashboardInner() {
             email,
             phone,
             skills,
+            resume_text,
             created_at,
             pipeline_stage,
             pipeline_order,
@@ -532,6 +534,7 @@ function DashboardInner() {
       checkString(c.match_reason) ||
       checkString(c.source) ||
       checkString(c.lnkd_notes) ||
+      checkString(c.resume_text) ||
       // Array fields not in DB .or() — checked client-side on fetched records
       inSkillsOrTools(c.skills as any[]) ||
       inSkillsOrTools(c.tools as any[], 'name') ||
