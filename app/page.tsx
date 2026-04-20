@@ -250,12 +250,14 @@ function DashboardInner() {
 
     // Build base filter chain
     const buildFilterChain = (query: any) => {
-      // Text search — only over fields that are in the DB select and confirmed to exist
+      // Text search — PostgREST uses * as wildcard; supabase JS translates % to * for
+      // .ilike() but % inside .or() gets double-encoded, so we use * directly
       if (q) {
+        const wildcard = `*${q}*`;
         query = query.or(
-          `full_name.ilike.%${q}%,title.ilike.%${q}%,location.ilike.%${q}%,` +
-          `match_reason.ilike.%${q}%,source.ilike.%${q}%,lnkd_notes.ilike.%${q}%,` +
-          `years_experience_total.ilike.%${q}%,skills.ilike.%${q}%`
+          `full_name.ilike.${wildcard},title.ilike.${wildcard},location.ilike.${wildcard},` +
+          `match_reason.ilike.${wildcard},source.ilike.${wildcard},lnkd_notes.ilike.${wildcard},` +
+          `years_experience_total.ilike.${wildcard},skills.ilike.${wildcard}`
         );
       }
 
