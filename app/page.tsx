@@ -256,10 +256,11 @@ function DashboardInner() {
         const wildcard = `*${q}*`;
         // Only text fields work with ilike in .or() — skills/text[] columns
         // need cs.contains or separate handling; keep to scalar text fields only
+        // Only text/varchar fields work with ilike in .or(); years_experience_total is integer
+        // and would cause a 42883 error that crashes the entire .or() — exclude it
         query = query.or(
           `full_name.ilike.${wildcard},title.ilike.${wildcard},location.ilike.${wildcard},` +
-          `match_reason.ilike.${wildcard},source.ilike.${wildcard},lnkd_notes.ilike.${wildcard},` +
-          `years_experience_total.ilike.${wildcard}`
+          `match_reason.ilike.${wildcard},source.ilike.${wildcard},lnkd_notes.ilike.${wildcard}`
         );
       }
 
@@ -518,8 +519,12 @@ function DashboardInner() {
         if (c.status !== filter) return false;
       }
     }
-    const checkArray = (arr: any[], key: string) => Array.isArray(arr) && arr.some(item => item && item[key] && item[key].toLowerCase().includes(q));
     const checkString = (val?: string) => val && val.toLowerCase().includes(q);
+    const inSkillsOrTools = (arr: any[], key?: string) =>
+      Array.isArray(arr) && arr.some((item: any) => {
+        const val = key ? item?.[key] : item;
+        return typeof val === 'string' && val.toLowerCase().includes(q);
+      });
     return (
       checkString(c.full_name) ||
       checkString(c.title) ||
@@ -527,12 +532,12 @@ function DashboardInner() {
       checkString(c.match_reason) ||
       checkString(c.source) ||
       checkString(c.lnkd_notes) ||
-      (c.years_experience && c.years_experience.toString().includes(q)) ||
-      checkArray(c.tools || [], 'name') ||
-      checkArray(c.technologies || [], 'name') ||
-      (c.skills && c.skills.some(s => s && s.toLowerCase().includes(q))) ||
-      checkArray(c.work_history || [], 'company') ||
-      checkArray(c.work_history || [], 'title')
+      // Array fields not in DB .or() — checked client-side on fetched records
+      inSkillsOrTools(c.skills as any[]) ||
+      inSkillsOrTools(c.tools as any[], 'name') ||
+      inSkillsOrTools(c.technologies as any[], 'name') ||
+      inSkillsOrTools(c.work_history as any[], 'company') ||
+      inSkillsOrTools(c.work_history as any[], 'title')
     );
   }, [debouncedSearch, filter, candidates]);
 
