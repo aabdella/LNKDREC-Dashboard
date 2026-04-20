@@ -212,7 +212,7 @@ function DashboardInner() {
     setPage(0);
     setHasMore(true);
     setCandidates([]);
-    fetchCandidates();
+    fetchCandidates(undefined, debouncedSearch, filter);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debouncedSearch, filter]);
 
@@ -239,44 +239,73 @@ function DashboardInner() {
     }
   }, [searchParams, candidates]);
 
-  async function fetchCandidates(fetchType?: 'refresh' | 'load-more') {
+  async function fetchCandidates(fetchType?: 'refresh' | 'load-more', searchTerm?: string, statusFilter?: string) {
     if (fetchType === 'load-more' && !hasMore) return;
 
     setLoading(true);
     const pageToFetch = fetchType === 'load-more' ? page + 1 : 0;
+    const q = (searchTerm || debouncedSearch || '').toLowerCase().trim();
+    const fil = statusFilter || filter;
 
-    // Parallel: count query + paginated data fetch
+
+    // Build base filter chain
+    const buildFilterChain = (query: any) => {
+      // Text search across all relevant fields
+      if (q) {
+        query = query.or(
+          `full_name.ilike.%${q}%,title.ilike.%${q}%,location.ilike.%${q}%,` +
+          `match_reason.ilike.%${q}%,source.ilike.%${q}%,lnkd_notes.ilike.%${q}%,` +
+          `years_experience_total.ilike.%${q}%,skills.ilike.%${q}%,` +
+          `work_history:work_history.company.ilike.%${q}%,work_history:work_history.title.ilike.%${q}%`
+        );
+      }
+
+      // Status filter
+      if (fil === 'UnVetted') {
+        query = query.is('pipeline_stage', null).eq('status', 'Vetted');
+      } else if (fil === 'Assigned') {
+        query = query.not('pipeline_stage', 'is', null);
+      } else if (fil !== 'All') {
+        query = query.eq('status', fil);
+      }
+
+      return query;
+    };
+
+    // Parallel: count query + paginated data fetch — both use the same filter logic
     const [countResult, dataResult] = await Promise.all([
-      supabase.from('candidates').select('id', { count: 'exact', head: true }),
-      supabase
-        .from('candidates')
-        .select(`
-          id,
-          full_name,
-          title,
-          location,
-          years_experience_total,
-          match_score,
-          match_reason,
-          source,
-          lnkd_notes,
-          portfolio_url,
-          linkedin_url,
-          status,
-          email,
-          phone,
-          skills,
-          created_at,
-          pipeline_stage,
-          pipeline_order,
-          stage_changed_at,
-          is_highlighted,
-          brief,
-          candidate_interactions(type, created_at),
-          applications(job_id, jobs(title, clients(name)))
-        `)
-        .order('created_at', { ascending: false })
-        .range(pageToFetch * PAGE_SIZE, (pageToFetch + 1) * PAGE_SIZE - 1)
+      buildFilterChain(supabase.from('candidates').select('id', { count: 'exact', head: true })),
+      buildFilterChain(
+        supabase
+          .from('candidates')
+          .select(`
+            id,
+            full_name,
+            title,
+            location,
+            years_experience_total,
+            match_score,
+            match_reason,
+            source,
+            lnkd_notes,
+            portfolio_url,
+            linkedin_url,
+            status,
+            email,
+            phone,
+            skills,
+            created_at,
+            pipeline_stage,
+            pipeline_order,
+            stage_changed_at,
+            is_highlighted,
+            brief,
+            candidate_interactions(type, created_at),
+            applications(job_id, jobs(title, clients(name)))
+          `)
+          .order('created_at', { ascending: false })
+          .range(pageToFetch * PAGE_SIZE, (pageToFetch + 1) * PAGE_SIZE - 1)
+      ),
     ]);
 
     if (countResult.count !== null) setTotalCount(countResult.count);
