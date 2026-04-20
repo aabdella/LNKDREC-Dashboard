@@ -254,10 +254,12 @@ function DashboardInner() {
       // .ilike() but % inside .or() gets double-encoded, so we use * directly
       if (q) {
         const wildcard = `*${q}*`;
+        // Only text fields work with ilike in .or() — skills/text[] columns
+        // need cs.contains or separate handling; keep to scalar text fields only
         query = query.or(
           `full_name.ilike.${wildcard},title.ilike.${wildcard},location.ilike.${wildcard},` +
           `match_reason.ilike.${wildcard},source.ilike.${wildcard},lnkd_notes.ilike.${wildcard},` +
-          `years_experience_total.ilike.${wildcard},skills.ilike.${wildcard}`
+          `years_experience_total.ilike.${wildcard}`
         );
       }
 
