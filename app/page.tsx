@@ -250,13 +250,13 @@ function DashboardInner() {
 
     // Build base filter chain
     const buildFilterChain = (query: any) => {
-      // Text search across all relevant fields
+      // Text search across all fields in a single .or() call
       if (q) {
         query = query.or(
           `full_name.ilike.%${q}%,title.ilike.%${q}%,location.ilike.%${q}%,` +
           `match_reason.ilike.%${q}%,source.ilike.%${q}%,lnkd_notes.ilike.%${q}%,` +
           `years_experience_total.ilike.%${q}%,skills.ilike.%${q}%,` +
-          `work_history:work_history.company.ilike.%${q}%,work_history:work_history.title.ilike.%${q}%`
+          `work_history.company.ilike.%${q}%,work_history.title.ilike.%${q}%`
         );
       }
 
