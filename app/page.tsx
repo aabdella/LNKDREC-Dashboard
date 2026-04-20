@@ -250,13 +250,12 @@ function DashboardInner() {
 
     // Build base filter chain
     const buildFilterChain = (query: any) => {
-      // Text search across all fields in a single .or() call
+      // Text search — only over fields that are in the DB select and confirmed to exist
       if (q) {
         query = query.or(
           `full_name.ilike.%${q}%,title.ilike.%${q}%,location.ilike.%${q}%,` +
           `match_reason.ilike.%${q}%,source.ilike.%${q}%,lnkd_notes.ilike.%${q}%,` +
-          `years_experience_total.ilike.%${q}%,skills.ilike.%${q}%,` +
-          `work_history.company.ilike.%${q}%,work_history.title.ilike.%${q}%`
+          `years_experience_total.ilike.%${q}%,skills.ilike.%${q}%`
         );
       }
 
