@@ -254,7 +254,19 @@ export default function JobDetailPage() {
         reader.readAsDataURL(blob);
       });
     } catch {}
-    const doc = <CVTemplateA candidate={candidate} privacy={{ linkedin: true, portfolio: true, email: false, phone: false }} logoBase64={logoBase64} vetting={null} egpRate={47} />;
+    // Fetch vetting data for this candidate
+    let vetting = null;
+    try {
+      const { data: vettingData } = await supabase
+        .from('vettings')
+        .select('*')
+        .eq('candidate_id', candidate.id)
+        .order('vetted_at', { ascending: false })
+        .limit(1)
+        .single();
+      if (vettingData) vetting = vettingData;
+    } catch {}
+    const doc = <CVTemplateA candidate={candidate} privacy={{ linkedin: true, portfolio: true, email: false, phone: false }} logoBase64={logoBase64} vetting={vetting} egpRate={47} />;
     const blob = await pdf(doc).toBlob();
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
