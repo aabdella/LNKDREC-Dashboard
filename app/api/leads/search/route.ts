@@ -62,7 +62,6 @@ export async function POST(request: NextRequest) {
     if (combinedResults.length > 0) {
       const rows = combinedResults.map((result) => ({
         search_id: searchId,
-        country_code: countryCode,
         board_slug: result.board_slug,
         job_title: result.job_title,
         company_name: result.company_name,
@@ -115,6 +114,6 @@ export async function POST(request: NextRequest) {
         .eq('id', searchId);
     }
 
-    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ success: false, error: error instanceof Error ? error.message : 'Internal server error' }, { status: 500 });
   }
 }
