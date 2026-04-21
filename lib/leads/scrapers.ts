@@ -108,20 +108,20 @@ async function scrapeWithCheerio(
   $(titleSelector).each((_, el) => {
     const titleElement = $(el);
     const title = cleanText(titleElement.text());
-    if (!title) return;
+    if (!title || title.length < 4 || title.length > 140) return;
 
-    const linkElement = config.css_url_selector
-      ? titleElement.closest(config.css_url_selector)
-      : titleElement.closest('a[href]');
-    const nestedLink = titleElement.find('a[href]').first();
-    const href =
-      linkElement.attr('href') ||
-      nestedLink.attr('href') ||
-      titleElement.parent().find('a[href]').first().attr('href');
+    const nestedLink = titleElement.is('a[href]')
+      ? titleElement
+      : titleElement.find('a[href]').first();
+    const scopedLink = config.css_url_selector
+      ? titleElement.closest('article, li, div, section').find(config.css_url_selector).first()
+      : cheerio.load('<div></div>')('a');
+    const fallbackLink = titleElement.closest('a[href]').first().add(titleElement.parent().find('a[href]').first()).first();
+    const href = nestedLink.attr('href') || scopedLink.attr('href') || fallbackLink.attr('href');
     const jobUrl = toAbsoluteUrl(config.base_url, href);
-    if (!jobUrl) return;
+    if (!jobUrl || !/\/job|\/jobs|job\/|jobs\//i.test(jobUrl)) return;
 
-    const container = titleElement.closest('article, li, div');
+    const container = titleElement.closest('article, li, div, section');
     const companyName = config.css_company_selector
       ? cleanText(container.find(config.css_company_selector).first().text())
       : null;

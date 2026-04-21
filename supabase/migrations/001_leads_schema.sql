@@ -71,7 +71,8 @@ on conflict (country_code) do nothing;
 insert into leads_job_boards (country_code, board_name, board_slug, base_url, search_url_template, scraper_type, css_title_selector, css_company_selector, css_location_selector, css_url_selector, css_salary_selector) values
 ('GB', 'Reed', 'reed', 'https://www.reed.co.uk', 'https://www.reed.co.uk/jobs/{query}-jobs-in-united-kingdom', 'cheerio', 'h3.job-card__title', '.job-card__company-name', '.job-card__location', '.job-card a.job-card__link', '.job-card__salary'),
 ('GB', 'Landing.jobs', 'landing-jobs', 'https://landing.jobs', 'https://landing.jobs/jobs?keywords={query}&location=london', 'cheerio', 'h2.lj-jobcard-static__title a', '.lj-jobcard-static__company a', '.lj-jobcard-static__location', '.lj-jobcard-static__title a[href]', '.lj-jobcard-static__salary'),
-('GB', 'Built In London', 'builtinlondon', 'https://builtinlondon.uk', 'https://builtinlondon.uk/jobs', 'web_fetch', 'h2', 'h2 + p, [class*=company]', '[class*=location]', 'a[href*="/jobs/"]', '[class*=salary]'),
+('GB', 'Built In London', 'builtinlondon', 'https://builtinlondon.uk', 'https://builtinlondon.uk/jobs?search={query}', 'cheerio', 'h2', '.company-name, [class*=company]', '.location, [class*=location]', 'a[href*="/jobs/"]', '.salary, [class*=salary]'),
 ('GB', 'Python.org Jobs', 'pythonorg', 'https://www.python.org', 'https://www.python.org/jobs/', 'cheerio', 'h2', '.company', '.location', 'h2 a[href]', '.salary'),
-('GB', 'NoDesk', 'nodesk', 'https://nodesk.co', 'https://nodesk.co/remote-jobs/uk/', 'text_parse', null, null, null, null, null)
+('GB', 'NoDesk', 'nodesk', 'https://nodesk.co', 'https://nodesk.co/remote-jobs/uk/', 'text_parse', null, null, null, null, null),
+('GB', 'Remote Rocketship', 'remoterocketship', 'https://www.remoterocketship.com', 'https://www.remoterocketship.com/jobs?q={query}', 'web_fetch', null, null, null, null, null)
 on conflict (board_slug) do nothing;
