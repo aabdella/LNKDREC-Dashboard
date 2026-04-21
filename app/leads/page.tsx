@@ -1,8 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabaseClient';
-import styles from './page.module.css';
 
 type JobBoard = {
   slug: string;
@@ -20,18 +18,22 @@ type JobResult = {
 
 type SearchStatus = 'idle' | 'running' | 'complete' | 'error';
 
+const PAGE_SIZE = 25;
+
 export default function LeadsPage() {
   const [selectedCountry, setSelectedCountry] = useState('GB');
   const [selectedBoards, setSelectedBoards] = useState<string[]>([]);
   const [jobTitle, setJobTitle] = useState('');
   const [searchId, setSearchId] = useState<string | null>(null);
   const [results, setResults] = useState<JobResult[]>([]);
+  const [totalResults, setTotalResults] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
+  const [isPageLoading, setIsPageLoading] = useState(false);
   const [searchStatus, setSearchStatus] = useState<SearchStatus>('idle');
   const [availableBoards, setAvailableBoards] = useState<JobBoard[]>([]);
   const [error, setError] = useState<string | null>(null);
 
-  // Load boards when country changes
   useEffect(() => {
     async function fetchBoards() {
       setIsLoading(true);
@@ -40,7 +42,10 @@ export default function LeadsPage() {
         const data = await res.json();
         if (data.success && data.boards) {
           setAvailableBoards(
-            data.boards.map((b: any) => ({ slug: b.board_slug, name: b.board_name }))
+            data.boards.map((b: { board_slug: string; board_name: string }) => ({
+              slug: b.board_slug,
+              name: b.board_name,
+            }))
           );
         } else {
           setAvailableBoards([]);
@@ -51,28 +56,52 @@ export default function LeadsPage() {
         setIsLoading(false);
       }
     }
+
     fetchBoards();
   }, [selectedCountry]);
 
-  // Poll for search completion
+  async function fetchResultsPage(id: string, page: number, pageLoading = true) {
+    if (pageLoading) {
+      setIsPageLoading(true);
+    }
+
+    try {
+      const offset = (page - 1) * PAGE_SIZE;
+      const res = await fetch(`/api/leads/results?search_id=${id}&limit=${PAGE_SIZE}&offset=${offset}`);
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Failed to load results.');
+      }
+
+      setResults(data.results || []);
+      setTotalResults(data.total || 0);
+      setCurrentPage(page);
+      setError(null);
+      return data;
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load results.');
+      throw e;
+    } finally {
+      if (pageLoading) {
+        setIsPageLoading(false);
+      }
+    }
+  }
+
   useEffect(() => {
-    if (!searchId) return;
-    if (searchStatus !== 'running') return;
+    if (!searchId || searchStatus !== 'running') return;
 
     const pollInterval = setInterval(async () => {
       try {
-        const res = await fetch(`/api/leads/results?search_id=${searchId}`);
-        const data = await res.json();
+        const data = await fetchResultsPage(searchId, 1, false);
 
         if (data.status === 'complete') {
           setSearchStatus('complete');
-          setResults(data.results || []);
-          setSearchId(null);
           clearInterval(pollInterval);
-        } else if (data.status === 'error') {
+        } else if (data.status === 'failed') {
           setSearchStatus('error');
-          setError(data.message || 'Search failed.');
-          setSearchId(null);
+          setError(data.error || 'Search failed.');
           clearInterval(pollInterval);
         }
       } catch (e) {
@@ -83,11 +112,22 @@ export default function LeadsPage() {
     return () => clearInterval(pollInterval);
   }, [searchId, searchStatus]);
 
+  useEffect(() => {
+    if (!searchId || searchStatus !== 'complete') return;
+
+    fetchResultsPage(searchId, currentPage).catch((e) => {
+      console.error('Pagination error:', e);
+    });
+  }, [currentPage, searchId, searchStatus]);
+
   async function handleSearch() {
     if (!jobTitle.trim() || selectedBoards.length === 0) return;
 
     setSearchStatus('running');
+    setSearchId(null);
     setResults([]);
+    setTotalResults(0);
+    setCurrentPage(1);
     setError(null);
     setIsLoading(true);
 
@@ -124,10 +164,12 @@ export default function LeadsPage() {
   }
 
   const isSearchDisabled = !jobTitle.trim() || selectedBoards.length === 0 || searchStatus === 'running';
+  const totalPages = Math.max(1, Math.ceil(totalResults / PAGE_SIZE));
+  const rangeStart = totalResults === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1;
+  const rangeEnd = Math.min(currentPage * PAGE_SIZE, totalResults);
 
   return (
     <div className="min-h-screen bg-slate-50">
-      {/* Page Header */}
       <div className="bg-white border-b border-slate-200 px-6 py-4">
         <div className="max-w-7xl mx-auto flex items-center gap-3">
           <span className="text-xl">🔍</span>
@@ -139,10 +181,8 @@ export default function LeadsPage() {
       </div>
 
       <div className="max-w-7xl mx-auto px-6 py-6">
-        {/* Search Controls */}
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 mb-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-5">
-            {/* Country */}
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-1.5">Country</label>
               <select
@@ -154,7 +194,6 @@ export default function LeadsPage() {
               </select>
             </div>
 
-            {/* Job Title */}
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-1.5">Job Title</label>
               <input
@@ -168,7 +207,6 @@ export default function LeadsPage() {
             </div>
           </div>
 
-          {/* Board Selection */}
           <div className="mb-5">
             <label className="block text-sm font-semibold text-slate-700 mb-2">Job Boards</label>
             {availableBoards.length === 0 && !isLoading ? (
@@ -192,7 +230,6 @@ export default function LeadsPage() {
             )}
           </div>
 
-          {/* Search Button */}
           <button
             onClick={handleSearch}
             disabled={isSearchDisabled}
@@ -211,21 +248,24 @@ export default function LeadsPage() {
             )}
           </button>
 
-          {error && (
-            <p className="mt-3 text-sm text-red-600 font-medium">{error}</p>
-          )}
+          {error && <p className="mt-3 text-sm text-red-600 font-medium">{error}</p>}
         </div>
 
-        {/* Results */}
         {searchStatus === 'complete' && (
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-            <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+            <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between gap-4">
               <h2 className="font-semibold text-slate-900 flex items-center gap-2">
                 Results
                 <span className="bg-slate-100 text-slate-600 text-xs font-bold px-2 py-0.5 rounded-full">
-                  {results.length}
+                  {totalResults}
                 </span>
               </h2>
+              <div className="flex items-center gap-3 text-xs text-slate-500">
+                <span>
+                  Showing {rangeStart}-{rangeEnd} of {totalResults}
+                </span>
+                {isPageLoading && <span className="font-medium text-indigo-600">Loading page...</span>}
+              </div>
             </div>
 
             {results.length === 0 ? (
@@ -233,49 +273,77 @@ export default function LeadsPage() {
                 <p className="text-slate-500 text-sm">No jobs found. Try different boards or job title.</p>
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="bg-slate-50 border-b border-slate-100">
-                      <th className="text-left px-4 py-3 font-semibold text-slate-600 text-xs uppercase tracking-wide">Board</th>
-                      <th className="text-left px-4 py-3 font-semibold text-slate-600 text-xs uppercase tracking-wide">Job Title</th>
-                      <th className="text-left px-4 py-3 font-semibold text-slate-600 text-xs uppercase tracking-wide">Company</th>
-                      <th className="text-left px-4 py-3 font-semibold text-slate-600 text-xs uppercase tracking-wide">Location</th>
-                      <th className="text-left px-4 py-3 font-semibold text-slate-600 text-xs uppercase tracking-wide">Salary</th>
-                      <th className="text-left px-4 py-3 font-semibold text-slate-600 text-xs uppercase tracking-wide">URL</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {results.map((job, idx) => (
-                      <tr key={idx} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
-                        <td className="px-4 py-3">
-                          <span className="bg-slate-100 text-slate-600 text-xs font-bold px-2 py-0.5 rounded uppercase tracking-wide">
-                            {job.board}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 font-medium text-slate-900">{job.job_title}</td>
-                        <td className="px-4 py-3 text-slate-600">{job.company || '—'}</td>
-                        <td className="px-4 py-3 text-slate-600">{job.location || '—'}</td>
-                        <td className="px-4 py-3 text-slate-600">{job.salary || '—'}</td>
-                        <td className="px-4 py-3">
-                          {job.url ? (
-                            <a
-                              href={job.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-indigo-600 hover:text-indigo-800 font-medium text-sm"
-                            >
-                              View →
-                            </a>
-                          ) : (
-                            '—'
-                          )}
-                        </td>
+              <>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-slate-50 border-b border-slate-100">
+                        <th className="text-left px-4 py-3 font-semibold text-slate-600 text-xs uppercase tracking-wide">Board</th>
+                        <th className="text-left px-4 py-3 font-semibold text-slate-600 text-xs uppercase tracking-wide">Job Title</th>
+                        <th className="text-left px-4 py-3 font-semibold text-slate-600 text-xs uppercase tracking-wide">Company</th>
+                        <th className="text-left px-4 py-3 font-semibold text-slate-600 text-xs uppercase tracking-wide">Location</th>
+                        <th className="text-left px-4 py-3 font-semibold text-slate-600 text-xs uppercase tracking-wide">Salary</th>
+                        <th className="text-left px-4 py-3 font-semibold text-slate-600 text-xs uppercase tracking-wide">URL</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody className={isPageLoading ? 'opacity-60' : ''}>
+                      {results.map((job, idx) => (
+                        <tr key={`${job.url}-${idx}`} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
+                          <td className="px-4 py-3">
+                            <span className="bg-slate-100 text-slate-600 text-xs font-bold px-2 py-0.5 rounded uppercase tracking-wide">
+                              {job.board}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 font-medium text-slate-900">{job.job_title}</td>
+                          <td className="px-4 py-3 text-slate-600">{job.company || '—'}</td>
+                          <td className="px-4 py-3 text-slate-600">{job.location || '—'}</td>
+                          <td className="px-4 py-3 text-slate-600">{job.salary || '—'}</td>
+                          <td className="px-4 py-3">
+                            {job.url ? (
+                              <a
+                                href={job.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-indigo-600 hover:text-indigo-800 font-medium text-sm"
+                              >
+                                View →
+                              </a>
+                            ) : (
+                              '—'
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {totalPages > 1 && (
+                  <div className="flex items-center justify-between border-t border-slate-100 px-5 py-4">
+                    <p className="text-sm text-slate-500">
+                      Page {currentPage} of {totalPages}
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                        disabled={currentPage === 1 || isPageLoading}
+                        className="inline-flex items-center rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 transition-colors hover:border-indigo-300 hover:text-indigo-600 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        Previous
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+                        disabled={currentPage === totalPages || isPageLoading}
+                        className="inline-flex items-center rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 transition-colors hover:border-indigo-300 hover:text-indigo-600 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        Next
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </div>
         )}
