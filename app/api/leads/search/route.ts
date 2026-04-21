@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
       .insert({
         country_code: countryCode,
         job_title: jobTitle,
-        board_slugs: boardSlugs,
+        boards_searched: boardSlugs,
         status: 'running',
       })
       .select('id')
