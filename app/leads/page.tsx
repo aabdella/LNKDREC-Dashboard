@@ -315,26 +315,47 @@ export default function LeadsPage() {
           </div>
 
           <div className="mb-5">
-            <label className="block text-sm font-semibold text-slate-700 mb-2">Job Boards</label>
-            {availableBoards.length === 0 && !isLoading ? (
-              <p className="text-sm text-slate-400 italic">No boards available</p>
-            ) : (
+            <div className="mb-4">
+              <label className="block text-sm font-semibold text-slate-700 mb-2">Job Boards</label>
+              {availableBoards.length === 0 && !isLoading ? (
+                <p className="text-sm text-slate-400 italic">No boards available</p>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {availableBoards.filter(b => b.slug !== 'career-crawler').map((board) => (
+                    <button
+                      key={board.slug}
+                      onClick={() => toggleBoard(board.slug)}
+                      className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-all ${
+                        selectedBoards.includes(board.slug)
+                          ? 'bg-indigo-600 border-indigo-600 text-white shadow-sm'
+                          : 'bg-white border-slate-200 text-slate-600 hover:border-indigo-300 hover:text-indigo-600'
+                      }`}
+                    >
+                      {board.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-2">Companies (Direct Crawl)</label>
               <div className="flex flex-wrap gap-2">
-                {availableBoards.map((board) => (
+                {availableBoards.filter(b => b.slug === 'career-crawler').map((board) => (
                   <button
                     key={board.slug}
                     onClick={() => toggleBoard(board.slug)}
                     className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-all ${
                       selectedBoards.includes(board.slug)
-                        ? 'bg-indigo-600 border-indigo-600 text-white shadow-sm'
-                        : 'bg-white border-slate-200 text-slate-600 hover:border-indigo-300 hover:text-indigo-600'
+                        ? 'bg-green-600 border-green-600 text-white shadow-sm'
+                        : 'bg-white border-slate-200 text-slate-600 hover:border-green-300 hover:text-green-600'
                     }`}
                   >
-                    {board.name}
+                    🚀 {board.name}
                   </button>
                 ))}
               </div>
-            )}
+            </div>
           </div>
 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

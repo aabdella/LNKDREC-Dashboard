@@ -51,9 +51,22 @@ export async function POST(request: NextRequest) {
           if (slug === 'career-crawler') {
               console.log(`[search] Spawning Career Crawler for search: ${searchId}`);
               const { execSync } = require('child_process');
-              // Run crawler in one-shot mode for this specific search and query
-              execSync(`node projects/LNKDREC/dashboard/scripts/career_crawler.js "${searchId}" "${jobTitle}"`);
-              return { slug, results: [] }; // Results are inserted directly by the script
+              try {
+                  // Run crawler synchronously for this specific search and query
+                  execSync(`node projects/LNKDREC/dashboard/scripts/career_crawler.js "${searchId}" "${jobTitle}"`, { stdio: 'inherit' });
+                  
+                  // Fetch the count of results inserted by the crawler for this search
+                  const { count } = await supabase
+                    .from('leads_results')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('search_id', searchId)
+                    .eq('board_slug', 'career-crawler');
+                    
+                  return { slug, results: Array(count || 0).fill({}) }; // Return dummy results to increment total count
+              } catch (e) {
+                  console.error(`[search] Career Crawler failed:`, e.message);
+                  return { slug, results: [] };
+              }
           }
           const results = await scrapeBoard(slug, jobTitle);
           return { slug, results };
