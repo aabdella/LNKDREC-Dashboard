@@ -15,19 +15,27 @@ async function checkBoards() {
   console.table(data);
 }
 
-async function removeRemoteRocketship() {
-    const { data, error } = await supabase.from('leads_job_boards').delete().eq('board_slug', 'remoterocketship');
-    if (error) {
-        console.error('Error removing board:', error);
-    } else {
-        console.log('Removed board:', data);
-    }
+async function addBoards() {
+    const boards = [
+        {
+            board_name: 'Career Crawler',
+            board_slug: 'career-crawler',
+            country_code: 'GB',
+            base_url: 'https://lnkdrec.ai',
+            search_url_template: 'https://lnkdrec.ai/crawler',
+            scraper_type: 'web_fetch',
+            is_active: true
+        }
+    ];
+    const { data, error } = await supabase.from('leads_job_boards').insert(boards).select();
+    if (error) console.error('Error:', error.message);
+    else console.log('Added Career Crawler board.');
 }
 
 const action = process.argv[2] || 'list';
 
 if (action === 'list') {
     checkBoards();
-} else if (action === 'remove-rocket') {
-    removeRemoteRocketship();
+} else if (action === 'add-crawler') {
+    addBoards();
 }
