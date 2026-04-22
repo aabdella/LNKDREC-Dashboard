@@ -79,9 +79,9 @@ export async function scrapeBoard(
       case 'text_parse':
         return await scrapeWithTextParse(config, searchUrl, boardSlug);
       case 'api':
-        return await scrapeWithApi(config, searchUrl, boardSlug);
+        return await scrapeWithApi(config, searchUrl, boardSlug, jobQuery);
       case 'rss':
-        return await scrapeWithRss(config, searchUrl, boardSlug);
+        return await scrapeWithRss(config, searchUrl, boardSlug, jobQuery);
       case 'browser':
         console.warn(`[scrapers] 'browser' type not yet implemented for ${boardSlug}`);
         return [];
@@ -258,7 +258,8 @@ async function scrapeWithTextParse(
 async function scrapeWithApi(
   config: BoardConfig,
   searchUrl: string,
-  boardSlug: string
+  boardSlug: string,
+  jobQuery: string
 ): Promise<JobResult[]> {
   const results: JobResult[] = [];
 
@@ -269,10 +270,17 @@ async function scrapeWithApi(
     });
 
     if (Array.isArray(data)) {
+      const q = jobQuery.toLowerCase();
       // RemoteOK structure: [ { legal: ... }, { job1 }, { job2 } ]
-      // The first item is often a legal notice or meta
       for (const item of data) {
         if (!item.position || !item.url) continue;
+
+        // Simple filtering to match job title or company
+        const titleMatch = item.position.toLowerCase().includes(q);
+        const companyMatch = item.company?.toLowerCase().includes(q);
+        const tagsMatch = item.tags?.some((t: string) => t.toLowerCase().includes(q));
+
+        if (!titleMatch && !companyMatch && !tagsMatch) continue;
 
         results.push({
           board_slug: boardSlug,
@@ -299,7 +307,8 @@ async function scrapeWithApi(
 async function scrapeWithRss(
   config: BoardConfig,
   searchUrl: string,
-  boardSlug: string
+  boardSlug: string,
+  jobQuery: string
 ): Promise<JobResult[]> {
   const results: JobResult[] = [];
 
@@ -310,6 +319,7 @@ async function scrapeWithRss(
     });
 
     const $ = cheerio.load(data, { xmlMode: true });
+    const q = jobQuery.toLowerCase();
 
     $('item').each((_, el) => {
       const item = $(el);
@@ -326,6 +336,13 @@ async function scrapeWithRss(
 
       const jobUrl = item.find('link').text();
       const location = item.find('region').text() || 'Remote';
+
+      // Filtering
+      const titleMatch = jobTitle.toLowerCase().includes(q);
+      const companyMatch = companyName?.toLowerCase().includes(q);
+      const descMatch = item.find('description').text()?.toLowerCase().includes(q);
+
+      if (!titleMatch && !companyMatch && !descMatch) return;
 
       results.push({
         board_slug: boardSlug,

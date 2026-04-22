@@ -69,22 +69,11 @@ export const SCRAPER_BOARDS: Record<string, BoardConfig> = {
     search_url_template: 'https://nodesk.co/remote-jobs/uk/',
     scraper_type: 'text_parse',
   },
-  'remoterocketship': {
-    board_name: 'Remote Rocketship',
-    board_slug: 'remoterocketship',
-    base_url: 'https://www.remoterocketship.com',
-    search_url_template: 'https://www.remoterocketship.com/jobs?q={query}',
-    scraper_type: 'cheerio',
-    css_title_selector: 'h2, h3, [class*="jobTitle"]',
-    css_company_selector: '.company, [class*="companyName"]',
-    css_location_selector: '.location, [class*="location"]',
-    css_url_selector: 'a[href*="/jobs/"]',
-  },
   'remoteok': {
     board_name: 'RemoteOK',
     board_slug: 'remoteok',
     base_url: 'https://remoteok.com',
-    search_url_template: 'https://remoteok.com/api?tag={query}',
+    search_url_template: 'https://remoteok.com/api',
     scraper_type: 'api',
   },
   'weworkremotely': {

@@ -15,34 +15,12 @@ async function checkBoards() {
   console.table(data);
 }
 
-async function addBoards() {
-    const boards = [
-        {
-            board_name: 'RemoteOK',
-            board_slug: 'remoteok',
-            country_code: 'GB',
-            base_url: 'https://remoteok.com',
-            search_url_template: 'https://remoteok.com/api?tag={query}',
-            scraper_type: 'web_fetch',
-            is_active: true
-        },
-        {
-            board_name: 'We Work Remotely',
-            board_slug: 'weworkremotely',
-            country_code: 'GB',
-            base_url: 'https://weworkremotely.com',
-            search_url_template: 'https://weworkremotely.com/remote-jobs.rss',
-            scraper_type: 'web_fetch',
-            is_active: true
-        }
-    ];
-
-    const { data, error } = await supabase.from('leads_job_boards').insert(boards).select();
-
+async function removeRemoteRocketship() {
+    const { data, error } = await supabase.from('leads_job_boards').delete().eq('board_slug', 'remoterocketship');
     if (error) {
-        console.error('Error adding boards:', error);
+        console.error('Error removing board:', error);
     } else {
-        console.log('Added/Updated boards:', data);
+        console.log('Removed board:', data);
     }
 }
 
@@ -50,6 +28,6 @@ const action = process.argv[2] || 'list';
 
 if (action === 'list') {
     checkBoards();
-} else if (action === 'add') {
-    addBoards();
+} else if (action === 'remove-rocket') {
+    removeRemoteRocketship();
 }
