@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
                     .eq('board_slug', 'career-crawler');
                     
                   return { slug, results: Array(count || 0).fill({}) }; // Return dummy results to increment total count
-              } catch (e) {
+              } catch (e: any) {
                   console.error(`[search] Career Crawler failed:`, e.message);
                   return { slug, results: [] };
               }
