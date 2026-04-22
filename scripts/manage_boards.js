@@ -15,19 +15,34 @@ async function checkBoards() {
   console.table(data);
 }
 
-async function addRemoteRocketship() {
-    const { data, error } = await supabase.from('leads_job_boards').update({
-        scraper_type: 'cheerio',
-        css_title_selector: 'h2, h3, [class*="jobTitle"]',
-        css_company_selector: '.company, [class*="companyName"]',
-        css_location_selector: '.location, [class*="location"]',
-        css_url_selector: 'a[href*="/jobs/"]',
-    }).eq('board_slug', 'remoterocketship');
+async function addBoards() {
+    const boards = [
+        {
+            board_name: 'RemoteOK',
+            board_slug: 'remoteok',
+            country_code: 'GB',
+            base_url: 'https://remoteok.com',
+            search_url_template: 'https://remoteok.com/api?tag={query}',
+            scraper_type: 'web_fetch',
+            is_active: true
+        },
+        {
+            board_name: 'We Work Remotely',
+            board_slug: 'weworkremotely',
+            country_code: 'GB',
+            base_url: 'https://weworkremotely.com',
+            search_url_template: 'https://weworkremotely.com/remote-jobs.rss',
+            scraper_type: 'web_fetch',
+            is_active: true
+        }
+    ];
+
+    const { data, error } = await supabase.from('leads_job_boards').insert(boards).select();
 
     if (error) {
-        console.error('Error updating board:', error);
+        console.error('Error adding boards:', error);
     } else {
-        console.log('Updated board:', data);
+        console.log('Added/Updated boards:', data);
     }
 }
 
@@ -36,5 +51,5 @@ const action = process.argv[2] || 'list';
 if (action === 'list') {
     checkBoards();
 } else if (action === 'add') {
-    addRemoteRocketship();
+    addBoards();
 }

@@ -1,4 +1,4 @@
-export type ScraperType = 'cheerio' | 'web_fetch' | 'text_parse' | 'browser';
+export type ScraperType = 'cheerio' | 'web_fetch' | 'text_parse' | 'browser' | 'api' | 'rss';
 
 export interface BoardConfig {
   board_name: string;
@@ -79,5 +79,19 @@ export const SCRAPER_BOARDS: Record<string, BoardConfig> = {
     css_company_selector: '.company, [class*="companyName"]',
     css_location_selector: '.location, [class*="location"]',
     css_url_selector: 'a[href*="/jobs/"]',
+  },
+  'remoteok': {
+    board_name: 'RemoteOK',
+    board_slug: 'remoteok',
+    base_url: 'https://remoteok.com',
+    search_url_template: 'https://remoteok.com/api?tag={query}',
+    scraper_type: 'api',
+  },
+  'weworkremotely': {
+    board_name: 'We Work Remotely',
+    board_slug: 'weworkremotely',
+    base_url: 'https://weworkremotely.com',
+    search_url_template: 'https://weworkremotely.com/remote-jobs.rss',
+    scraper_type: 'rss',
   },
 };

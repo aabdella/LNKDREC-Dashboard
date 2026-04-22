@@ -78,6 +78,10 @@ export async function scrapeBoard(
         return await scrapeWithWebFetch(config, searchUrl, boardSlug);
       case 'text_parse':
         return await scrapeWithTextParse(config, searchUrl, boardSlug);
+      case 'api':
+        return await scrapeWithApi(config, searchUrl, boardSlug);
+      case 'rss':
+        return await scrapeWithRss(config, searchUrl, boardSlug);
       case 'browser':
         console.warn(`[scrapers] 'browser' type not yet implemented for ${boardSlug}`);
         return [];
@@ -246,6 +250,99 @@ async function scrapeWithTextParse(
     }
   } catch (err) {
     console.error(`[scrapers] text_parse failed for ${boardSlug}:`, err);
+  }
+
+  return deduplicateResults(results);
+}
+
+async function scrapeWithApi(
+  config: BoardConfig,
+  searchUrl: string,
+  boardSlug: string
+): Promise<JobResult[]> {
+  const results: JobResult[] = [];
+
+  try {
+    const { data } = await axios.get(searchUrl, {
+      headers: REQUEST_HEADERS,
+      timeout: 15000,
+    });
+
+    if (Array.isArray(data)) {
+      // RemoteOK structure: [ { legal: ... }, { job1 }, { job2 } ]
+      // The first item is often a legal notice or meta
+      for (const item of data) {
+        if (!item.position || !item.url) continue;
+
+        results.push({
+          board_slug: boardSlug,
+          job_title: item.position,
+          company_name: item.company || null,
+          location: item.location || null,
+          salary: item.salary_min ? `${item.salary_min} - ${item.salary_max}` : null,
+          job_url: item.url,
+          raw_data: {
+            ...item,
+            scraper_type: 'api',
+            scraped_at: new Date().toISOString(),
+          },
+        });
+      }
+    }
+  } catch (err) {
+    console.error(`[scrapers] API fetch failed for ${boardSlug}:`, err);
+  }
+
+  return deduplicateResults(results);
+}
+
+async function scrapeWithRss(
+  config: BoardConfig,
+  searchUrl: string,
+  boardSlug: string
+): Promise<JobResult[]> {
+  const results: JobResult[] = [];
+
+  try {
+    const { data } = await axios.get(searchUrl, {
+      headers: REQUEST_HEADERS,
+      timeout: 15000,
+    });
+
+    const $ = cheerio.load(data, { xmlMode: true });
+
+    $('item').each((_, el) => {
+      const item = $(el);
+      const fullTitle = cleanText(item.find('title').text()) || '';
+      // WWR title format usually: "Company: Job Title"
+      let companyName = null;
+      let jobTitle = fullTitle;
+      
+      if (fullTitle.includes(':')) {
+        const parts = fullTitle.split(':');
+        companyName = parts[0].trim();
+        jobTitle = parts.slice(1).join(':').trim();
+      }
+
+      const jobUrl = item.find('link').text();
+      const location = item.find('region').text() || 'Remote';
+
+      results.push({
+        board_slug: boardSlug,
+        job_title: jobTitle,
+        company_name: companyName,
+        location,
+        salary: null,
+        job_url: jobUrl,
+        raw_data: {
+          scraper_type: 'rss',
+          search_url: searchUrl,
+          scraped_at: new Date().toISOString(),
+        },
+      });
+    });
+  } catch (err) {
+    console.error(`[scrapers] RSS fetch failed for ${boardSlug}:`, err);
   }
 
   return deduplicateResults(results);
