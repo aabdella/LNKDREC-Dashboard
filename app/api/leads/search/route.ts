@@ -48,6 +48,13 @@ export async function POST(request: NextRequest) {
     const scrapeResults = await Promise.all(
       boardSlugs.map(async (slug) => {
         try {
+          if (slug === 'career-crawler') {
+              console.log(`[search] Spawning Career Crawler for search: ${searchId}`);
+              const { execSync } = require('child_process');
+              // Run crawler in one-shot mode for this specific search and query
+              execSync(`node projects/LNKDREC/dashboard/scripts/career_crawler.js "${searchId}" "${jobTitle}"`);
+              return { slug, results: [] }; // Results are inserted directly by the script
+          }
           const results = await scrapeBoard(slug, jobTitle);
           return { slug, results };
         } catch (error) {

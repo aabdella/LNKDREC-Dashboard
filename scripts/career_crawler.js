@@ -31,29 +31,41 @@ async function scrapeWithBrowser(url) {
 
 async function main() {
     const pages = await getCareerPages();
+    const externalSearchId = process.argv[2];
+    const searchQuery = process.argv[3];
+    
     console.log(`Found ${pages.length} career pages to crawl.`);
 
-    // Create a search record for this crawl
-    const { data: search, error: searchError } = await supabase
-        .from('leads_searches')
-        .insert({
-            job_title: 'Career Crawler',
-            country_code: 'UK',
-            boards_searched: ['career-crawler'],
-            status: 'running'
-        })
-        .select('id')
-        .single();
+    let searchId = externalSearchId;
+    
+    if (!searchId) {
+        // Create a search record only if one wasn't provided
+        const { data: search, error: searchError } = await supabase
+            .from('leads_searches')
+            .insert({
+                job_title: searchQuery || 'Career Crawler',
+                country_code: 'UK',
+                boards_searched: ['career-crawler'],
+                status: 'running'
+            })
+            .select('id')
+            .single();
 
-    if (searchError) throw searchError;
-    const searchId = search.id;
+        if (searchError) throw searchError;
+        searchId = search.id;
+    }
 
     for (const page of pages) {
         const rawJobs = await scrapeWithBrowser(page.career_page_url);
-        const keywords = ["Engineer", "Developer", "Manager", "Analyst", "Designer", "Lead", "Software", "Product"];
+        // Use either the provided search query or our default keywords
+        const keywords = searchQuery ? [searchQuery] : ["Engineer", "Developer", "Manager", "Analyst", "Designer", "Lead", "Software", "Product"];
         
         const jobs = rawJobs.filter(j => {
             const title = (j.title || '').trim();
+            // If we have a specific query, check for that. Otherwise use our list.
+            if (searchQuery) {
+                return title.toLowerCase().includes(searchQuery.toLowerCase());
+            }
             return title.length > 5 && title.length < 80 && keywords.some(k => title.toLowerCase().includes(k.toLowerCase()));
         }).map(j => ({
             search_id: searchId,
