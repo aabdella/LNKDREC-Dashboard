@@ -91,6 +91,7 @@ export default function CandidateDetailsModal({
     } | null>(null);
     const [loadingVetting, setLoadingVetting] = useState(false);
 
+    const [loadingCandidate, setLoadingCandidate] = useState(false);
     const [formData, setFormData] = useState<Candidate>({
         ...candidate,
         work_history: Array.isArray(candidate.work_history) ? candidate.work_history : [],
@@ -102,16 +103,53 @@ export default function CandidateDetailsModal({
 
     useEffect(() => {
         if (candidate) {
+            // Initially set from what we have
             setFormData({
                 ...candidate,
                 work_history: Array.isArray(candidate.work_history) ? candidate.work_history : [],
                 technologies: Array.isArray(candidate.technologies) ? candidate.technologies : [],
                 tools: Array.isArray(candidate.tools) ? candidate.tools : []
             });
-            // Fetch both in parallel — no need to block on one before starting the other
-            Promise.all([fetchInteractions(), fetchVetting()]);
+            // Fetch everything else in parallel
+            Promise.all([fetchCandidateDetails(), fetchInteractions(), fetchVetting()]);
         }
     }, [candidate]);
+
+    async function fetchCandidateDetails() {
+        if (!candidate.id) return;
+        setLoadingCandidate(true);
+        const { data, error } = await supabase
+            .from('candidates')
+            .select(`
+                *,
+                candidate_interactions(type, created_at),
+                applications(job_id, jobs(title, clients(name)))
+            `)
+            .eq('id', candidate.id)
+            .single();
+
+        if (error) {
+            console.error('Error fetching full candidate details:', error);
+        } else if (data) {
+            const sortedInteractions = (data.candidate_interactions || []).sort(
+                (a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+            );
+            const last = sortedInteractions[0];
+            const firstApp = data.applications?.[0];
+
+            setFormData({
+                ...data,
+                last_interaction_type: last?.type,
+                last_interaction_at: last?.created_at,
+                assigned_job_title: firstApp?.jobs?.title || null,
+                assigned_company_name: firstApp?.jobs?.clients?.name || null,
+                work_history: Array.isArray(data.work_history) ? data.work_history : [],
+                technologies: Array.isArray(data.technologies) ? data.technologies : [],
+                tools: Array.isArray(data.tools) ? data.tools : []
+            });
+        }
+        setLoadingCandidate(false);
+    }
 
     async function fetchInteractions() {
         setLoadingInteractions(true);
@@ -304,7 +342,12 @@ export default function CandidateDetailsModal({
           <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="sticky top-0 bg-white border-b border-slate-100 p-6 flex justify-between items-center z-10">
               <div>
-                {!isEditing ? (
+                {loadingCandidate ? (
+                    <div className="animate-pulse">
+                        <div className="h-8 w-48 bg-slate-200 rounded mb-2"></div>
+                        <div className="h-4 w-32 bg-slate-100 rounded"></div>
+                    </div>
+                ) : !isEditing ? (
                     <>
                         <h2 className="text-2xl font-bold text-slate-900">{formData.full_name}</h2>
                         <p className="text-slate-500">{formData.title}</p>
@@ -330,7 +373,12 @@ export default function CandidateDetailsModal({
               </button>
             </div>
             
-            {isEditing ? (
+            {loadingCandidate ? (
+                <div className="p-20 text-center text-slate-400">
+                    <div className="animate-spin h-8 w-8 border-4 border-slate-200 border-t-black rounded-full mx-auto mb-4"></div>
+                    Loading full profile...
+                </div>
+            ) : isEditing ? (
                 <form onSubmit={handleSave} className="p-6 space-y-8">
                     {/* Basic Info Section */}
                     <div className="space-y-4">

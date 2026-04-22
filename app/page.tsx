@@ -299,7 +299,6 @@ function DashboardInner() {
             email,
             phone,
             skills,
-            resume_text,
             created_at,
             pipeline_stage,
             pipeline_order,
