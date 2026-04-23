@@ -1,22 +1,51 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabaseClient';
 
-const APOLLO_API_URL = 'https://api.apollo.io/v1/mixed_people/search';
+// Hunter.io department filter covers HR/Talent/People roles
+const HUNTER_DEPARTMENTS = ['hr', 'recruiting'];
 
-const TALENT_TITLES = [
-  'Head of Talent',
-  'Talent Acquisition',
-  'Talent Partner',
-  'Recruiter',
-  'Senior Recruiter',
-  'Technical Recruiter',
-  'People & Culture',
-  'HR Director',
-  'HR Manager',
-  'Head of People',
-  'VP People',
-  'Chief People Officer',
+// Fallback keyword filter if department search returns non-talent results
+const TALENT_KEYWORDS = [
+  'talent', 'recruit', 'hr ', 'human resource', 'people', 'hiring',
+  'staffing', 'workforce', 'culture', 'acquisition',
 ];
+
+function isTalentContact(position: string): boolean {
+  if (!position) return false;
+  const p = position.toLowerCase();
+  return TALENT_KEYWORDS.some((kw) => p.includes(kw));
+}
+
+async function searchHunter(domain: string): Promise<any[]> {
+  const hunterKey = process.env.HUNTER_API_KEY;
+  if (!hunterKey) throw new Error('Hunter API key not configured');
+
+  const contacts: any[] = [];
+
+  for (const dept of HUNTER_DEPARTMENTS) {
+    const url = `https://api.hunter.io/v2/domain-search?domain=${encodeURIComponent(domain)}&department=${dept}&limit=10&api_key=${hunterKey}`;
+    const res = await fetch(url);
+    if (!res.ok) continue;
+    const data = await res.json();
+    const emails: any[] = data?.data?.emails || [];
+    contacts.push(...emails);
+  }
+
+  // Deduplicate by email
+  const seen = new Set<string>();
+  return contacts.filter((c) => {
+    if (seen.has(c.value)) return false;
+    seen.add(c.value);
+    return true;
+  });
+}
+
+function extractDomain(companyName: string): string | null {
+  // Simple heuristic: lowercase, remove spaces/special chars, append .com
+  // In practice Hunter also accepts company names directly
+  const slug = companyName.toLowerCase().replace(/[^a-z0-9]/g, '');
+  return `${slug}.com`;
+}
 
 export async function POST(request: NextRequest) {
   const supabase = getSupabaseAdmin();
@@ -24,9 +53,6 @@ export async function POST(request: NextRequest) {
   const { lead_id } = body;
 
   if (!lead_id) return NextResponse.json({ error: 'Missing lead_id' }, { status: 400 });
-
-  const apolloKey = process.env.APOLLO_API_KEY;
-  if (!apolloKey) return NextResponse.json({ error: 'Apollo API key not configured' }, { status: 500 });
 
   // Fetch the lead
   const { data: lead, error: leadError } = await supabase
@@ -38,65 +64,52 @@ export async function POST(request: NextRequest) {
   if (leadError || !lead) return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
 
   try {
-    // Search Apollo for talent/HR contacts at this company
-    const apolloRes = await fetch(APOLLO_API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Cache-Control': 'no-cache',
-      },
-      body: JSON.stringify({
-        api_key: apolloKey,
-        q_organization_name: lead.company_name,
-        person_titles: TALENT_TITLES,
-        page: 1,
-        per_page: 10,
-      }),
-    });
+    // Try company_domain if stored, else derive from company name
+    const domain = lead.company_domain || extractDomain(lead.company_name);
+    console.log(`[enrich] Searching Hunter for domain: ${domain} (${lead.company_name})`);
 
-    if (!apolloRes.ok) {
-      const err = await apolloRes.text();
-      console.error('[enrich] Apollo error:', err);
-      return NextResponse.json({ error: 'Apollo API request failed' }, { status: 502 });
-    }
+    const hunterContacts = await searchHunter(domain);
 
-    const apolloData = await apolloRes.json();
-    const people = apolloData.people || [];
+    // Filter to talent/HR roles only
+    const talentContacts = hunterContacts.filter((c) => isTalentContact(c.position || ''));
+    const finalContacts = talentContacts.length > 0 ? talentContacts : hunterContacts.slice(0, 5);
 
-    if (people.length === 0) {
-      // Mark as enriched even if no contacts found
-      await supabase
-        .from('qualified_leads')
-        .update({ status: 'enriched', enriched_at: new Date().toISOString() })
-        .eq('id', lead_id);
+    console.log(`[enrich] Found ${hunterContacts.length} contacts, ${talentContacts.length} talent-specific`);
 
-      return NextResponse.json({ success: true, contacts_found: 0 });
-    }
-
-    // Insert contacts (delete old ones first to avoid dupes on re-enrich)
+    // Delete old contacts then insert fresh
     await supabase.from('lead_contacts').delete().eq('lead_id', lead_id);
 
-    const contacts = people.map((person: any) => ({
-      lead_id,
-      name: person.name || null,
-      title: person.title || null,
-      email: person.email || null,
-      linkedin_url: person.linkedin_url || null,
-      source: 'apollo',
-    }));
+    if (finalContacts.length > 0) {
+      const rows = finalContacts.map((c: any) => ({
+        lead_id,
+        name: [c.first_name, c.last_name].filter(Boolean).join(' ') || null,
+        title: c.position || null,
+        email: c.value || null,
+        linkedin_url: c.linkedin || null,
+        source: 'hunter',
+      }));
 
-    const { error: insertError } = await supabase.from('lead_contacts').insert(contacts);
-    if (insertError) return NextResponse.json({ error: insertError.message }, { status: 500 });
+      const { error: insertError } = await supabase.from('lead_contacts').insert(rows);
+      if (insertError) return NextResponse.json({ error: insertError.message }, { status: 500 });
+    }
 
-    // Update lead status
+    // Store the domain we used for future re-enrichment
     await supabase
       .from('qualified_leads')
-      .update({ status: 'enriched', enriched_at: new Date().toISOString() })
+      .update({
+        status: 'enriched',
+        enriched_at: new Date().toISOString(),
+        company_domain: domain,
+      })
       .eq('id', lead_id);
 
-    return NextResponse.json({ success: true, contacts_found: contacts.length, contacts });
+    return NextResponse.json({
+      success: true,
+      contacts_found: finalContacts.length,
+      domain_searched: domain,
+    });
   } catch (err: any) {
-    console.error('[enrich] Unexpected error:', err);
-    return NextResponse.json({ error: err.message || 'Internal server error' }, { status: 500 });
+    console.error('[enrich] Error:', err.message);
+    return NextResponse.json({ error: err.message || 'Enrichment failed' }, { status: 500 });
   }
 }
