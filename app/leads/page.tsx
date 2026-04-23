@@ -93,6 +93,7 @@ export default function LeadsPage() {
   const [selectedCountry, setSelectedCountry] = useState(DEFAULT_COUNTRY);
   const [selectedBoards, setSelectedBoards] = useState<string[]>([]);
   const [jobTitle, setJobTitle] = useState('');
+  const [remoteOnly, setRemoteOnly] = useState(false);
   const [searchId, setSearchId] = useState<string | null>(null);
   const [results, setResults] = useState<JobResult[]>([]);
   const [totalResults, setTotalResults] = useState(0);
@@ -238,7 +239,7 @@ export default function LeadsPage() {
       const res = await fetch('/api/leads/search', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ country_code: selectedCountry, board_slugs: selectedBoards, job_title: jobTitle.trim() }),
+        body: JSON.stringify({ country_code: selectedCountry, board_slugs: selectedBoards, job_title: jobTitle.trim(), remote_only: remoteOnly }),
       });
       const data = await res.json();
       if (!res.ok || !data.success) { setSearchStatus('error'); setError(data.error || 'Search failed.'); }
@@ -446,15 +447,26 @@ export default function LeadsPage() {
               </div>
 
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <button
-                  onClick={handleSearch}
-                  disabled={isSearchDisabled}
-                  className="inline-flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-semibold text-sm px-5 py-2 rounded-lg transition-colors"
-                >
-                  {searchStatus === 'running' ? (
-                    <><svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>Searching...</>
-                  ) : <>🔍 Search</>}
-                </button>
+                <div className="flex items-center gap-4">
+                  <button
+                    onClick={handleSearch}
+                    disabled={isSearchDisabled}
+                    className="inline-flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-semibold text-sm px-5 py-2 rounded-lg transition-colors"
+                  >
+                    {searchStatus === 'running' ? (
+                      <><svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>Searching...</>
+                    ) : <>🔍 Search</>}
+                  </button>
+                  <label className="flex items-center gap-2 cursor-pointer select-none">
+                    <div
+                      onClick={() => setRemoteOnly(v => !v)}
+                      className={`relative w-10 h-5 rounded-full transition-colors duration-200 ${remoteOnly ? 'bg-green-500' : 'bg-slate-200'}`}
+                    >
+                      <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 ${remoteOnly ? 'translate-x-5' : 'translate-x-0'}`} />
+                    </div>
+                    <span className="text-sm font-medium text-slate-700">Remote only</span>
+                  </label>
+                </div>
                 <div className="text-sm text-slate-500">
                   {selectedBoards.length > 0 ? `${selectedBoards.length} source${selectedBoards.length > 1 ? 's' : ''} selected` : 'Choose at least one source'}
                 </div>

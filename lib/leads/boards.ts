@@ -1,4 +1,4 @@
-export type ScraperType = 'cheerio' | 'web_fetch' | 'text_parse' | 'browser' | 'api' | 'rss';
+export type ScraperType = 'cheerio' | 'web_fetch' | 'text_parse' | 'browser' | 'api' | 'rss' | 'adzuna';
 
 export interface BoardConfig {
   board_name: string;
