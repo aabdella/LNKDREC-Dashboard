@@ -49,24 +49,29 @@ export async function POST(request: NextRequest) {
       boardSlugs.map(async (slug) => {
         try {
           if (slug === 'career-crawler') {
-              console.log(`[search] Spawning Career Crawler for search: ${searchId}`);
-              const { execSync } = require('child_process');
-              try {
-                  // Run crawler synchronously for this specific search and query
-                  execSync(`node projects/LNKDREC/dashboard/scripts/career_crawler.js "${searchId}" "${jobTitle}"`, { stdio: 'inherit' });
-                  
-                  // Fetch the count of results inserted by the crawler for this search
-                  const { count } = await supabase
-                    .from('leads_results')
-                    .select('*', { count: 'exact', head: true })
-                    .eq('search_id', searchId)
-                    .eq('board_slug', 'career-crawler');
-                    
-                  return { slug, results: Array(count || 0).fill({}) }; // Return dummy results to increment total count
-              } catch (e: any) {
-                  console.error(`[search] Career Crawler failed:`, e.message);
-                  return { slug, results: [] };
+              // Query pre-crawled catalog from DB — no child process spawning
+              const { data: catalogRows, error: catalogError } = await supabase
+                .from('leads_results')
+                .select('board_slug, job_title, company_name, location, salary, job_url, raw_data')
+                .eq('board_slug', 'career-crawler')
+                .ilike('job_title', `%${jobTitle}%`);
+
+              if (catalogError) {
+                console.error('[search] Catalog query failed:', catalogError.message);
+                return { slug, results: [] as JobResult[] };
               }
+
+              const mapped: JobResult[] = (catalogRows || []).map((r: any) => ({
+                board_slug: r.board_slug,
+                job_title: r.job_title,
+                company_name: r.company_name,
+                location: r.location,
+                salary: r.salary,
+                job_url: r.job_url,
+                raw_data: r.raw_data,
+              }));
+
+              return { slug, results: mapped };
           }
           const results = await scrapeBoard(slug, jobTitle);
           return { slug, results };
