@@ -790,7 +790,7 @@ function DashboardInner() {
                           <label className="block text-sm font-medium mb-2">Select Job</label>
                           <select className="w-full border border-slate-300 rounded-md p-3 focus:ring-2 focus:ring-black outline-none bg-white" value={selectedJobId} onChange={e => setSelectedJobId(e.target.value)} required>
                               <option value="">-- Choose an Open Job --</option>
-                              {jobs.map(job => (<option key={job.id} value={job.id}>{job.clients?.name} - {job.title}</option>))}
+                              {[...jobs].sort((a, b) => `${a.clients?.name} - ${a.title}`.localeCompare(`${b.clients?.name} - ${b.title}`)).map(job => (<option key={job.id} value={job.id}>{job.clients?.name} - {job.title}</option>))}
                           </select>
                       </div>
                       <div className="flex justify-end gap-3 pt-4 border-t border-slate-50">
