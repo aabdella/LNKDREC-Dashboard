@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { extractJobTitle } from '@/lib/extractJobTitle';
+import { parseJD } from '@/lib/parseJD';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
@@ -23,6 +23,42 @@ function extractTargetMarket(jd: string): string {
   if (lower.includes('uae')) return 'UAE';
   if (lower.includes('egypt')) return 'Egypt';
   return '';
+}
+
+/** Build deep-search queries from ParsedJD — more varied than the old 2-3 fixed queries */
+function buildDeepQueries(parsed: ReturnType<typeof parseJD>, isCreative: boolean): string[] {
+  const { role_title, title_variants, must_have_skills, seniority_prefix, location } = parsed;
+  const loc = location || 'Egypt';
+
+  const primaryTitle = (seniority_prefix && !role_title.toLowerCase().startsWith(seniority_prefix.toLowerCase()))
+    ? `${seniority_prefix} ${role_title}`
+    : role_title;
+
+  const allTitles = [primaryTitle, ...title_variants].slice(0, 3);
+  const skill1 = must_have_skills[0] || null;
+  const skill2 = must_have_skills[1] || null;
+
+  const queries: string[] = [];
+
+  // Quoted exact match + location
+  queries.push(`site:linkedin.com/in "${allTitles[0]}" ${loc}`);
+  // City-level
+  queries.push(`site:linkedin.com/in "${allTitles[0]}" Cairo`);
+  // With top skill
+  if (skill1) queries.push(`site:linkedin.com/in "${allTitles[0]}" ${skill1} ${loc}`);
+  // Alexandria sweep
+  queries.push(`site:linkedin.com/in "${allTitles[0]}" Alexandria Egypt`);
+  // First title variant
+  if (allTitles[1]) queries.push(`site:linkedin.com/in "${allTitles[1]}" ${loc}`);
+  // Second title variant + skill
+  if (allTitles[2] && skill2) queries.push(`site:linkedin.com/in "${allTitles[2]}" ${skill2} ${loc}`);
+  else if (allTitles[1] && skill2) queries.push(`site:linkedin.com/in "${allTitles[1]}" ${skill2} ${loc}`);
+  // Unquoted broader sweep
+  queries.push(`site:linkedin.com/in ${allTitles[0]} ${loc}`);
+  // Behance for creative roles
+  if (isCreative) queries.push(`site:behance.net ${allTitles[0]} Egypt`);
+
+  return [...new Set(queries.filter(q => q.trim()))].slice(0, 8);
 }
 
 function isLikelyCandidateProfile(rawUrl: string): boolean {
@@ -145,49 +181,6 @@ async function searchProfiles(query: string) {
 
 // ─── Query Builder ────────────────────────────────────────────────────────────
 
-function buildQueries(titleLine: string, parsedTitle: string, targetMarket: string, isCreative: boolean): string[] {
-  const queries: string[] = [];
-
-  // Title variations — handle common alternate phrasings
-  const titleVariants: string[] = [titleLine];
-  const tl = titleLine.toLowerCase();
-
-  if (tl.includes('data engineer')) titleVariants.push('Analytics Engineer');
-  if (tl.includes('software engineer')) titleVariants.push('Software Developer');
-  if (tl.includes('frontend') || tl.includes('front-end')) titleVariants.push('Front End Developer');
-  if (tl.includes('backend') || tl.includes('back-end')) titleVariants.push('Back End Developer');
-  if (tl.includes('machine learning')) titleVariants.push('ML Engineer');
-  if (tl.includes('devops')) titleVariants.push('Platform Engineer');
-  if (tl.includes('product manager')) titleVariants.push('Product Owner');
-  if (tl.includes('ui') || tl.includes('ux')) titleVariants.push('Product Designer');
-
-  // For each title variant, build location-anchored queries
-  for (const variant of titleVariants.slice(0, 2)) {
-    // Quoted exact match + Egypt
-    queries.push(`site:linkedin.com/in "${variant}" Egypt`);
-    // City-level
-    queries.push(`site:linkedin.com/in "${variant}" Cairo`);
-    // With market signal if present
-    if (targetMarket && targetMarket !== 'Egypt') {
-      queries.push(`site:linkedin.com/in "${variant}" Egypt ${targetMarket}`);
-    }
-  }
-
-  // Unquoted broader sweep for the primary title
-  queries.push(`site:linkedin.com/in ${titleLine} Egypt`);
-
-  // Alexandria — second largest city, often missed
-  queries.push(`site:linkedin.com/in "${titleLine}" Alexandria Egypt`);
-
-  // Behance only for creative roles
-  if (isCreative) {
-    queries.push(`site:behance.net ${titleLine} Egypt`);
-  }
-
-  // Dedupe and cap
-  return [...new Set(queries.filter(q => q.trim()))].slice(0, 8);
-}
-
 // ─── Deduplication against existing unvetted records ─────────────────────────
 
 async function getExistingUrls(urls: string[]): Promise<Set<string>> {
@@ -219,19 +212,18 @@ export async function POST(req: NextRequest) {
     const { jd } = await req.json();
     if (!jd) return NextResponse.json({ error: 'JD required' }, { status: 400 });
 
-    const { title: parsedTitle, techFallback } = extractJobTitle(jd);
-    const titleLine = (parsedTitle || techFallback.slice(0, 2).join(' ') || jd.split('\n').find((l: string) => l.trim().length > 5) || 'Professional')
-      .replace(/[()&]/g, ' ')
-      .replace(/[ ]+/g, ' ')
-      .trim();
-
-    const targetMarket = extractTargetMarket(jd);
+    const parsed = parseJD(jd);
+    const titleLine = parsed.seniority_prefix && !parsed.role_title.toLowerCase().startsWith(parsed.seniority_prefix.toLowerCase())
+      ? `${parsed.seniority_prefix} ${parsed.role_title}`
+      : parsed.role_title;
+    const parsedTitle = parsed.role_title;
+    const targetMarket = parsed.location || extractTargetMarket(jd);
     const isCreative = /designer|art.?director|creative|illustrat|visual|motion|graphic/i.test(parsedTitle);
 
-    console.log(`🦞 [Deep Search] title="${titleLine}" | creative=${isCreative} | market=${targetMarket || 'none'}`);
+    console.log(`🦞 [Deep Search] title="${titleLine}" | industry=${parsed.industry} | market=${targetMarket || 'none'} | variants=${parsed.title_variants.join(', ')}`);
 
     // ── Discovery ──────────────────────────────────────────────────────────
-    const uniqueQueries = buildQueries(titleLine, parsedTitle, targetMarket, isCreative);
+    const uniqueQueries = buildDeepQueries(parsed, isCreative);
     const discoveryRuns = await Promise.all(uniqueQueries.map(searchProfiles));
 
     // Collect all discovered URLs, dedupe, preserve Brave snippet metadata
