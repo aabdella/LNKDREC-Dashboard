@@ -1,13 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabaseClient';
 
-// Hunter.io department filter covers HR/Talent/People roles
-const HUNTER_DEPARTMENTS = ['hr', 'recruiting'];
-
-// Fallback keyword filter if department search returns non-talent results
+// Keyword filter for HR/Talent roles
 const TALENT_KEYWORDS = [
   'talent', 'recruit', 'hr ', 'human resource', 'people', 'hiring',
-  'staffing', 'workforce', 'culture', 'acquisition',
+  'staffing', 'workforce', 'culture', 'acquisition', 'head of people',
 ];
 
 function isTalentContact(position: string): boolean {
@@ -16,32 +13,35 @@ function isTalentContact(position: string): boolean {
   return TALENT_KEYWORDS.some((kw) => p.includes(kw));
 }
 
+// ── Hunter.io ─────────────────────────────────────────────────────────────────
+// API: GET https://api.hunter.io/v2/domain-search
+// Supports both ?domain= and ?company= params
+// Response: { data: { emails: [{ value, first_name, last_name, position, linkedin, ... }] } }
 async function searchHunter(domain: string, companyName?: string): Promise<any[]> {
   const hunterKey = process.env.HUNTER_API_KEY;
   if (!hunterKey) throw new Error('Hunter API key not configured');
 
+  const HUNTER_DEPARTMENTS = ['hr', 'recruiting'];
   const contacts: any[] = [];
 
+  // Try domain search first
   for (const dept of HUNTER_DEPARTMENTS) {
-    // Prefer domain search; fall back to company name search if domain yields nothing
-    const byDomain = `https://api.hunter.io/v2/domain-search?domain=${encodeURIComponent(domain)}&department=${dept}&limit=10&api_key=${hunterKey}`;
-    const res = await fetch(byDomain);
+    const url = `https://api.hunter.io/v2/domain-search?domain=${encodeURIComponent(domain)}&department=${dept}&limit=10&api_key=${hunterKey}`;
+    const res = await fetch(url);
     if (res.ok) {
       const data = await res.json();
-      const emails: any[] = data?.data?.emails || [];
-      contacts.push(...emails);
+      contacts.push(...(data?.data?.emails || []));
     }
   }
 
-  // If domain search returned nothing and we have a company name, try company name search
+  // If domain returned nothing, try company name directly
   if (contacts.length === 0 && companyName) {
     for (const dept of HUNTER_DEPARTMENTS) {
-      const byCompany = `https://api.hunter.io/v2/domain-search?company=${encodeURIComponent(companyName)}&department=${dept}&limit=10&api_key=${hunterKey}`;
-      const res = await fetch(byCompany);
+      const url = `https://api.hunter.io/v2/domain-search?company=${encodeURIComponent(companyName)}&department=${dept}&limit=10&api_key=${hunterKey}`;
+      const res = await fetch(url);
       if (res.ok) {
         const data = await res.json();
-        const emails: any[] = data?.data?.emails || [];
-        contacts.push(...emails);
+        contacts.push(...(data?.data?.emails || []));
       }
     }
   }
@@ -55,11 +55,15 @@ async function searchHunter(domain: string, companyName?: string): Promise<any[]
   });
 }
 
+// ── Apollo ────────────────────────────────────────────────────────────────────
+// API: POST https://api.apollo.io/v1/people/search  (free plan accessible)
+// Headers: X-Api-Key, Content-Type
+// Body: { q_organization_domains, person_titles, per_page }
+// Response: { people: [{ first_name, last_name, title, email, linkedin_url }] }
 async function searchApollo(domain: string): Promise<any[]> {
   const apolloKey = process.env.APOLLO_API_KEY;
   if (!apolloKey) throw new Error('Apollo API key not configured');
 
-  // Use people/search (accessible on free plan; mixed_people/search requires paid)
   const res = await fetch('https://api.apollo.io/v1/people/search', {
     method: 'POST',
     headers: {
@@ -69,7 +73,10 @@ async function searchApollo(domain: string): Promise<any[]> {
     },
     body: JSON.stringify({
       q_organization_domains: domain,
-      person_titles: ['HR Manager', 'Talent Acquisition', 'Recruiter', 'People Operations', 'Head of Talent', 'Talent Partner'],
+      person_titles: [
+        'HR Manager', 'Talent Acquisition', 'Recruiter', 'People Operations',
+        'Head of Talent', 'Talent Partner', 'HR Business Partner',
+      ],
       per_page: 10,
     }),
   });
@@ -83,12 +90,25 @@ async function searchApollo(domain: string): Promise<any[]> {
   return data?.people || [];
 }
 
-async function searchProspeo(domain: string): Promise<any[]> {
+// ── Prospeo ───────────────────────────────────────────────────────────────────
+// API: POST https://api.prospeo.io/search-person
+// Headers: X-KEY, Content-Type
+// Body: { "filters": { "company": { "websites": { "include": ["domain.com"] } }, "person_department": { "include": ["Human Resources"] } }, "page": 1 }
+// Response: { error: false, results: [ { person: { first_name, last_name, full_name, current_job_title, linkedin_url, email: { status, revealed, email } } } ], pagination: {...} }
+async function searchProspeo(domain: string, companyName?: string): Promise<any[]> {
   const prospeoKey = process.env.PROSPEO_API_KEY;
   if (!prospeoKey) throw new Error('Prospeo API key not configured');
 
-  // Prospeo requires a full URL (https://domain.com) not just the domain
-  const companyUrl = domain.startsWith('http') ? domain : `https://${domain}`;
+  // Prospeo domain filter: just the bare domain (no https://, no www)
+  const cleanDomain = domain.replace(/^https?:\/\/(www\.)?/, '').replace(/\/.*$/, '');
+
+  const filters: Record<string, any> = {
+    company: {
+      websites: { include: [cleanDomain] },
+      ...(companyName ? { names: { include: [companyName] } } : {}),
+    },
+    person_department: { include: ['Human Resources'] },
+  };
 
   const res = await fetch('https://api.prospeo.io/search-person', {
     method: 'POST',
@@ -96,10 +116,7 @@ async function searchProspeo(domain: string): Promise<any[]> {
       'X-KEY': prospeoKey,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({
-      company_url: companyUrl,
-      limit: 10,
-    }),
+    body: JSON.stringify({ filters, page: 1 }),
   });
 
   if (!res.ok) {
@@ -108,16 +125,21 @@ async function searchProspeo(domain: string): Promise<any[]> {
   }
 
   const data = await res.json();
-  // data may be { response: [...] } or { data: [...] } depending on plan
-  return data?.response || data?.data || [];
+
+  if (data.error) {
+    throw new Error(`Prospeo error: ${data.error_code || 'unknown'} — ${data.filter_error || ''}`);
+  }
+
+  return data?.results || [];
 }
 
-function extractDomain(companyName: string): string | null {
-  // Simple heuristic: lowercase, remove spaces/special chars, append .com
+// ── Domain extraction ─────────────────────────────────────────────────────────
+function extractDomain(companyName: string): string {
   const slug = companyName.toLowerCase().replace(/[^a-z0-9]/g, '');
   return `${slug}.com`;
 }
 
+// ── Route handler ─────────────────────────────────────────────────────────────
 export async function POST(request: NextRequest) {
   const supabase = getSupabaseAdmin();
   const body = await request.json();
@@ -125,7 +147,6 @@ export async function POST(request: NextRequest) {
 
   if (!lead_id) return NextResponse.json({ error: 'Missing lead_id' }, { status: 400 });
 
-  // Fetch the lead
   const { data: lead, error: leadError } = await supabase
     .from('qualified_leads')
     .select('*')
@@ -135,94 +156,76 @@ export async function POST(request: NextRequest) {
   if (leadError || !lead) return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
 
   try {
-    // Try company_domain if stored, else derive from company name
     const domain = lead.company_domain || extractDomain(lead.company_name);
-    console.log(`[enrich] Searching ${provider} for domain: ${domain} (${lead.company_name})`);
+    console.log(`[enrich] Provider=${provider} domain=${domain} company=${lead.company_name}`);
 
-    let finalContacts: any[] = [];
+    let rows: any[] = [];
 
     if (provider === 'hunter') {
-      const hunterContacts = await searchHunter(domain, lead.company_name);
-      const talentContacts = hunterContacts.filter((c) => isTalentContact(c.position || ''));
-      finalContacts = talentContacts.length > 0 ? talentContacts : hunterContacts.slice(0, 5);
-      console.log(`[enrich] Hunter: ${hunterContacts.length} total, ${talentContacts.length} talent-specific`);
-
-      // Delete old contacts then insert fresh
-      await supabase.from('lead_contacts').delete().eq('lead_id', lead_id);
-
-      if (finalContacts.length > 0) {
-        const rows = finalContacts.map((c: any) => ({
-          lead_id,
-          name: [c.first_name, c.last_name].filter(Boolean).join(' ') || null,
-          title: c.position || null,
-          email: c.value || null,
-          linkedin_url: c.linkedin || null,
-          source: 'hunter',
-        }));
-        const { error: insertError } = await supabase.from('lead_contacts').insert(rows);
-        if (insertError) return NextResponse.json({ error: insertError.message }, { status: 500 });
-      }
+      const contacts = await searchHunter(domain, lead.company_name);
+      const talent = contacts.filter((c) => isTalentContact(c.position || ''));
+      const final = talent.length > 0 ? talent : contacts.slice(0, 5);
+      console.log(`[enrich] Hunter: ${contacts.length} total, ${talent.length} HR/talent`);
+      rows = final.map((c: any) => ({
+        lead_id,
+        name: [c.first_name, c.last_name].filter(Boolean).join(' ') || null,
+        title: c.position || null,
+        email: c.value || null,
+        linkedin_url: c.linkedin || null,
+        source: 'hunter',
+      }));
 
     } else if (provider === 'apollo') {
-      const apolloContacts = await searchApollo(domain);
-      finalContacts = apolloContacts;
-      console.log(`[enrich] Apollo: ${apolloContacts.length} contacts found`);
-
-      // Delete old contacts then insert fresh
-      await supabase.from('lead_contacts').delete().eq('lead_id', lead_id);
-
-      if (finalContacts.length > 0) {
-        const rows = finalContacts.map((c: any) => ({
-          lead_id,
-          name: [c.first_name, c.last_name].filter(Boolean).join(' ') || null,
-          title: c.title || null,
-          email: c.email || null,
-          linkedin_url: c.linkedin_url || null,
-          source: 'apollo',
-        }));
-        const { error: insertError } = await supabase.from('lead_contacts').insert(rows);
-        if (insertError) return NextResponse.json({ error: insertError.message }, { status: 500 });
-      }
+      const contacts = await searchApollo(domain);
+      console.log(`[enrich] Apollo: ${contacts.length} contacts`);
+      rows = contacts.map((c: any) => ({
+        lead_id,
+        name: [c.first_name, c.last_name].filter(Boolean).join(' ') || null,
+        title: c.title || null,
+        email: c.email || null,
+        linkedin_url: c.linkedin_url || null,
+        source: 'apollo',
+      }));
 
     } else if (provider === 'prospeo') {
-      const prospeoContacts = await searchProspeo(domain);
-      const talentContacts = prospeoContacts.filter((c: any) => isTalentContact(c.job_title || ''));
-      finalContacts = talentContacts.length > 0 ? talentContacts : prospeoContacts.slice(0, 5);
-      console.log(`[enrich] Prospeo: ${prospeoContacts.length} total, ${talentContacts.length} talent-specific`);
-
-      // Delete old contacts then insert fresh
-      await supabase.from('lead_contacts').delete().eq('lead_id', lead_id);
-
-      if (finalContacts.length > 0) {
-        const rows = finalContacts.map((c: any) => ({
+      const results = await searchProspeo(domain, lead.company_name);
+      console.log(`[enrich] Prospeo: ${results.length} results`);
+      // Each result is { person: {...}, company: {...} }
+      // Filter to HR/talent by job title, fall back to all if none match
+      const talent = results.filter((r: any) => isTalentContact(r.person?.current_job_title || ''));
+      const final = talent.length > 0 ? talent : results.slice(0, 5);
+      rows = final.map((r: any) => {
+        const p = r.person || {};
+        return {
           lead_id,
-          name: [c.first_name, c.last_name].filter(Boolean).join(' ') || null,
-          title: c.job_title || null,
-          email: c.email?.value || null,
-          linkedin_url: c.linkedin_url || null,
+          name: p.full_name || [p.first_name, p.last_name].filter(Boolean).join(' ') || null,
+          title: p.current_job_title || null,
+          email: p.email?.status === 'VERIFIED' ? p.email?.email : null,
+          linkedin_url: p.linkedin_url || null,
           source: 'prospeo',
-        }));
-        const { error: insertError } = await supabase.from('lead_contacts').insert(rows);
-        if (insertError) return NextResponse.json({ error: insertError.message }, { status: 500 });
-      }
+        };
+      });
 
     } else {
       return NextResponse.json({ error: `Unknown provider: ${provider}` }, { status: 400 });
     }
 
-    // Store the domain and update enrichment timestamp
+    // Replace contacts for this lead
+    await supabase.from('lead_contacts').delete().eq('lead_id', lead_id);
+    if (rows.length > 0) {
+      const { error: insertError } = await supabase.from('lead_contacts').insert(rows);
+      if (insertError) return NextResponse.json({ error: insertError.message }, { status: 500 });
+    }
+
+    // Update lead metadata
     await supabase
       .from('qualified_leads')
-      .update({
-        status: 'enriched',
-        enriched_at: new Date().toISOString(),
-        company_domain: domain,
-      })
+      .update({ status: 'enriched', enriched_at: new Date().toISOString(), company_domain: domain })
       .eq('id', lead_id);
 
     return NextResponse.json({
       success: true,
-      contacts_found: finalContacts.length,
+      contacts_found: rows.length,
       domain_searched: domain,
       provider,
     });
