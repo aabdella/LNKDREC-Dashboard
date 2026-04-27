@@ -295,7 +295,7 @@ export default function LeadsPage() {
     finally { setMarkingLeads(false); }
   }
 
-  async function enrichLead(leadId: string, provider: 'hunter' | 'prospeo') {
+  async function enrichLead(leadId: string, provider: 'hunter' | 'prospeo' | 'pdl') {
     setEnrichingId({ id: leadId, provider });
     try {
       const res = await fetch('/api/leads/enrich', {
@@ -642,10 +642,11 @@ export default function LeadsPage() {
                         </p>
                       </div>
                       <div className="flex items-center gap-2 flex-wrap">
-                        {(['hunter', 'prospeo'] as const).map((prov) => {
+                        {(['hunter', 'prospeo', 'pdl'] as const).map((prov) => {
                           const provConfig = {
                             hunter:  { label: '🔵 Hunter.io', className: 'bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300' },
                             prospeo: { label: '🟣 Prospeo',  className: 'bg-purple-600 hover:bg-purple-700 disabled:bg-purple-300' },
+                            pdl:     { label: '🟢 PDL',      className: 'bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-300' },
                           }[prov];
                           const isEnriching = enrichingId?.id === lead.id && enrichingId?.provider === prov;
                           return (

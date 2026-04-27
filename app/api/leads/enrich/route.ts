@@ -55,6 +55,42 @@ async function searchHunter(domain: string, companyName?: string): Promise<any[]
   });
 }
 
+
+// -- People Data Labs ----------------------------------------------------------
+// API: POST https://api.peopledatalabs.com/v5/person/search
+// Auth: X-Api-Key header
+// Body: { sql: "SELECT ... FROM person WHERE job_company_website='domain.com' AND job_title_role='human resources' LIMIT 10", size: 10 }
+// Response: { status: 200, data: [{ first_name, last_name, full_name, job_title, work_email, linkedin_url }], total: N }
+async function searchPDL(domain: string, companyName?: string): Promise<any[]> {
+  const pdlKey = process.env.PDL_API_KEY;
+  if (!pdlKey) throw new Error('People Data Labs API key not configured');
+
+  const cleanDomain = domain.replace(/^https?:\/\/(www\.)?/, '').replace(/\/.*$/, '');
+  const queries = [
+    `SELECT first_name, last_name, full_name, job_title, work_email, linkedin_url FROM person WHERE job_company_website='${cleanDomain}' AND job_title_role='human resources' LIMIT 10`,
+    ...(companyName ? [`SELECT first_name, last_name, full_name, job_title, work_email, linkedin_url FROM person WHERE job_company_name='${companyName.replace(/'/g, "\'\''")}' AND job_title_role='human resources' LIMIT 10`] : []),
+  ];
+
+  for (const sql of queries) {
+    const res = await fetch('https://api.peopledatalabs.com/v5/person/search', {
+      method: 'POST',
+      headers: { 'X-Api-Key': pdlKey, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sql, size: 10 }),
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(`PDL API error ${res.status}: ${errText}`);
+    }
+
+    const data = await res.json();
+    const results: any[] = data?.data || [];
+    if (results.length > 0) return results;
+  }
+
+  return [];
+}
+
 // ── Apollo ────────────────────────────────────────────────────────────────────
 // NOTE: Apollo's people search endpoints (/v1/people/search, /v1/mixed_people/search)
 // require a paid plan. The free plan only allows organization/account lookup.
@@ -184,6 +220,20 @@ export async function POST(request: NextRequest) {
           source: 'prospeo',
         };
       });
+
+    } else if (provider === 'pdl') {
+      const results = await searchPDL(domain, lead.company_name);
+      console.log(`[enrich] PDL: ${results.length} results`);
+      const talent = results.filter((p: any) => isTalentContact(p.job_title || ''));
+      const final = talent.length > 0 ? talent : results.slice(0, 5);
+      rows = final.map((p: any) => ({
+        lead_id,
+        name: p.full_name || [p.first_name, p.last_name].filter(Boolean).join(' ') || null,
+        title: p.job_title || null,
+        email: p.work_email || null,
+        linkedin_url: p.linkedin_url || null,
+        source: 'pdl',
+      }));
 
     } else {
       return NextResponse.json({ error: `Unknown provider: ${provider}` }, { status: 400 });
