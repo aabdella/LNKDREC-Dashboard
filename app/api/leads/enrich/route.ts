@@ -16,19 +16,34 @@ function isTalentContact(position: string): boolean {
   return TALENT_KEYWORDS.some((kw) => p.includes(kw));
 }
 
-async function searchHunter(domain: string): Promise<any[]> {
+async function searchHunter(domain: string, companyName?: string): Promise<any[]> {
   const hunterKey = process.env.HUNTER_API_KEY;
   if (!hunterKey) throw new Error('Hunter API key not configured');
 
   const contacts: any[] = [];
 
   for (const dept of HUNTER_DEPARTMENTS) {
-    const url = `https://api.hunter.io/v2/domain-search?domain=${encodeURIComponent(domain)}&department=${dept}&limit=10&api_key=${hunterKey}`;
-    const res = await fetch(url);
-    if (!res.ok) continue;
-    const data = await res.json();
-    const emails: any[] = data?.data?.emails || [];
-    contacts.push(...emails);
+    // Prefer domain search; fall back to company name search if domain yields nothing
+    const byDomain = `https://api.hunter.io/v2/domain-search?domain=${encodeURIComponent(domain)}&department=${dept}&limit=10&api_key=${hunterKey}`;
+    const res = await fetch(byDomain);
+    if (res.ok) {
+      const data = await res.json();
+      const emails: any[] = data?.data?.emails || [];
+      contacts.push(...emails);
+    }
+  }
+
+  // If domain search returned nothing and we have a company name, try company name search
+  if (contacts.length === 0 && companyName) {
+    for (const dept of HUNTER_DEPARTMENTS) {
+      const byCompany = `https://api.hunter.io/v2/domain-search?company=${encodeURIComponent(companyName)}&department=${dept}&limit=10&api_key=${hunterKey}`;
+      const res = await fetch(byCompany);
+      if (res.ok) {
+        const data = await res.json();
+        const emails: any[] = data?.data?.emails || [];
+        contacts.push(...emails);
+      }
+    }
   }
 
   // Deduplicate by email
@@ -44,7 +59,8 @@ async function searchApollo(domain: string): Promise<any[]> {
   const apolloKey = process.env.APOLLO_API_KEY;
   if (!apolloKey) throw new Error('Apollo API key not configured');
 
-  const res = await fetch('https://api.apollo.io/v1/mixed_people/search', {
+  // Use people/search (accessible on free plan; mixed_people/search requires paid)
+  const res = await fetch('https://api.apollo.io/v1/people/search', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -53,7 +69,7 @@ async function searchApollo(domain: string): Promise<any[]> {
     },
     body: JSON.stringify({
       q_organization_domains: domain,
-      person_titles: ['HR Manager', 'Talent Acquisition', 'Recruiter', 'People', 'Head of Talent'],
+      person_titles: ['HR Manager', 'Talent Acquisition', 'Recruiter', 'People Operations', 'Head of Talent', 'Talent Partner'],
       per_page: 10,
     }),
   });
@@ -71,6 +87,9 @@ async function searchProspeo(domain: string): Promise<any[]> {
   const prospeoKey = process.env.PROSPEO_API_KEY;
   if (!prospeoKey) throw new Error('Prospeo API key not configured');
 
+  // Prospeo requires a full URL (https://domain.com) not just the domain
+  const companyUrl = domain.startsWith('http') ? domain : `https://${domain}`;
+
   const res = await fetch('https://api.prospeo.io/search-person', {
     method: 'POST',
     headers: {
@@ -78,8 +97,7 @@ async function searchProspeo(domain: string): Promise<any[]> {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      company_url: domain,
-      department: ['human_resource'],
+      company_url: companyUrl,
       limit: 10,
     }),
   });
@@ -90,7 +108,8 @@ async function searchProspeo(domain: string): Promise<any[]> {
   }
 
   const data = await res.json();
-  return data?.data || [];
+  // data may be { response: [...] } or { data: [...] } depending on plan
+  return data?.response || data?.data || [];
 }
 
 function extractDomain(companyName: string): string | null {
@@ -123,7 +142,7 @@ export async function POST(request: NextRequest) {
     let finalContacts: any[] = [];
 
     if (provider === 'hunter') {
-      const hunterContacts = await searchHunter(domain);
+      const hunterContacts = await searchHunter(domain, lead.company_name);
       const talentContacts = hunterContacts.filter((c) => isTalentContact(c.position || ''));
       finalContacts = talentContacts.length > 0 ? talentContacts : hunterContacts.slice(0, 5);
       console.log(`[enrich] Hunter: ${hunterContacts.length} total, ${talentContacts.length} talent-specific`);
