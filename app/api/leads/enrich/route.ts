@@ -56,38 +56,11 @@ async function searchHunter(domain: string, companyName?: string): Promise<any[]
 }
 
 // ── Apollo ────────────────────────────────────────────────────────────────────
-// API: POST https://api.apollo.io/v1/people/search  (free plan accessible)
-// Headers: X-Api-Key, Content-Type
-// Body: { q_organization_domains, person_titles, per_page }
-// Response: { people: [{ first_name, last_name, title, email, linkedin_url }] }
-async function searchApollo(domain: string): Promise<any[]> {
-  const apolloKey = process.env.APOLLO_API_KEY;
-  if (!apolloKey) throw new Error('Apollo API key not configured');
-
-  const res = await fetch('https://api.apollo.io/v1/people/search', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Cache-Control': 'no-cache',
-      'X-Api-Key': apolloKey,
-    },
-    body: JSON.stringify({
-      q_organization_domains: domain,
-      person_titles: [
-        'HR Manager', 'Talent Acquisition', 'Recruiter', 'People Operations',
-        'Head of Talent', 'Talent Partner', 'HR Business Partner',
-      ],
-      per_page: 10,
-    }),
-  });
-
-  if (!res.ok) {
-    const errText = await res.text();
-    throw new Error(`Apollo API error ${res.status}: ${errText}`);
-  }
-
-  const data = await res.json();
-  return data?.people || [];
+// NOTE: Apollo's people search endpoints (/v1/people/search, /v1/mixed_people/search)
+// require a paid plan. The free plan only allows organization/account lookup.
+// We surface a clear user-facing message instead of a raw 403.
+async function searchApollo(_domain: string): Promise<any[]> {
+  throw new Error('Apollo people search requires a paid Apollo plan. Please upgrade at https://app.apollo.io or use Hunter.io / Prospeo instead.');
 }
 
 // ── Prospeo ───────────────────────────────────────────────────────────────────
@@ -121,13 +94,19 @@ async function searchProspeo(domain: string, companyName?: string): Promise<any[
 
   if (!res.ok) {
     const errText = await res.text();
+    // NO_RESULTS is a valid empty response — not an error worth surfacing
+    try {
+      const parsed = JSON.parse(errText);
+      if (parsed?.error_code === 'NO_RESULTS') return [];
+    } catch {}
     throw new Error(`Prospeo API error ${res.status}: ${errText}`);
   }
 
   const data = await res.json();
 
   if (data.error) {
-    throw new Error(`Prospeo error: ${data.error_code || 'unknown'} — ${data.filter_error || ''}`);
+    if (data.error_code === 'NO_RESULTS') return [];
+    throw new Error(`Prospeo error: ${data.error_code || 'unknown'}${data.filter_error ? ` — ${data.filter_error}` : ''}`);
   }
 
   return data?.results || [];

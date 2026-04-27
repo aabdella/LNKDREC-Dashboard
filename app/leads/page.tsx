@@ -295,7 +295,7 @@ export default function LeadsPage() {
     finally { setMarkingLeads(false); }
   }
 
-  async function enrichLead(leadId: string, provider: 'apollo' | 'hunter' | 'prospeo') {
+  async function enrichLead(leadId: string, provider: 'hunter' | 'prospeo') {
     setEnrichingId({ id: leadId, provider });
     try {
       const res = await fetch('/api/leads/enrich', {
@@ -642,11 +642,10 @@ export default function LeadsPage() {
                         </p>
                       </div>
                       <div className="flex items-center gap-2 flex-wrap">
-                        {(['hunter', 'prospeo', 'apollo'] as const).map((prov) => {
+                        {(['hunter', 'prospeo'] as const).map((prov) => {
                           const provConfig = {
                             hunter:  { label: '🔵 Hunter.io', className: 'bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300' },
                             prospeo: { label: '🟣 Prospeo',  className: 'bg-purple-600 hover:bg-purple-700 disabled:bg-purple-300' },
-                            apollo:  { label: '⚫ Apollo',   className: 'bg-slate-600 hover:bg-slate-700 disabled:bg-slate-400' },
                           }[prov];
                           const isEnriching = enrichingId?.id === lead.id && enrichingId?.provider === prov;
                           return (
@@ -662,6 +661,7 @@ export default function LeadsPage() {
                             </button>
                           );
                         })}
+                        <span title="Apollo people search requires a paid plan" className="inline-flex items-center gap-1.5 text-slate-400 text-xs font-semibold px-3 py-1.5 rounded-lg bg-slate-100 cursor-not-allowed select-none">⚫ Apollo (paid only)</span>
                         {STATUS_NEXT[lead.status] && (
                           <button
                             onClick={() => updateLeadStatus(lead.id, STATUS_NEXT[lead.status]!)}
