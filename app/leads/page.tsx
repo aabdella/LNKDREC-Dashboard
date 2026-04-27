@@ -114,7 +114,7 @@ export default function LeadsPage() {
   // Qualified leads tab state
   const [qualifiedLeads, setQualifiedLeads] = useState<QualifiedLead[]>([]);
   const [leadsLoading, setLeadsLoading] = useState(false);
-  const [enrichingId, setEnrichingId] = useState<string | null>(null);
+  const [enrichingId, setEnrichingId] = useState<{ id: string; provider: string } | null>(null);
 
   // ── URL hydration ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -295,13 +295,13 @@ export default function LeadsPage() {
     finally { setMarkingLeads(false); }
   }
 
-  async function enrichLead(leadId: string) {
-    setEnrichingId(leadId);
+  async function enrichLead(leadId: string, provider: 'apollo' | 'hunter' | 'prospeo') {
+    setEnrichingId({ id: leadId, provider });
     try {
       const res = await fetch('/api/leads/enrich', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ lead_id: leadId }),
+        body: JSON.stringify({ lead_id: leadId, provider }),
       });
       const data = await res.json();
       if (data.success) await fetchQualifiedLeads();
@@ -642,17 +642,26 @@ export default function LeadsPage() {
                         </p>
                       </div>
                       <div className="flex items-center gap-2 flex-wrap">
-                        {lead.status === 'new' && (
-                          <button
-                            onClick={() => enrichLead(lead.id)}
-                            disabled={enrichingId === lead.id}
-                            className="inline-flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors"
-                          >
-                            {enrichingId === lead.id ? (
-                              <><svg className="animate-spin h-3 w-3" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>Enriching...</>
-                            ) : <>✨ Enrich with Apollo</>}
-                          </button>
-                        )}
+                        {(['hunter', 'prospeo', 'apollo'] as const).map((prov) => {
+                          const provConfig = {
+                            hunter:  { label: '🔵 Hunter.io', className: 'bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300' },
+                            prospeo: { label: '🟣 Prospeo',  className: 'bg-purple-600 hover:bg-purple-700 disabled:bg-purple-300' },
+                            apollo:  { label: '⚫ Apollo',   className: 'bg-slate-600 hover:bg-slate-700 disabled:bg-slate-400' },
+                          }[prov];
+                          const isEnriching = enrichingId?.id === lead.id && enrichingId?.provider === prov;
+                          return (
+                            <button
+                              key={prov}
+                              onClick={() => enrichLead(lead.id, prov)}
+                              disabled={isEnriching || (enrichingId?.id === lead.id && enrichingId?.provider !== prov)}
+                              className={`inline-flex items-center gap-1.5 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${provConfig.className}`}
+                            >
+                              {isEnriching ? (
+                                <><svg className="animate-spin h-3 w-3" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>Enriching...</>
+                              ) : provConfig.label}
+                            </button>
+                          );
+                        })}
                         {STATUS_NEXT[lead.status] && (
                           <button
                             onClick={() => updateLeadStatus(lead.id, STATUS_NEXT[lead.status]!)}
@@ -705,7 +714,7 @@ export default function LeadsPage() {
 
                     {lead.status === 'enriched' && lead.lead_contacts.length === 0 && (
                       <div className="border-t border-slate-100 px-5 py-3">
-                        <p className="text-xs text-slate-400 italic">No talent contacts found on Apollo for this company.</p>
+                        <p className="text-xs text-slate-400 italic">No contacts found. Try a different enrichment provider.</p>
                       </div>
                     )}
                   </div>
