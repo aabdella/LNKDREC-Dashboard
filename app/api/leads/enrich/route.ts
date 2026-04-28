@@ -67,8 +67,8 @@ async function searchPDL(domain: string, companyName?: string): Promise<any[]> {
 
   const cleanDomain = domain.replace(/^https?:\/\/(www\.)?/, '').replace(/\/.*$/, '');
   const queries = [
-    `SELECT first_name, last_name, full_name, job_title, work_email, linkedin_url FROM person WHERE job_company_website='${cleanDomain}' AND job_title_role='human resources' LIMIT 10`,
-    ...(companyName ? [`SELECT first_name, last_name, full_name, job_title, work_email, linkedin_url FROM person WHERE job_company_name='${companyName.replace(/'/g, "\'\''")}' AND job_title_role='human resources' LIMIT 10`] : []),
+    `SELECT first_name, last_name, full_name, job_title, work_email, linkedin_url FROM person WHERE job_company_website='${cleanDomain}' AND job_title_role='human resources'`,
+    ...(companyName ? [`SELECT first_name, last_name, full_name, job_title, work_email, linkedin_url FROM person WHERE job_company_name='${companyName.replace(/'/g, "\'\''")}' AND job_title_role='human resources'`] : []),
   ];
 
   for (const sql of queries) {
