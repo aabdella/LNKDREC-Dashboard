@@ -79,6 +79,8 @@ async function searchPDL(domain: string, companyName?: string): Promise<any[]> {
     });
 
     if (!res.ok) {
+      // 404 = no records found — treat as empty, not an error
+      if (res.status === 404) continue;
       const errText = await res.text();
       throw new Error(`PDL API error ${res.status}: ${errText}`);
     }
