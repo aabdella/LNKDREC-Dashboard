@@ -83,4 +83,16 @@ export const SCRAPER_BOARDS: Record<string, BoardConfig> = {
     search_url_template: 'https://weworkremotely.com/remote-jobs.rss',
     scraper_type: 'rss',
   },
+  'jobserve': {
+    board_name: 'Jobserve',
+    board_slug: 'jobserve',
+    base_url: 'https://www.jobserve.com',
+    search_url_template: 'https://www.jobserve.com/gb/en/JobSearch.aspx?q={query}&l=London',
+    scraper_type: 'cheerio',
+    css_title_selector: 'a.jobListPosition',
+    css_company_selector: '.jobListDetail[id=""]',
+    css_location_selector: '#summlocation .jobListDetail',
+    css_url_selector: 'a.jobListPosition[href]',
+    css_salary_selector: '#summrate .jobListDetail',
+  },
 };

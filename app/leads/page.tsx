@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState, useCallback } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
-type Tab = 'search' | 'qualified' | 'outreach';
+type Tab = 'search' | 'history' | 'qualified' | 'outreach';
 type JobBoard = { slug: string; name: string };
 type JobResult = {
   board: string;
@@ -38,6 +38,29 @@ type QualifiedLead = {
   contacted_at: string | null;
   created_at: string;
   lead_contacts: LeadContact[];
+};
+
+type HistoryResult = {
+  id: string;
+  board_slug: string;
+  job_title: string;
+  company_name: string | null;
+  location: string | null;
+  salary: string | null;
+  job_url: string | null;
+  created_at: string;
+};
+
+type SearchHistoryItem = {
+  id: string;
+  country_code: string;
+  job_title: string;
+  status: SearchStatus;
+  total_results: number;
+  boards_searched: string[];
+  created_at: string;
+  completed_at: string | null;
+  leads_results: HistoryResult[];
 };
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -115,6 +138,9 @@ export default function LeadsPage() {
   const [qualifiedLeads, setQualifiedLeads] = useState<QualifiedLead[]>([]);
   const [leadsLoading, setLeadsLoading] = useState(false);
   const [enrichingId, setEnrichingId] = useState<{ id: string; provider: string } | null>(null);
+  const [historyItems, setHistoryItems] = useState<SearchHistoryItem[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [expandedHistoryId, setExpandedHistoryId] = useState<string | null>(null);
 
   // ── URL hydration ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -182,9 +208,20 @@ export default function LeadsPage() {
     finally { setLeadsLoading(false); }
   }, []);
 
+  const fetchSearchHistory = useCallback(async () => {
+    setHistoryLoading(true);
+    try {
+      const res = await fetch('/api/leads/history?limit=20');
+      const data = await res.json();
+      if (data.success) setHistoryItems(data.searches || []);
+    } catch (e) { console.error('Error fetching search history:', e); }
+    finally { setHistoryLoading(false); }
+  }, []);
+
   useEffect(() => {
     if (activeTab === 'qualified' || activeTab === 'outreach') fetchQualifiedLeads();
-  }, [activeTab, fetchQualifiedLeads]);
+    if (activeTab === 'history') fetchSearchHistory();
+  }, [activeTab, fetchQualifiedLeads, fetchSearchHistory]);
 
   // ── Results pagination ─────────────────────────────────────────────────────
   async function fetchResultsPage(id: string, page: number, pageLoading = true) {
@@ -353,6 +390,7 @@ export default function LeadsPage() {
           <nav className="flex gap-0" aria-label="Tabs">
             {([
               { id: 'search', label: '🔍 Search', count: null },
+              { id: 'history', label: '🕘 Search History', count: historyItems.length || null },
               { id: 'qualified', label: '⭐ Qualified Leads', count: qualifiedLeads.length || null },
               { id: 'outreach', label: '📤 Outreach', count: outreachLeads.length || null },
             ] as { id: Tab; label: string; count: number | null }[]).map((tab) => (
@@ -614,7 +652,90 @@ export default function LeadsPage() {
           </>
         )}
 
-        {/* ── TAB 2: QUALIFIED LEADS ─────────────────────────────────────── */}
+        {/* ── TAB 2: HISTORY ─────────────────────────────────────────────── */}
+        {activeTab === 'history' && (
+          <div>
+            {historyLoading ? (
+              <div className="flex items-center justify-center py-20 text-slate-400 text-sm">Loading search history...</div>
+            ) : historyItems.length === 0 ? (
+              <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-12 text-center">
+                <p className="text-4xl mb-3">🕘</p>
+                <p className="text-slate-700 font-semibold mb-1">No search history yet</p>
+                <p className="text-sm text-slate-500">Run a search and it will be saved here for later review.</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {historyItems.map((item) => {
+                  const isExpanded = expandedHistoryId === item.id;
+                  return (
+                    <div key={item.id} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                      <button
+                        type="button"
+                        onClick={() => setExpandedHistoryId(isExpanded ? null : item.id)}
+                        className="w-full px-5 py-4 text-left hover:bg-slate-50 transition-colors"
+                      >
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                          <div>
+                            <div className="flex items-center gap-3 flex-wrap">
+                              <h3 className="font-bold text-slate-900 text-base">{item.job_title}</h3>
+                              <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-600 capitalize">{item.status}</span>
+                              <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700">{item.total_results} results</span>
+                            </div>
+                            <p className="text-sm text-slate-500 mt-0.5">
+                              {new Date(item.created_at).toLocaleString()} · {item.boards_searched.join(', ') || 'No boards'}
+                            </p>
+                          </div>
+                          <span className="text-sm font-medium text-indigo-600">{isExpanded ? 'Hide' : 'View'} {isExpanded ? '↑' : '↓'}</span>
+                        </div>
+                      </button>
+
+                      {isExpanded && (
+                        <div className="border-t border-slate-100 px-5 py-4">
+                          {item.leads_results.length === 0 ? (
+                            <p className="text-sm text-slate-400 italic">No saved results for this search.</p>
+                          ) : (
+                            <div className="overflow-x-auto">
+                              <table className="w-full text-sm">
+                                <thead>
+                                  <tr className="bg-slate-50 border-b border-slate-100 text-xs uppercase tracking-wide text-slate-600">
+                                    <th className="text-left px-4 py-3 font-semibold">Source</th>
+                                    <th className="text-left px-4 py-3 font-semibold">Job Title</th>
+                                    <th className="text-left px-4 py-3 font-semibold">Company</th>
+                                    <th className="text-left px-4 py-3 font-semibold">Location</th>
+                                    <th className="text-left px-4 py-3 font-semibold">Salary</th>
+                                    <th className="text-left px-4 py-3 font-semibold">Link</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {item.leads_results.map((result) => (
+                                    <tr key={result.id} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
+                                      <td className="px-4 py-3"><span className="bg-slate-100 text-slate-600 text-xs font-bold px-2 py-0.5 rounded uppercase tracking-wide">{result.board_slug}</span></td>
+                                      <td className="px-4 py-3 font-medium text-slate-900">{result.job_title}</td>
+                                      <td className="px-4 py-3 text-slate-600">{result.company_name || '—'}</td>
+                                      <td className="px-4 py-3 text-slate-600">{result.location || '—'}</td>
+                                      <td className="px-4 py-3 text-slate-600">{result.salary || '—'}</td>
+                                      <td className="px-4 py-3">
+                                        {result.job_url ? (
+                                          <a href={result.job_url} target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:text-indigo-800 font-medium">View →</a>
+                                        ) : '—'}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── TAB 3: QUALIFIED LEADS ─────────────────────────────────────── */}
         {activeTab === 'qualified' && (
           <div>
             {leadsLoading ? (

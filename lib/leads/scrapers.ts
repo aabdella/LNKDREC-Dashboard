@@ -99,6 +99,9 @@ async function scrapeWithCheerio(
   searchUrl: string,
   boardSlug: string
 ): Promise<JobResult[]> {
+  if (boardSlug === 'jobserve') {
+    return scrapeJobserve(searchUrl, boardSlug, '');
+  }
   const results: JobResult[] = [];
 
   const { data } = await axios.get(searchUrl, {
@@ -360,6 +363,68 @@ async function scrapeWithRss(
     });
   } catch (err) {
     console.error(`[scrapers] RSS fetch failed for ${boardSlug}:`, err);
+  }
+
+  return deduplicateResults(results);
+}
+
+async function scrapeJobserve(
+  searchUrl: string,
+  boardSlug: string,
+  jobQuery: string
+): Promise<JobResult[]> {
+  const results: JobResult[] = [];
+
+  try {
+    const { data } = await axios.get(searchUrl, {
+      headers: REQUEST_HEADERS,
+      timeout: 15000,
+    });
+
+    const $ = cheerio.load(data);
+    const q = jobQuery.toLowerCase();
+
+    $('.jobListItem').each((_, el) => {
+      const item = $(el);
+      const titleLink = item.find('a.jobListPosition').first();
+      const jobTitle = cleanText(titleLink.text()) || fallbackTitleFromUrl(titleLink.attr('href') || '') || '';
+      const jobUrl = toAbsoluteUrl('https://www.jobserve.com', titleLink.attr('href'));
+      const location = cleanText(item.find('#summlocation').first().text());
+      const salary = cleanText(item.find('#summrate').first().text());
+      const description = cleanText(item.find('.jobListSkills').first().text());
+
+      let companyName = cleanText(
+        item.find('.jobListDetailsPanel a[href*="/Listings/Recruiters/"]').first().text()
+      );
+
+      if (!companyName) {
+        const companyLabel = item.find('.jobListLabel').filter((_, label) => {
+          const text = $(label).text().trim().toLowerCase();
+          return text === 'employment business' || text === 'employment agency';
+        }).first();
+        companyName = cleanText(companyLabel.next('.jobListDetail').text());
+      }
+
+      const haystack = [jobTitle, companyName, description, location].filter(Boolean).join(' ').toLowerCase();
+      if (!jobTitle || !jobUrl || !haystack.includes(q)) return;
+
+      results.push({
+        board_slug: boardSlug,
+        job_title: jobTitle,
+        company_name: companyName,
+        location,
+        salary,
+        job_url: jobUrl,
+        raw_data: {
+          scraper_type: 'jobserve',
+          search_url: searchUrl,
+          description,
+          scraped_at: new Date().toISOString(),
+        },
+      });
+    });
+  } catch (err) {
+    console.error(`[scrapers] Jobserve fetch failed for ${boardSlug}:`, err);
   }
 
   return deduplicateResults(results);
