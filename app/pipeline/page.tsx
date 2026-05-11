@@ -181,7 +181,7 @@ function CandidateCard({
 // ─── Stage Column ─────────────────────────────────────────────────────────────
 
 function StageColumn({
-  stage, candidates, collapsed, onToggleCollapse, onDetails, onRemoveFromPipeline,
+  stage, candidates, collapsed, onToggleCollapse, onDetails, onRemoveFromPipeline, limit, onLoadMore,
 }: {
   stage: any;
   candidates: Candidate[];
@@ -189,7 +189,11 @@ function StageColumn({
   onToggleCollapse: () => void;
   onDetails: (c: Candidate) => void;
   onRemoveFromPipeline: (id: string) => void;
+  limit: number;
+  onLoadMore: () => void;
 }) {
+  const visibleCandidates = candidates.slice(0, limit);
+  const remaining = candidates.length - visibleCandidates.length;
   return (
     <div
       className={`flex flex-col rounded-xl border border-slate-200 shadow-sm bg-white shrink-0 border-l-4 ${stage.borderColor} ${collapsed ? 'w-14' : 'w-64'} transition-all duration-200`}
@@ -228,10 +232,18 @@ function StageColumn({
               {candidates.length === 0 && !snapshot.isDraggingOver && (
                 <div className="text-center py-8 text-[11px] text-slate-300 select-none">Drop here</div>
               )}
-              {candidates.map((c, i) => (
+              {visibleCandidates.map((c, i) => (
                 <CandidateCard key={c.id} candidate={c} index={i} onDetails={onDetails} onRemoveFromPipeline={onRemoveFromPipeline} />
               ))}
               {provided.placeholder}
+              {remaining > 0 && (
+                <button
+                  onClick={onLoadMore}
+                  className="w-full mt-1 py-1.5 text-[11px] font-semibold text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-lg transition"
+                >
+                  Load {remaining} more
+                </button>
+              )}
             </div>
           )}
         </Droppable>
@@ -249,8 +261,10 @@ export default function PipelinePage() {
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
   const [rejectionContext, setRejectionContext] = useState<{ candidate: Candidate; stage: string } | null>(null);
   const [collapsedStages, setCollapsedStages] = useState<Record<string, boolean>>({ Rejected: true });
-  const INITIAL_LOAD = 10;
-  const [displayedCount, setDisplayedCount] = useState(INITIAL_LOAD);
+  const STAGE_PAGE_SIZE = 10;
+  const [stageLimits, setStageLimits] = useState<Record<string, number>>(() =>
+    Object.fromEntries(STAGES.map((s) => [s.id, STAGE_PAGE_SIZE]))
+  );
 
   // ─── Fetch ───────────────────────────────────────────────────────────────────
 
@@ -298,12 +312,8 @@ export default function PipelinePage() {
         return ao - bo;
       });
     });
-    // Apply displayed count limit per stage group
-    Object.keys(map).forEach((stageId) => {
-      map[stageId] = map[stageId].slice(0, displayedCount);
-    });
     return map;
-  }, [candidates, displayedCount]);
+  }, [candidates]);
 
   // ─── Remove from pipeline ─────────────────────────────────────────────────────
 
@@ -487,7 +497,6 @@ export default function PipelinePage() {
 
   const grouped = stageMap;
   const total = candidates.length;
-  const totalRemaining = candidates.length - displayedCount;
 
   return (
     <div className="flex flex-col h-[calc(100vh-68px)] bg-white">
@@ -556,17 +565,16 @@ export default function PipelinePage() {
                   onToggleCollapse={() => toggleCollapse(stage.id)}
                   onDetails={setSelectedCandidate}
                   onRemoveFromPipeline={removeFromPipeline}
+                  limit={stageLimits[stage.id] ?? STAGE_PAGE_SIZE}
+                  onLoadMore={() =>
+                    setStageLimits((prev) => ({
+                      ...prev,
+                      [stage.id]: (prev[stage.id] ?? STAGE_PAGE_SIZE) + STAGE_PAGE_SIZE,
+                    }))
+                  }
                 />
               ))}
             </div>
-            {totalRemaining > 0 && (
-              <button
-                onClick={() => setDisplayedCount((d) => d + INITIAL_LOAD)}
-                className="w-full py-2 text-sm text-indigo-600 hover:text-indigo-700 font-semibold"
-              >
-                Load more ({totalRemaining} remaining)
-              </button>
-            )}
           </div>
         </DragDropContext>
       )}
