@@ -48,13 +48,13 @@ function CVExportModal({
   });
   const [generating, setGenerating] = useState(false);
   const [vetting, setVetting] = useState<Record<string, any> | null>(null);
-  const [egpRate, setEgpRate] = useState<number>(47);
+  const [egpRate, setEgpRate] = useState<number>(53.36); // CBE USD sell rate fallback
   const [editableMatchReason, setEditableMatchReason] = useState<string>(candidate.match_reason || '');
 
   useEffect(() => {
     async function fetchRate() {
       try {
-        const cached = localStorage.getItem('lnkd_egp_rate');
+        const cached = localStorage.getItem('lnkd_egp_rate_cbe');
         const now = Date.now();
         if (cached) {
           const { rate, ts } = JSON.parse(cached);
@@ -63,12 +63,13 @@ function CVExportModal({
             return;
           }
         }
-        const res = await fetch('https://open.er-api.com/v6/latest/USD');
+        const res = await fetch('/api/egp-rate');
         const data = await res.json();
-        const rate = data.rates?.EGP;
+        // data.rate is the CBE USD sell rate
+        const rate = data.rate;
         if (rate && typeof rate === 'number') {
           setEgpRate(rate);
-          localStorage.setItem('lnkd_egp_rate', JSON.stringify({ rate, ts: now }));
+          localStorage.setItem('lnkd_egp_rate_cbe', JSON.stringify({ rate, ts: now }));
         }
       } catch { }
     }
@@ -266,7 +267,7 @@ export default function JobDetailPage() {
         .single();
       if (vettingData) vetting = vettingData;
     } catch {}
-    const doc = <CVTemplateA candidate={candidate} privacy={{ linkedin: true, portfolio: true, email: false, phone: false }} logoBase64={logoBase64} vetting={vetting} egpRate={47} />;
+    const doc = <CVTemplateA candidate={candidate} privacy={{ linkedin: true, portfolio: true, email: false, phone: false }} logoBase64={logoBase64} vetting={vetting} egpRate={egpRate} />;
     const blob = await pdf(doc).toBlob();
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
