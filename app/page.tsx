@@ -1017,7 +1017,7 @@ function CVExportModal({
   });
   const [generating, setGenerating] = useState(false);
   const [vetting, setVetting] = useState<Record<string, any> | null>(null);
-  const [egpRate, setEgpRate] = useState<number>(53.36); // CBE USD sell rate fallback
+  const [egpRate, setEgpRate] = useState<number>(53.22); // CBE USD buy rate fallback
   const [editableMatchReason, setEditableMatchReason] = useState<string>(candidate.match_reason || '');
 
   useEffect(() => {

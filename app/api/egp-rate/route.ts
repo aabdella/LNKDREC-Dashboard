@@ -41,8 +41,8 @@ export async function GET() {
     const dateMatch = html.match(/Rates\s+for\s+Date:\s*([\d/]+)/i);
     const date = dateMatch ? dateMatch[1] : new Date().toISOString().split('T')[0];
 
-    serverCache = { rate: sell, date, fetchedAt: now };
-    return NextResponse.json({ rate: sell, date, buy, sell });
+    serverCache = { rate: buy, date, fetchedAt: now };
+    return NextResponse.json({ rate: buy, date, buy, sell });
   } catch (err) {
     // If cache exists but stale, still return it with a staleness flag rather than hard-failing
     if (serverCache) {
