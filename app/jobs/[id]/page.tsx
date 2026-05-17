@@ -267,7 +267,14 @@ export default function JobDetailPage() {
         .single();
       if (vettingData) vetting = vettingData;
     } catch {}
-    const doc = <CVTemplateA candidate={candidate} privacy={{ linkedin: true, portfolio: true, email: false, phone: false }} logoBase64={logoBase64} vetting={vetting} egpRate={egpRate} />;
+    // Fetch CBE buy rate for CV generation
+    let cvEgpRate = 53.22;
+    try {
+      const rateRes = await fetch('/api/egp-rate');
+      const rateData = await rateRes.json();
+      if (rateData.rate && typeof rateData.rate === 'number') cvEgpRate = rateData.rate;
+    } catch {}
+    const doc = <CVTemplateA candidate={candidate} privacy={{ linkedin: true, portfolio: true, email: false, phone: false }} logoBase64={logoBase64} vetting={vetting} egpRate={cvEgpRate} />;
     const blob = await pdf(doc).toBlob();
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
