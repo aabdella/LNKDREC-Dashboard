@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { parseJD } from '@/lib/parseJD';
+import { parseJD, SKILL_RARITY } from '@/lib/parseJD';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
@@ -25,9 +25,9 @@ function extractTargetMarket(jd: string): string {
   return '';
 }
 
-/** Build deep-search queries from ParsedJD — more varied than the old 2-3 fixed queries */
+/** Build deep-search queries from ParsedJD — 6 genuinely different strategies */
 function buildDeepQueries(parsed: ReturnType<typeof parseJD>, isCreative: boolean): string[] {
-  const { role_title, title_variants, must_have_skills, seniority_prefix, location } = parsed;
+  const { role_title, title_variants, must_have_skills, seniority_prefix, location, search_hints } = parsed;
   const loc = location || 'Egypt';
 
   const primaryTitle = (seniority_prefix && !role_title.toLowerCase().startsWith(seniority_prefix.toLowerCase()))
@@ -35,27 +35,50 @@ function buildDeepQueries(parsed: ReturnType<typeof parseJD>, isCreative: boolea
     : role_title;
 
   const allTitles = [primaryTitle, ...title_variants].slice(0, 3);
-  const skill1 = must_have_skills[0] || null;
-  const skill2 = must_have_skills[1] || null;
+  const nicheTerm    = search_hints.niche_terms[0] || null;
+  const nicheTerm2   = search_hints.niche_terms[1] || null;
+  const domainSkill  = search_hints.must_include[0] || must_have_skills[0] || null;
+  const domainSkill2 = search_hints.must_include[1] || must_have_skills[1] || null;
+  const company      = search_hints.company_targets[0] || null;
+  const roleConcept  = search_hints.role_concept !== primaryTitle ? search_hints.role_concept : null;
 
   const queries: string[] = [];
 
-  // Quoted exact match + location
+  // Strategy 1: Exact quoted title + location (precision baseline)
   queries.push(`site:linkedin.com/in "${allTitles[0]}" ${loc}`);
-  // City-level
-  queries.push(`site:linkedin.com/in "${allTitles[0]}" Cairo`);
-  // With top skill
-  if (skill1) queries.push(`site:linkedin.com/in "${allTitles[0]}" ${skill1} ${loc}`);
-  // Alexandria sweep
-  queries.push(`site:linkedin.com/in "${allTitles[0]}" Alexandria Egypt`);
-  // First title variant
-  if (allTitles[1]) queries.push(`site:linkedin.com/in "${allTitles[1]}" ${loc}`);
-  // Second title variant + skill
-  if (allTitles[2] && skill2) queries.push(`site:linkedin.com/in "${allTitles[2]}" ${skill2} ${loc}`);
-  else if (allTitles[1] && skill2) queries.push(`site:linkedin.com/in "${allTitles[1]}" ${skill2} ${loc}`);
-  // Unquoted broader sweep
+
+  // Strategy 2: Niche tool anchor — find people who list the specific platform
+  // e.g. site:linkedin.com/in "Talkwalker" Egypt — catches profiles mentioning the tool
+  if (nicheTerm) queries.push(`site:linkedin.com/in "${nicheTerm}" ${loc}`);
+  else if (domainSkill) queries.push(`site:linkedin.com/in "${allTitles[0]}" "${domainSkill}" ${loc}`);
+
+  // Strategy 3: Industry-aware compound concept (unquoted for broader recall)
+  // e.g. site:linkedin.com/in Media Analytics Engineer Egypt
+  if (roleConcept) queries.push(`site:linkedin.com/in ${roleConcept} ${loc}`);
+  else if (domainSkill) queries.push(`site:linkedin.com/in "${allTitles[0]}" ${domainSkill} ${loc}`);
+
+  // Strategy 4: Title variant + domain skill
+  if (allTitles[1] && (nicheTerm || domainSkill)) {
+    queries.push(`site:linkedin.com/in "${allTitles[1]}" ${nicheTerm || domainSkill} ${loc}`);
+  } else if (allTitles[1]) {
+    queries.push(`site:linkedin.com/in "${allTitles[1]}" ${loc}`);
+  }
+
+  // Strategy 5: Company-targeted search
+  // e.g. site:linkedin.com/in "Data Engineer" Vodafone Egypt
+  if (company) queries.push(`site:linkedin.com/in "${allTitles[0]}" ${company} ${loc}`);
+  else if (nicheTerm2) queries.push(`site:linkedin.com/in "${nicheTerm2}" ${loc}`);
+  else if (domainSkill2) queries.push(`site:linkedin.com/in "${allTitles[0]}" ${domainSkill2} ${loc}`);
+
+  // Strategy 6: Second title variant or Cairo city-level
+  if (allTitles[2]) queries.push(`site:linkedin.com/in "${allTitles[2]}" ${loc}`);
+  else if (nicheTerm) queries.push(`site:linkedin.com/in "${nicheTerm}" Cairo`);
+  else queries.push(`site:linkedin.com/in "${allTitles[0]}" Cairo`);
+
+  // Strategy 7: Unquoted broad sweep for recall on lesser-known profiles
   queries.push(`site:linkedin.com/in ${allTitles[0]} ${loc}`);
-  // Behance for creative roles
+
+  // Strategy 8: Behance for creative roles
   if (isCreative) queries.push(`site:behance.net ${allTitles[0]} Egypt`);
 
   return [...new Set(queries.filter(q => q.trim()))].slice(0, 8);
@@ -291,11 +314,15 @@ export async function POST(req: NextRequest) {
       if (item.ok && item.result?.full_name) {
         // CF succeeded
         const res = item.result;
-        // Fill any missing fields from fallback chain
         if (!res.title) res.title = braveNameTitle.title || titleLine;
         if (!res.location) res.location = 'Egypt';
         if (!res.match_reason) res.match_reason = `Discovered via Deep Search for "${titleLine}".`;
+        // Normalize CF score into meaningful tiers:
+        // CF returns raw 0-100; clamp to our tiers (70+ strong, 50-69 domain, 35-49 weak)
         if (!res.match_score) res.match_score = 50;
+        else if (res.match_score >= 70) res.match_score = Math.min(res.match_score, 95);
+        else if (res.match_score >= 50) res.match_score = Math.min(res.match_score, 69);
+        else res.match_score = Math.max(res.match_score, 35);
         candidateData = { ...res, source: 'Deep Sourced' };
       } else {
         // CF failed or returned no name — use fallback chain
@@ -309,7 +336,7 @@ export async function POST(req: NextRequest) {
           full_name: fallbackName,
           title: braveNameTitle.title || titleLine,
           location: 'Egypt',
-          match_score: 40,
+          match_score: 35,  // fallback — title match only, no profile data
           match_reason: `Discovered via Deep Search for "${titleLine}". Profile extraction was limited — review LinkedIn profile directly.`,
           source: 'Deep Sourced',
         };

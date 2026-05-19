@@ -13,15 +13,82 @@ import { TECH_FAMILIES } from '@/lib/techFamilies';
 
 // ─── Output Type ──────────────────────────────────────────────────────────────
 
+export type SearchHints = {
+  niche_terms: string[];      // Rare/specific tools that strongly discriminate candidates
+  role_concept: string;       // Compact role label for compound queries e.g. "Fintech Backend Engineer"
+  must_include: string[];     // Terms that MUST appear in strong-match queries
+  company_targets: string[];  // Company names extracted from JD (e.g. "at Company X", "experience with Y")
+};
+
 export type ParsedJD = {
   role_title: string;           // Best extracted role title
   seniority: 'junior' | 'mid' | 'senior' | 'lead';
   seniority_prefix: string;     // e.g. "Senior", "Lead", "Head of"
-  must_have_skills: string[];   // Matched skills from flat skills list
+  must_have_skills: string[];   // Top skills ranked by rarity/specificity
+  ranked_skills: RankedSkill[]; // All matched skills with rarity scores
   skill_aliases: string[];      // Expanded synonyms for must_have_skills
-  industry: string | null;      // e.g. "fintech", "healthtech", null
-  location: string;             // e.g. "Egypt", "UAE", ""
+  industry: string | null;      // e.g. "fintech", "healthtech", null — only set if score >= 2
+  location: string;             // e.g. "Egypt", "UAE", "" (empty = undetected, don't default)
   title_variants: string[];     // 3-4 equivalent role title phrasings
+  search_hints: SearchHints;    // Ready-made query building blocks
+};
+
+export type RankedSkill = {
+  skill: string;
+  rarity: 'niche' | 'domain' | 'common';
+  score: number;  // 3 = niche, 2 = domain-specific, 1 = common/generic
+};
+
+// ─── Skill Rarity Tiers ───────────────────────────────────────────────────────
+// niche   (score 3): platform-specific tools, rare frameworks — very few people have these
+// domain  (score 2): domain-specific but broadly known (e.g. Kafka, dbt, Airflow)
+// common  (score 1): every engineer knows these (Python, AWS, Docker, React, etc.)
+
+export const SKILL_RARITY: Record<string, 3 | 2 | 1> = {
+  // ── Niche: platform-specific, media analytics, very specific tools ──────
+  'Talkwalker': 3, 'Brandwatch': 3, 'Sprinklr': 3, 'Meltwater': 3,
+  'JAX': 3, 'NCCL': 3, 'MPI': 3, 'Slurm': 3, 'HPC': 3,
+  'CUDA': 3, 'OpenTelemetry': 3, 'Pulumi': 3, 'ArgoCD': 3,
+  'LangChain': 3, 'LlamaIndex': 3, 'Stable Diffusion': 3, 'ONNX': 3,
+  'MLflow': 3, 'dbt': 3, 'Flink': 3, 'ClickHouse': 3, 'CockroachDB': 3,
+  'VictoriaMetrics': 3, 'Loki': 3, 'Jaeger': 3,
+  'Cinema 4D': 3, 'Blender': 3, 'Databricks': 3,
+  'Snowflake': 3, 'Redshift': 3, 'BigQuery': 3,
+  'Elixir': 3, 'Erlang': 3, 'Rust': 3, 'Scala': 3,
+  'gRPC': 3, 'SDET': 3, 'Expo': 3,
+  'SendGrid': 3, 'Twilio': 3, 'Segment': 3, 'Stripe': 3,
+
+  // ── Domain-specific: widely known in their domain ────────────────────────
+  'Kafka': 2, 'Spark': 2, 'Airflow': 2, 'Hadoop': 2,
+  'Terraform': 2, 'Ansible': 2, 'Helm': 2,
+  'Kubernetes': 2, 'K8s': 2,
+  'PyTorch': 2, 'TensorFlow': 2, 'Keras': 2, 'scikit-learn': 2,
+  'XGBoost': 2, 'LightGBM': 2, 'Hugging Face': 2, 'OpenAI': 2,
+  'Prometheus': 2, 'Grafana': 2, 'Datadog': 2, 'Elasticsearch': 2,
+  'Cassandra': 2, 'DynamoDB': 2, 'MongoDB': 2,
+  'GraphQL': 2, 'NestJS': 2, 'FastAPI': 2, 'Django': 2,
+  'Flutter': 2, 'React Native': 2,
+  'Figma': 2, 'After Effects': 2, 'Illustrator': 2, 'Sketch': 2,
+  'Looker': 2, 'Tableau': 2, 'Power BI': 2, 'Metabase': 2,
+  'Kotlin': 2, 'Swift': 2, 'Go': 2, 'Golang': 2,
+  'Redis': 2, 'PostgreSQL': 2,
+  'CircleCI': 2, 'Jenkins': 2, 'GitLab CI': 2, 'GitHub Actions': 2,
+  'New Relic': 2, 'Splunk': 2, 'PagerDuty': 2,
+
+  // ── Common: ubiquitous — weak discriminators ──────────────────────────────
+  'Python': 1, 'JavaScript': 1, 'TypeScript': 1, 'Java': 1,
+  'AWS': 1, 'GCP': 1, 'Azure': 1,
+  'Docker': 1, 'React': 1, 'Node.js': 1, 'MySQL': 1,
+  'PHP': 1, 'Ruby': 1, 'C#': 1, 'C++': 1,
+  'Bash': 1, 'Shell': 1, 'R': 1,
+  'REST': 1, 'Agile': 1, 'Scrum': 1, 'Jira': 1, 'Git': 1,
+  'Next.js': 1, 'Vue': 1, 'Angular': 1, 'Svelte': 1,
+  'Tailwind': 1, 'Vite': 1, 'Webpack': 1,
+  'Firebase': 1, 'Supabase': 1,
+  'iOS': 1, 'Android': 1,
+  'Photoshop': 1, 'InDesign': 1, 'Premiere Pro': 1, 'Adobe XD': 1,
+  'Notion': 1, 'Linear': 1,
+  'EC2': 1, 'S3': 1, 'Lambda': 1, 'GKE': 1, 'EKS': 1, 'AKS': 1,
 };
 
 // ─── Role Taxonomy ────────────────────────────────────────────────────────────
@@ -128,7 +195,6 @@ const FLAT_SKILLS: string[] = [
 ];
 
 // ─── Synonym / Alias Map ──────────────────────────────────────────────────────
-// key = lowercase skill name → value = aliases to also search
 
 const SKILL_ALIASES: Record<string, string[]> = {
   'kubernetes':          ['K8s', 'container orchestration'],
@@ -217,7 +283,6 @@ const INDUSTRY_BUCKETS: Record<string, string[]> = {
 };
 
 // ─── Title Variants ────────────────────────────────────────────────────────────
-// Maps a canonical role fragment to a list of equivalent phrasings
 
 const TITLE_VARIANT_MAP: Array<{ match: RegExp; variants: string[] }> = [
   { match: /data\s+engineer/i,          variants: ['Analytics Engineer', 'Data Platform Engineer', 'ETL Developer'] },
@@ -257,8 +322,74 @@ function extractLocation(jd: string): string {
   if (lower.includes('jordan') || lower.includes('amman')) return 'Jordan';
   if (lower.includes('lebanon') || lower.includes('beirut')) return 'Lebanon';
   if (lower.includes('uk') || lower.includes('london') || lower.includes('united kingdom')) return 'UK';
-  // Default to Egypt — most JDs on this platform are Egypt-based
-  return 'Egypt';
+  // Return empty string — callers should default to 'Egypt' only when needed
+  return '';
+}
+
+// ─── Company Target Extraction ────────────────────────────────────────────────
+// Extracts company names from patterns like "experience with X", "worked at X", "from X"
+
+function extractCompanyTargets(jd: string): string[] {
+  const companies: string[] = [];
+  // Known brand names worth targeting as search anchors
+  const KNOWN_BRANDS = [
+    'Vodafone', 'Orange', 'Etisalat', 'Telecom Egypt', 'CIB', 'NBE', 'QNB',
+    'Majid Al Futtaim', 'Emaar', 'Chalhoub', 'Carrefour', 'Amazon', 'Google', 'Microsoft',
+    'McKinsey', 'BCG', 'Deloitte', 'PwC', 'KPMG', 'EY',
+    'Talkwalker', 'Brandwatch', 'Sprinklr', 'Meltwater',
+    'Jumia', 'OLX', 'Noon', 'Talabat', 'Careem', 'Uber',
+    'Instabug', 'Swvl', 'Paymob', 'Fawry', 'ValU',
+    'IBM', 'Oracle', 'SAP', 'Salesforce', 'HubSpot',
+  ];
+  const jdLower = jd.toLowerCase();
+  for (const brand of KNOWN_BRANDS) {
+    if (jdLower.includes(brand.toLowerCase())) {
+      companies.push(brand);
+    }
+  }
+  return [...new Set(companies)].slice(0, 3);
+}
+
+// ─── Search Hints Builder ─────────────────────────────────────────────────────
+
+function buildSearchHints(
+  role_title: string,
+  seniority_prefix: string,
+  ranked_skills: RankedSkill[],
+  industry: string | null,
+  location: string,
+  jd: string
+): SearchHints {
+  // Niche terms: highest-rarity skills that would appear on a candidate's profile
+  const niche_terms = ranked_skills
+    .filter(s => s.rarity === 'niche')
+    .map(s => s.skill)
+    .slice(0, 4);
+
+  // Role concept: combine role + industry for compound queries
+  const baseTitle = seniority_prefix && !role_title.toLowerCase().startsWith(seniority_prefix.toLowerCase())
+    ? `${seniority_prefix} ${role_title}`
+    : role_title;
+
+  const INDUSTRY_LABELS: Record<string, string> = {
+    fintech: 'Fintech', healthtech: 'Healthtech', ecommerce: 'E-commerce',
+    media: 'Media', logistics: 'Logistics', adtech: 'AdTech',
+    edtech: 'EdTech', proptech: 'PropTech', traveltech: 'TravelTech',
+    hrtech: 'HRTech', mediaanalytics: 'Media Analytics', gaming: 'Gaming',
+    cybersecurity: 'Cybersecurity',
+  };
+  const industryLabel = industry ? INDUSTRY_LABELS[industry] : null;
+  const role_concept = industryLabel ? `${industryLabel} ${baseTitle}` : baseTitle;
+
+  // Must-include: top domain or niche skill(s) — these make queries specific
+  const must_include = ranked_skills
+    .filter(s => s.rarity === 'niche' || s.rarity === 'domain')
+    .map(s => s.skill)
+    .slice(0, 3);
+
+  const company_targets = extractCompanyTargets(jd);
+
+  return { niche_terms, role_concept, must_include, company_targets };
 }
 
 // ─── Core Parser ──────────────────────────────────────────────────────────────
@@ -269,10 +400,8 @@ export function parseJD(jd: string): ParsedJD {
   // ── 1. Role title — scan taxonomy for first match ─────────────────────
   let role_title = '';
   for (const role of ROLE_TAXONOMY) {
-    // Use word-boundary matching to avoid partial hits
     const re = new RegExp(`\\b${role.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
     if (re.test(jd)) {
-      // Preserve original casing from JD if possible, otherwise title-case
       const match = jd.match(re);
       role_title = match ? match[0] : role.replace(/\b\w/g, c => c.toUpperCase());
       break;
@@ -295,23 +424,30 @@ export function parseJD(jd: string): ParsedJD {
     }
   }
 
-  // ── 3. Skills — scan flat skills list ────────────────────────────────
-  const must_have_skills: string[] = [];
+  // ── 3. Skills — scan flat list + TECH_FAMILIES, then rank by rarity ──
+  const rawMatched: string[] = [];
   for (const skill of FLAT_SKILLS) {
     const re = new RegExp(`\\b${skill.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+')}\\b`, 'i');
-    if (re.test(jd)) {
-      must_have_skills.push(skill);
-    }
+    if (re.test(jd)) rawMatched.push(skill);
   }
-  // Also pull from TECH_FAMILIES for broader coverage
   for (const terms of Object.values(TECH_FAMILIES)) {
     for (const term of terms) {
-      if (!must_have_skills.some(s => s.toLowerCase() === term.toLowerCase())) {
+      if (!rawMatched.some(s => s.toLowerCase() === term.toLowerCase())) {
         const re = new RegExp(`\\b${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+')}\\b`, 'i');
-        if (re.test(jd)) must_have_skills.push(term);
+        if (re.test(jd)) rawMatched.push(term);
       }
     }
   }
+
+  // Rank by rarity score (niche=3 > domain=2 > common=1 > unknown=1)
+  const ranked_skills: RankedSkill[] = rawMatched.map(skill => {
+    const score = SKILL_RARITY[skill] ?? 1;
+    const rarity: RankedSkill['rarity'] = score === 3 ? 'niche' : score === 2 ? 'domain' : 'common';
+    return { skill, rarity, score };
+  }).sort((a, b) => b.score - a.score);
+
+  // must_have_skills: top 12, ranked by rarity (niche first)
+  const must_have_skills = ranked_skills.slice(0, 12).map(s => s.skill);
 
   // ── 4. Skill aliases ─────────────────────────────────────────────────
   const skill_aliases: string[] = [];
@@ -326,7 +462,7 @@ export function parseJD(jd: string): ParsedJD {
     }
   }
 
-  // ── 5. Industry ───────────────────────────────────────────────────────
+  // ── 5. Industry — require score >= 2 to avoid false positives ────────
   let industry: string | null = null;
   let industryScore = 0;
   for (const [name, keywords] of Object.entries(INDUSTRY_BUCKETS)) {
@@ -336,21 +472,20 @@ export function parseJD(jd: string): ParsedJD {
       industry = name;
     }
   }
-  if (industryScore === 0) industry = null;
+  // Only accept industry if at least 2 keywords matched (reduces false positives)
+  if (industryScore < 2) industry = null;
 
-  // ── 6. Location ───────────────────────────────────────────────────────
+  // ── 6. Location — empty string = undetected (don't force Egypt) ──────
   const location = extractLocation(jd);
 
   // ── 7. Title variants ─────────────────────────────────────────────────
   const title_variants: string[] = [];
   const titleWithPrefix = seniority_prefix ? `${seniority_prefix} ${role_title}` : role_title;
 
-  // Add seniority-prefixed version if not already present
   if (seniority_prefix && !role_title.toLowerCase().startsWith(seniority_prefix.toLowerCase())) {
     title_variants.push(titleWithPrefix);
   }
 
-  // Add known variant phrasings
   for (const entry of TITLE_VARIANT_MAP) {
     if (entry.match.test(role_title) || entry.match.test(jd)) {
       for (const variant of entry.variants) {
@@ -364,14 +499,21 @@ export function parseJD(jd: string): ParsedJD {
     }
   }
 
+  // ── 8. Search hints ───────────────────────────────────────────────────
+  const search_hints = buildSearchHints(
+    role_title, seniority_prefix, ranked_skills, industry, location, jd
+  );
+
   return {
     role_title,
     seniority,
     seniority_prefix,
-    must_have_skills: must_have_skills.slice(0, 12),
+    must_have_skills,
+    ranked_skills: ranked_skills.slice(0, 20),
     skill_aliases: skill_aliases.slice(0, 10),
     industry,
     location,
     title_variants: title_variants.slice(0, 4),
+    search_hints,
   };
 }

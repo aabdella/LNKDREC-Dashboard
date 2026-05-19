@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { parseJD } from '@/lib/parseJD';
+import { parseJD, SKILL_RARITY } from '@/lib/parseJD';
 
 // ─── Supabase ────────────────────────────────────────────────────────────────
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -95,53 +95,61 @@ function calcCompleteness(candidate: Partial<CandidateResult>): number {
 }
 
 // ─── Build keyword sets from ParsedJD ────────────────────────────────────────
-// Returns an array of keyword arrays — each array becomes one Brave query.
+// 6 genuinely different query strategies — not just location permutations.
 function buildKeywordSets(parsed: ReturnType<typeof parseJD>): string[][] {
-  const { role_title, title_variants, must_have_skills, skill_aliases, location, seniority_prefix } = parsed;
+  const { role_title, title_variants, must_have_skills, skill_aliases, location, seniority_prefix, search_hints } = parsed;
 
-  // Primary title — use seniority-prefixed version if not already present
   const primaryTitle = (seniority_prefix && !role_title.toLowerCase().startsWith(seniority_prefix.toLowerCase()))
     ? `${seniority_prefix} ${role_title}`
     : role_title;
 
-  // All title forms to anchor queries on
   const allTitles = [primaryTitle, ...title_variants].slice(0, 3);
-
-  // Top skills for query refinement
-  const skill1 = must_have_skills[0] || null;
-  const skill2 = must_have_skills[1] || null;
-  const alias1 = skill_aliases[0] || null;
-
-  // Location anchor — default Egypt
   const loc = location || 'Egypt';
+
+  // Ranked skill tiers from search_hints
+  const nicheTerm   = search_hints.niche_terms[0] || null;
+  const nicheTerm2  = search_hints.niche_terms[1] || null;
+  const domainSkill = search_hints.must_include[0] || must_have_skills[0] || null;
+  const domainSkill2= search_hints.must_include[1] || must_have_skills[1] || null;
+  const company     = search_hints.company_targets[0] || null;
+  const roleConcept = search_hints.role_concept !== primaryTitle ? search_hints.role_concept : null;
 
   const sets: string[][] = [];
 
-  // Set 1: primary title + location (broadest)
+  // Strategy 1: Broad title + location
   sets.push([allTitles[0], loc]);
 
-  // Set 2: primary title + Cairo (city precision)
-  sets.push([allTitles[0], 'Cairo']);
+  // Strategy 2: Niche tool anchor — people who list the specific platform
+  // e.g. "Talkwalker Egypt" finds profiles that mention the tool directly
+  if (nicheTerm) sets.push([nicheTerm, loc]);
+  else if (domainSkill) sets.push([allTitles[0], domainSkill, loc]);
 
-  // Set 3: primary title + top skill + location
-  if (skill1) sets.push([allTitles[0], skill1, loc]);
-  else sets.push([allTitles[0], loc]);
+  // Strategy 3: Industry-aware compound concept
+  // e.g. "Media Analytics Engineer Egypt" — role + industry context
+  if (roleConcept) sets.push([roleConcept, loc]);
+  else if (domainSkill) sets.push([allTitles[0], domainSkill, loc]);
 
-  // Set 4: primary title + second skill + location
-  if (skill2) sets.push([allTitles[0], skill2, loc]);
-  else if (alias1) sets.push([allTitles[0], alias1, loc]);
-  else sets.push([allTitles[0], loc]);
+  // Strategy 4: Title variant + niche/domain skill
+  // e.g. "Analytics Engineer Talkwalker"
+  if (allTitles[1] && (nicheTerm || domainSkill)) {
+    sets.push([allTitles[1], nicheTerm || domainSkill!, loc]);
+  } else if (allTitles[1]) {
+    sets.push([allTitles[1], loc]);
+  }
 
-  // Set 5: first title variant + location
-  if (allTitles[1]) sets.push([allTitles[1], loc]);
-  else sets.push([allTitles[0], 'Alexandria', loc]);
+  // Strategy 5: Company-targeted search
+  // e.g. "Data Engineer Vodafone Egypt" — targets candidates from known companies
+  if (company) sets.push([allTitles[0], company, loc]);
+  else if (nicheTerm2) sets.push([allTitles[0], nicheTerm2, loc]);
+  else if (domainSkill2) sets.push([allTitles[0], domainSkill2, loc]);
+  else if (skill_aliases[0]) sets.push([allTitles[0], skill_aliases[0], loc]);
 
-  // Set 6: second title variant + skill
-  if (allTitles[2] && skill1) sets.push([allTitles[2], skill1, loc]);
-  else if (allTitles[1] && skill2) sets.push([allTitles[1], skill2, loc]);
-  else sets.push([allTitles[0], 'Alexandria']);
+  // Strategy 6: Second title variant or bare niche term (profile-keyword sweep)
+  if (allTitles[2]) sets.push([allTitles[2], loc]);
+  else if (nicheTerm) sets.push([nicheTerm, 'Cairo']);
+  else sets.push([allTitles[0], 'Cairo']);
 
-  // Dedupe sets
+  // Dedupe
   const seen = new Set<string>();
   return sets.filter(s => {
     const key = s.join('|');
@@ -225,15 +233,40 @@ function parseResult(
   const keywordsMatched = keywords.filter(kw => descLower.includes(kw.toLowerCase()));
   const companyMatched = company ? keywords.some(kw => kw.toLowerCase() === company.toLowerCase()) : false;
 
-  let score = 45;
-  keywords.forEach(kw => { if (descLower.includes(kw.toLowerCase())) score += 12; });
-  skills.forEach(() => { score += 2; });
-  if (descLower.includes('saudi') || descLower.includes('ksa'))  score += 15;
-  if (descLower.includes('gcc')   || descLower.includes('gulf')) score += 10;
+  // ── Normalized scoring — meaningful tiers ────────────────────────────
+  // 70-99 = strong match (niche skill or company match found)
+  // 50-69 = title/domain match
+  // 30-49 = weak / title only
+  let score = 35; // baseline — title matched via search
+
+  // Niche/rare keyword hits (worth the most — very discriminating)
+  const nicheKeywords = keywords.filter(kw => {
+    const rarityScore = (SKILL_RARITY as Record<string, number>)[kw] ?? 0;
+    return rarityScore >= 3;
+  });
+  const domainKeywords = keywords.filter(kw => {
+    const rarityScore = (SKILL_RARITY as Record<string, number>)[kw] ?? 0;
+    return rarityScore === 2;
+  });
+  const commonKeywords = keywords.filter(kw => {
+    const rarityScore = (SKILL_RARITY as Record<string, number>)[kw] ?? 0;
+    return rarityScore <= 1;
+  });
+
+  nicheKeywords.forEach(kw => { if (descLower.includes(kw.toLowerCase())) score += 15; });
+  domainKeywords.forEach(kw => { if (descLower.includes(kw.toLowerCase())) score += 7; });
+  commonKeywords.forEach(kw => { if (descLower.includes(kw.toLowerCase())) score += 2; });
+
+  if (companyMatched) score += 10;
+  // Location-relevant bonuses
+  if (descLower.includes('saudi') || descLower.includes('ksa'))  score += 5;
+  if (descLower.includes('gcc')   || descLower.includes('gulf')) score += 5;
   const visRegex = new RegExp('\\b(vis|vois|_vois|vodafone international)\\b', 'i');
-  if (visRegex.test(descLower)) score += 20;
-  if (companyMatched) score += 15;
+  if (visRegex.test(descLower)) score += 8;
+
+  // Clamp to 0-99
   if (score > 99) score = 99;
+  if (score < 0)  score = 0;
 
   const matchReasonParts: string[] = [];
   if (keywordsMatched.length > 0) matchReasonParts.push(`Keywords: ${keywordsMatched.slice(0, 4).join(', ')}`);
