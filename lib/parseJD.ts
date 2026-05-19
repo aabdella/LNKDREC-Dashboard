@@ -317,8 +317,8 @@ function extractLocation(jd: string): string {
   const lower = jd.toLowerCase();
   if (lower.includes('saudi') || lower.includes('ksa') || lower.includes('riyadh') || lower.includes('jeddah')) return 'Saudi';
   if (lower.includes('gcc') || lower.includes('gulf')) return 'GCC';
-  if (lower.includes('uae') || lower.includes('dubai') || lower.includes('abu dhabi') || lower.includes('emirates')) return 'UAE';
   if (lower.includes('egypt') || lower.includes('cairo') || lower.includes('alexandria') || lower.includes('giza') || lower.includes('maadi') || lower.includes('heliopolis') || lower.includes('new cairo') || lower.includes('sheikh zayed')) return 'Egypt';
+  if (lower.includes('uae') || lower.includes('dubai') || lower.includes('abu dhabi') || lower.includes('emirates')) return 'UAE';
   if (lower.includes('jordan') || lower.includes('amman')) return 'Jordan';
   if (lower.includes('lebanon') || lower.includes('beirut')) return 'Lebanon';
   if (lower.includes('uk') || lower.includes('london') || lower.includes('united kingdom')) return 'UK';
