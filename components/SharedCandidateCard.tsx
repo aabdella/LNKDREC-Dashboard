@@ -163,6 +163,7 @@ export default function SharedCandidateCard({
               </span>
             </div>
           )}
+          <div className="w-full h-5 bg-red-500 rounded mt-1" title={`last_vetted_at: ${candidate.last_vetted_at ?? 'NULL'}`} />
           {candidate.last_vetted_at && (
             <div className="flex items-center gap-1 text-[10px] font-bold text-teal-600 px-1">
               <DocumentCheckIcon className="h-3 w-3" />
