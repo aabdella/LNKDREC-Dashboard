@@ -355,6 +355,28 @@ function DashboardInner() {
         };
       });
 
+      // Sort by search priority when a query is active:
+      // Group 0: search term in first name (first word of full_name)
+      // Group 1: search term in last name (remaining words of full_name)
+      // Group 2: search term in any other field
+      // Within each group: A→Z by full_name
+      if (q) {
+        const getSearchPriority = (c: any): number => {
+          const nameParts = (c.full_name || '').toLowerCase().trim().split(/\s+/);
+          const firstName = nameParts[0] || '';
+          const lastName = nameParts.slice(1).join(' ');
+          if (firstName.includes(q)) return 0;
+          if (lastName.includes(q)) return 1;
+          return 2;
+        };
+        formattedData.sort((a: any, b: any) => {
+          const pa = getSearchPriority(a);
+          const pb = getSearchPriority(b);
+          if (pa !== pb) return pa - pb;
+          return (a.full_name || '').localeCompare(b.full_name || '');
+        });
+      }
+
       if (fetchType === 'load-more') {
         setCandidates(prev => [...prev, ...formattedData]);
         setPage(p => p + 1);
