@@ -306,8 +306,7 @@ function DashboardInner() {
             is_highlighted,
             brief,
             candidate_interactions(type, created_at),
-            applications(job_id, jobs(title, clients(name))),
-            vettings(vetted_at, updated_at)
+            applications(job_id, jobs(title, clients(name)))
           `)
           .order('created_at', { ascending: false })
           .range(pageToFetch * PAGE_SIZE, (pageToFetch + 1) * PAGE_SIZE - 1)
@@ -319,23 +318,39 @@ function DashboardInner() {
     if (dataResult.error) {
       console.error('Error fetching candidates:', dataResult.error);
     } else {
+      // Fetch latest vetting timestamps for this page of candidates
+      const candidateIds = (dataResult.data || []).map((c: any) => c.id);
+      let vettingMap: Record<string, string> = {};
+      if (candidateIds.length > 0) {
+        const { data: vettingRows } = await supabase
+          .from('vettings')
+          .select('candidate_id, vetted_at, updated_at')
+          .in('candidate_id', candidateIds);
+        if (vettingRows) {
+          // For each candidate keep only the most recent vetting row
+          for (const row of vettingRows) {
+            const ts = row.updated_at || row.vetted_at;
+            if (!ts) continue;
+            if (!vettingMap[row.candidate_id] || ts > vettingMap[row.candidate_id]) {
+              vettingMap[row.candidate_id] = ts;
+            }
+          }
+        }
+      }
+
       const formattedData = (dataResult.data || []).map((c: any) => {
         const sortedInteractions = (c.candidate_interactions || []).sort(
           (a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
         );
         const last = sortedInteractions[0];
         const firstApp = c.applications?.[0];
-        const sortedVettings = (c.vettings || []).sort(
-          (a: any, b: any) => new Date(b.updated_at || b.vetted_at).getTime() - new Date(a.updated_at || a.vetted_at).getTime()
-        );
-        const latestVetting = sortedVettings[0];
         return {
           ...c,
           last_interaction_type: last?.type,
           last_interaction_at: last?.created_at,
           assigned_job_title: firstApp?.jobs?.title || null,
           assigned_company_name: firstApp?.jobs?.clients?.name || null,
-          last_vetted_at: latestVetting?.updated_at || latestVetting?.vetted_at || null,
+          last_vetted_at: vettingMap[c.id] || null,
         };
       });
 
