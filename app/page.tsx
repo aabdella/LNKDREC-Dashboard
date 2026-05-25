@@ -279,39 +279,43 @@ function DashboardInner() {
     };
 
     // Parallel: count query + paginated data fetch — both use the same filter logic
+    // When a search query is active, fetch ALL matching candidates (no pagination)
+    // so priority sorting applies across the full result set, not just the current page.
+    const baseSelect = supabase
+      .from('candidates')
+      .select(`
+        id,
+        full_name,
+        title,
+        location,
+        years_experience_total,
+        match_score,
+        match_reason,
+        source,
+        lnkd_notes,
+        portfolio_url,
+        linkedin_url,
+        status,
+        email,
+        phone,
+        skills,
+        created_at,
+        pipeline_stage,
+        pipeline_order,
+        stage_changed_at,
+        is_highlighted,
+        brief,
+        candidate_interactions(type, created_at),
+        applications(job_id, jobs(title, clients(name)))
+      `);
+
+    const dataQuery = q
+      ? buildFilterChain(baseSelect.order('full_name', { ascending: true }))
+      : buildFilterChain(baseSelect.order('created_at', { ascending: false }).range(pageToFetch * PAGE_SIZE, (pageToFetch + 1) * PAGE_SIZE - 1));
+
     const [countResult, dataResult] = await Promise.all([
       buildFilterChain(supabase.from('candidates').select('id', { count: 'exact', head: true })),
-      buildFilterChain(
-        supabase
-          .from('candidates')
-          .select(`
-            id,
-            full_name,
-            title,
-            location,
-            years_experience_total,
-            match_score,
-            match_reason,
-            source,
-            lnkd_notes,
-            portfolio_url,
-            linkedin_url,
-            status,
-            email,
-            phone,
-            skills,
-            created_at,
-            pipeline_stage,
-            pipeline_order,
-            stage_changed_at,
-            is_highlighted,
-            brief,
-            candidate_interactions(type, created_at),
-            applications(job_id, jobs(title, clients(name)))
-          `)
-          .order('created_at', { ascending: false })
-          .range(pageToFetch * PAGE_SIZE, (pageToFetch + 1) * PAGE_SIZE - 1)
-      ),
+      dataQuery,
     ]);
 
     if (countResult.count !== null) setTotalCount(countResult.count);
@@ -385,7 +389,8 @@ function DashboardInner() {
         setPage(0);
       }
 
-      setHasMore(formattedData.length === PAGE_SIZE);
+      // When searching, all results are loaded at once — no load-more needed
+      setHasMore(q ? false : formattedData.length === PAGE_SIZE);
     }
     setLoading(false);
   }
