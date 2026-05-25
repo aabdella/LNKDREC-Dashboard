@@ -968,7 +968,7 @@ const CandidateCard = React.memo(function CandidateCard({ candidate, onViewDetai
             {candidate.last_vetted_at && (
               <div className="flex items-center gap-1 text-[10px] font-bold text-teal-600 px-1">
                 <CheckCircleIcon className="h-3 w-3" />
-                <span>Last Vetted: {new Date(candidate.last_vetted_at).toLocaleDateString([], { month: 'short', day: 'numeric' })}</span>
+                <span>Last Vetting Update: {new Date(candidate.last_vetted_at).toLocaleDateString([], { month: 'short', day: 'numeric' })}</span>
               </div>
             )}
           </div>
