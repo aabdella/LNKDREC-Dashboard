@@ -18,7 +18,8 @@ import {
   PlusIcon, 
   TrashIcon,
   StarIcon as StarOutline,
-  ClockIcon
+  ClockIcon,
+  CheckCircleIcon
 } from '@heroicons/react/24/outline';
 import { StarIcon as StarSolid } from '@heroicons/react/24/solid';
 import { useRouter } from 'next/navigation';
@@ -905,8 +906,12 @@ const CandidateCard = React.memo(function CandidateCard({ candidate, onViewDetai
                 <span className="text-xs font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">Experience: {candidate.years_experience_total || 0}+ yrs</span>
                 <div className="flex items-center gap-1">
                   {candidate.linkedin_url && (
-                    <a href={candidate.linkedin_url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-[#0077b5] hover:text-[#006097] transition">
-                      <svg className="h-3 w-3 fill-current" viewBox="0 0 24 24"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 0 1-2.063-2.065 2.064 2.064 0 1 1 2.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z" /></svg>
+                    <a href={candidate.linkedin_url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className={candidate.linkedin_url.toLowerCase().includes('vimeo.com') ? 'text-[#1ab7ea] hover:text-[#0f9bc7] transition' : 'text-[#0077b5] hover:text-[#006097] transition'}>
+                      {candidate.linkedin_url.toLowerCase().includes('vimeo.com') ? (
+                        <svg className="h-3 w-3 fill-current" viewBox="0 0 24 24"><path d="M23.977 6.416c-.105 2.338-1.739 5.543-4.894 9.609-3.268 4.247-6.026 6.37-8.29 6.37-1.409 0-2.578-1.294-3.553-3.881L5.322 12.12C4.603 9.533 3.83 8.237 3 8.237c-.174 0-.795.372-1.848 1.108L0 7.884c1.166-1.02 2.316-2.04 3.438-3.062C4.908 3.546 6.03 2.85 6.787 2.775c1.786-.172 2.883.99 3.299 3.487.44 2.689.746 4.361.926 5.019.514 2.34 1.08 3.508 1.701 3.508.482 0 1.208-.761 2.175-2.285 1.019-1.575 1.54-2.716 1.568-3.423.069-1.297-.373-1.946-1.351-1.946-.482 0-.979.11-1.498.332 1.018-3.317 2.964-4.93 5.838-4.836 2.136.065 3.137 1.447 3.532 4.785z"/></svg>
+                      ) : (
+                        <svg className="h-3 w-3 fill-current" viewBox="0 0 24 24"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 0 1-2.063-2.065 2.064 2.064 0 1 1 2.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z" /></svg>
+                      )}
                     </a>
                   )}
                   {portfolioUrl && isGithub && (
@@ -958,6 +963,12 @@ const CandidateCard = React.memo(function CandidateCard({ candidate, onViewDetai
               <div className="flex items-center gap-1 text-[10px] font-bold text-purple-600 px-1">
                 <ClockIcon className="h-3 w-3" />
                 <span>Last Contact: {new Date(candidate.last_interaction_at).toLocaleDateString([], { month: 'short', day: 'numeric' })}</span>
+              </div>
+            )}
+            {candidate.last_vetted_at && (
+              <div className="flex items-center gap-1 text-[10px] font-bold text-teal-600 px-1">
+                <CheckCircleIcon className="h-3 w-3" />
+                <span>Last Vetted: {new Date(candidate.last_vetted_at).toLocaleDateString([], { month: 'short', day: 'numeric' })}</span>
               </div>
             )}
           </div>
