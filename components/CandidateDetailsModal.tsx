@@ -56,6 +56,7 @@ export type Candidate = {
   pipeline_order?: number | null;
   stage_changed_at?: string;
   created_at?: string;
+  last_vetted_at?: string;
   brief?: string;
   education?: string;
   courses_certificates?: string;

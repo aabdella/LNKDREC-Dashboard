@@ -1,6 +1,6 @@
 'use client';
 
-import { BriefcaseIcon, StarIcon as StarOutline, ClockIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { BriefcaseIcon, StarIcon as StarOutline, ClockIcon, XMarkIcon, DocumentCheckIcon } from '@heroicons/react/24/outline';
 import { StarIcon as StarSolid } from '@heroicons/react/24/solid';
 
 // ─── Shared Candidate Card ──────────────────────────────────────────────────────
@@ -160,6 +160,14 @@ export default function SharedCandidateCard({
               <ClockIcon className="h-3 w-3" />
               <span>
                 Last Contact: {new Date(candidate.last_interaction_at).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+              </span>
+            </div>
+          )}
+          {candidate.last_vetted_at && (
+            <div className="flex items-center gap-1 text-[10px] font-bold text-teal-600 px-1">
+              <DocumentCheckIcon className="h-3 w-3" />
+              <span>
+                Last Vetted: {new Date(candidate.last_vetted_at).toLocaleDateString([], { month: 'short', day: 'numeric' })}
               </span>
             </div>
           )}

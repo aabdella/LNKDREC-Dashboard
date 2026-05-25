@@ -306,7 +306,8 @@ function DashboardInner() {
             is_highlighted,
             brief,
             candidate_interactions(type, created_at),
-            applications(job_id, jobs(title, clients(name)))
+            applications(job_id, jobs(title, clients(name))),
+            vettings(vetted_at, updated_at)
           `)
           .order('created_at', { ascending: false })
           .range(pageToFetch * PAGE_SIZE, (pageToFetch + 1) * PAGE_SIZE - 1)
@@ -324,12 +325,17 @@ function DashboardInner() {
         );
         const last = sortedInteractions[0];
         const firstApp = c.applications?.[0];
+        const sortedVettings = (c.vettings || []).sort(
+          (a: any, b: any) => new Date(b.updated_at || b.vetted_at).getTime() - new Date(a.updated_at || a.vetted_at).getTime()
+        );
+        const latestVetting = sortedVettings[0];
         return {
           ...c,
           last_interaction_type: last?.type,
           last_interaction_at: last?.created_at,
           assigned_job_title: firstApp?.jobs?.title || null,
           assigned_company_name: firstApp?.jobs?.clients?.name || null,
+          last_vetted_at: latestVetting?.updated_at || latestVetting?.vetted_at || null,
         };
       });
 
