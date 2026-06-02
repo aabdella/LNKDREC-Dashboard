@@ -280,7 +280,7 @@ export default function JobDetailPage() {
       const rateData = await rateRes.json();
       if (rateData.rate && typeof rateData.rate === 'number') cvEgpRate = rateData.rate;
     } catch {}
-    const doc = <CVTemplateA candidate={candidate} privacy={{ linkedin: true, portfolio: true, email: false, phone: false }} logoBase64={logoBase64} vetting={vetting} egpRate={cvEgpRate} />;
+    const doc = <CVTemplateA candidate={candidate} privacy={{ linkedin: true, portfolio: true, email: true, phone: true }} logoBase64={logoBase64} vetting={vetting} egpRate={cvEgpRate} />;
     const blob = await pdf(doc).toBlob();
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
