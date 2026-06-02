@@ -371,22 +371,6 @@ export function CVTemplateA({ candidate, privacy, logoBase64, vetting, egpRate =
           </View>
         )}
 
-        {/* Education */}
-        {candidate.education && (
-          <View style={stylesA.section} wrap={false}>
-            <Text style={stylesA.sectionTitle}>Education</Text>
-            <Text style={stylesA.educationText}>{candidate.education}</Text>
-          </View>
-        )}
-
-        {/* Courses & Certificates */}
-        {candidate.courses_certificates && (
-          <View style={stylesA.section} wrap={false}>
-            <Text style={stylesA.sectionTitle}>Courses &amp; Certificates</Text>
-            <Text style={stylesA.coursesText}>{candidate.courses_certificates}</Text>
-          </View>
-        )}
-
         {/* Vetting Details */}
         {vetting && (
           <View style={stylesA.section} wrap={false}>
@@ -738,22 +722,6 @@ export function CVTemplateB({ candidate, privacy, logoBase64, vetting, egpRate =
                   ) : null}
                 </View>
               ))}
-            </View>
-          )}
-
-          {/* Education */}
-          {candidate.education && (
-            <View wrap={false}>
-              <Text style={stylesB.contentSectionTitle}>Education</Text>
-              <Text style={stylesB.educationText}>{candidate.education}</Text>
-            </View>
-          )}
-
-          {/* Courses & Certificates */}
-          {candidate.courses_certificates && (
-            <View wrap={false}>
-              <Text style={stylesB.contentSectionTitle}>Courses &amp; Certificates</Text>
-              <Text style={stylesB.coursesText}>{candidate.courses_certificates}</Text>
             </View>
           )}
 
