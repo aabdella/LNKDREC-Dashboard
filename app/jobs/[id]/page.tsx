@@ -192,6 +192,7 @@ export default function JobDetailPage() {
   const [movingCandidate, setMovingCandidate] = useState(false);
   const [pipelinePopupPos, setPipelinePopupPos] = useState<{ top: number; left: number } | null>(null);
   const [cvCandidate, setCvCandidate] = useState<Candidate | null>(null);
+  const [bulkPrivacy, setBulkPrivacy] = useState({ linkedin: true, portfolio: true, email: true, phone: true });
   const [cvGenerating, setCvGenerating] = useState(false);
   const [cvGeneratingIndex, setCvGeneratingIndex] = useState(0);
   const [cvGeneratingTotal, setCvGeneratingTotal] = useState(0);
@@ -242,7 +243,7 @@ export default function JobDetailPage() {
     setLoadingCandidateId(null);
   }
 
-  async function downloadCvForCandidate(candidateInput: any) {
+  async function downloadCvForCandidate(candidateInput: any, privacy = bulkPrivacy) {
     const { pdf } = await import('@react-pdf/renderer');
     const { CVTemplateA, CVTemplateB } = await import('@/app/cv-templates');
     // Always re-fetch full candidate data to ensure education, work_history, etc. are present
@@ -280,7 +281,7 @@ export default function JobDetailPage() {
       const rateData = await rateRes.json();
       if (rateData.rate && typeof rateData.rate === 'number') cvEgpRate = rateData.rate;
     } catch {}
-    const doc = <CVTemplateA candidate={candidate} privacy={{ linkedin: true, portfolio: true, email: true, phone: true }} logoBase64={logoBase64} vetting={vetting} egpRate={cvEgpRate} />;
+    const doc = <CVTemplateA candidate={candidate} privacy={privacy} logoBase64={logoBase64} vetting={vetting} egpRate={cvEgpRate} />;
     const blob = await pdf(doc).toBlob();
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -388,8 +389,16 @@ export default function JobDetailPage() {
               Candidates <span className="text-slate-400 font-normal">({candidates.length})</span>
             </h2>
             {selectedIds.size > 0 && (
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 flex-wrap">
                 <span className="text-sm text-slate-500">{selectedIds.size} selected</span>
+                <div className="flex items-center gap-2 text-xs text-slate-500 border border-slate-200 rounded-lg px-3 py-1.5 bg-slate-50">
+                  {([['linkedin','LinkedIn'],['portfolio','Portfolio'],['email','Email'],['phone','Phone']] as [keyof typeof bulkPrivacy, string][]).map(([key, label]) => (
+                    <label key={key} className="flex items-center gap-1 cursor-pointer select-none">
+                      <input type="checkbox" checked={bulkPrivacy[key]} onChange={e => setBulkPrivacy(p => ({ ...p, [key]: e.target.checked }))} className="rounded border-slate-300" />
+                      {label}
+                    </label>
+                  ))}
+                </div>
                 <button onClick={generateSelectedCVs} disabled={cvGenerating}
                   className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg transition flex items-center gap-1.5 disabled:opacity-60">
                   {cvGenerating ? (
