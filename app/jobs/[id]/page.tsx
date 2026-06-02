@@ -214,7 +214,7 @@ export default function JobDetailPage() {
     setLoading(true);
     const { data, error } = await supabase
       .from('applications')
-      .select('candidate_id, candidates(id, full_name, title, location, years_experience_total, status, pipeline_stage, match_score, match_reason, technologies, tools, email, phone, resume_url, resume_text, education, courses_certificates, work_history)')
+      .select('candidate_id, candidates(id, full_name, title, location, years_experience_total, status, pipeline_stage, match_score, match_reason, technologies, tools, email, phone, linkedin_url, portfolio_url, resume_url, resume_text, education, courses_certificates, work_history)')
       .eq('job_id', jobId);
     console.error('[JobDetail] fetchCandidates error:', JSON.stringify(error));
     if (data) setCandidates(data.map((d: any) => ({ ...d.candidates, _pipeline_stage: d.pipeline_stage })).filter((c: any) => c));
