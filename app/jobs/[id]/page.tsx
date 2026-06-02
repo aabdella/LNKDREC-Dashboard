@@ -213,7 +213,7 @@ export default function JobDetailPage() {
     setLoading(true);
     const { data, error } = await supabase
       .from('applications')
-      .select('candidate_id, candidates(id, full_name, title, location, years_experience_total, status, pipeline_stage, match_score, match_reason, technologies, tools, email, phone, resume_url, resume_text)')
+      .select('candidate_id, candidates(id, full_name, title, location, years_experience_total, status, pipeline_stage, match_score, match_reason, technologies, tools, email, phone, resume_url, resume_text, education, courses_certificates, work_history)')
       .eq('job_id', jobId);
     console.error('[JobDetail] fetchCandidates error:', JSON.stringify(error));
     if (data) setCandidates(data.map((d: any) => ({ ...d.candidates, _pipeline_stage: d.pipeline_stage })).filter((c: any) => c));
@@ -242,9 +242,15 @@ export default function JobDetailPage() {
     setLoadingCandidateId(null);
   }
 
-  async function downloadCvForCandidate(candidate: any) {
+  async function downloadCvForCandidate(candidateInput: any) {
     const { pdf } = await import('@react-pdf/renderer');
     const { CVTemplateA, CVTemplateB } = await import('@/app/cv-templates');
+    // Always re-fetch full candidate data to ensure education, work_history, etc. are present
+    let candidate = candidateInput;
+    try {
+      const { data: fullCandidate } = await supabase.from('candidates').select('*').eq('id', candidateInput.id).single();
+      if (fullCandidate) candidate = fullCandidate;
+    } catch {}
     let logoBase64 = '';
     try {
       const res = await fetch('/logo.jpg');
