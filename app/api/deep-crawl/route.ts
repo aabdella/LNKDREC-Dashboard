@@ -2,9 +2,22 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { parseJD, SKILL_RARITY } from '@/lib/parseJD';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-const supabase = createClient(supabaseUrl, supabaseKey);
+function getRequiredEnv(name: string) {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(`${name} is required.`);
+  }
+  return value;
+}
+
+function getSupabaseClient() {
+  const supabaseUrl = getRequiredEnv('NEXT_PUBLIC_SUPABASE_URL');
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!supabaseKey) {
+    throw new Error('SUPABASE_SERVICE_ROLE_KEY or NEXT_PUBLIC_SUPABASE_ANON_KEY is required.');
+  }
+  return createClient(supabaseUrl, supabaseKey);
+}
 
 const BRAVE_API_KEY = process.env.BRAVE_SEARCH_API_KEY || '';
 const CF_ACCOUNT_ID = process.env.CF_ACCOUNT_ID || '';
@@ -207,6 +220,7 @@ async function searchProfiles(query: string) {
 // ─── Deduplication against existing unvetted records ─────────────────────────
 
 async function getExistingUrls(urls: string[]): Promise<Set<string>> {
+  const supabase = getSupabaseClient();
   const linkedinUrls = urls.filter(u => u.includes('linkedin.com'));
   const behanceUrls = urls.filter(u => u.includes('behance.net'));
   const existing = new Set<string>();
@@ -232,6 +246,7 @@ async function getExistingUrls(urls: string[]): Promise<Set<string>> {
 
 export async function POST(req: NextRequest) {
   try {
+    const supabase = getSupabaseClient();
     const { jd } = await req.json();
     if (!jd) return NextResponse.json({ error: 'JD required' }, { status: 400 });
 

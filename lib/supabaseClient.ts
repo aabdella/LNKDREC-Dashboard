@@ -1,20 +1,41 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+function getRequiredEnv(name: string) {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(`${name} is required.`);
+  }
+  return value;
+}
 
-export const supabase = createClient(supabaseUrl, supabaseKey);
+let browserClient: SupabaseClient | null = null;
 
-// Use this for server-side auth invitations and user management
+export function getSupabaseClient() {
+  if (browserClient) {
+    return browserClient;
+  }
+
+  const supabaseUrl = getRequiredEnv('NEXT_PUBLIC_SUPABASE_URL');
+  const supabaseKey = getRequiredEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY');
+  browserClient = createClient(supabaseUrl, supabaseKey);
+  return browserClient;
+}
+
+export const supabase = new Proxy({} as SupabaseClient, {
+  get(_target, prop, receiver) {
+    const client = getSupabaseClient();
+    return Reflect.get(client as object, prop, receiver);
+  },
+});
+
 export const getSupabaseAdmin = () => {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false,
-      },
-    }
-  );
+  const supabaseUrl = getRequiredEnv('NEXT_PUBLIC_SUPABASE_URL');
+  const serviceRoleKey = getRequiredEnv('SUPABASE_SERVICE_ROLE_KEY');
+
+  return createClient(supabaseUrl, serviceRoleKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  });
 };

@@ -3,9 +3,24 @@ import { createClient } from '@supabase/supabase-js';
 
 const pdf = require('pdf2json');
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-key';
-const supabase = createClient(supabaseUrl, supabaseKey);
+function getRequiredEnv(name: string) {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(`${name} is required.`);
+  }
+  return value;
+}
+
+function getSupabaseForUploadCv() {
+  const supabaseUrl = getRequiredEnv('NEXT_PUBLIC_SUPABASE_URL');
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!supabaseKey) {
+    throw new Error('SUPABASE_SERVICE_ROLE_KEY or NEXT_PUBLIC_SUPABASE_ANON_KEY is required.');
+  }
+
+  return createClient(supabaseUrl, supabaseKey);
+}
 
 // ─── Regex helpers built WITHOUT backslash escaping issues ───────────────────
 // Instead of \d, use [0-9]. Instead of \w, use [a-zA-Z0-9_]. Instead of \s, use [ \t\r\n].
@@ -22,10 +37,8 @@ const R = {
   exp:      new RegExp('([0-9]+)[+]?[ \t]*(years?|yrs?)', 'i'),
 };
 
-// Safe tech keyword matcher — no backslashes needed
 function matchesTech(tech: string, text: string): boolean {
   try {
-    // Escape only chars that are special in regex but NOT backslash-based
     const safe = tech
       .split('+').join('[+]')
       .split('.').join('[.]')
@@ -40,11 +53,12 @@ function matchesTech(tech: string, text: string): boolean {
 
 export async function POST(req: NextRequest) {
   try {
+    const supabase = getSupabaseForUploadCv();
+
     const formData = await req.formData();
     const file = formData.get('file') as File;
     if (!file) return NextResponse.json({ error: 'No file uploaded' }, { status: 400 });
 
-    // 1. Upload to Supabase Storage
     const fileExt = file.name.split('.').pop();
     const fileName = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}.${fileExt}`;
     const filePath = `unvetted/${fileName}`;
@@ -61,17 +75,15 @@ export async function POST(req: NextRequest) {
 
     const { data: { publicUrl } } = supabase.storage.from('candidates_resumes').getPublicUrl(filePath);
 
-    // 2. Parse PDF Text
     const pdfText = await new Promise<string>((resolve, reject) => {
       const pdfParser = new pdf(null, 1);
-      pdfParser.on("pdfParser_dataError", (errData: any) => reject(errData.parserError));
-      pdfParser.on("pdfParser_dataReady", () => {
+      pdfParser.on('pdfParser_dataError', (errData: any) => reject(errData.parserError));
+      pdfParser.on('pdfParser_dataReady', () => {
         try { resolve(pdfParser.getRawTextContent()); } catch (_) { resolve(''); }
       });
       pdfParser.parseBuffer(buffer);
     });
 
-    // 3. Extract fields using backslash-free regex
     const emailMatch    = pdfText.match(R.email);
     const phoneMatch    = pdfText.match(R.phone);
     const linkedinMatch = pdfText.match(R.linkedin);
@@ -89,22 +101,18 @@ export async function POST(req: NextRequest) {
     let   yearsExp     = expMatch       ? parseInt(expMatch[1])          : 0;
     if (yearsExp > 40) yearsExp = 0;
 
-    // Title
     const roles = ['Graphic Designer','UI/UX','Product Designer','Frontend','Backend','Full Stack','Art Director','Senior Designer','Junior Designer'];
     const titleMatch = pdfText.match(new RegExp('(' + roles.join('|') + ')', 'i'));
     const title = titleMatch ? titleMatch[0] : 'Candidate';
 
-    // Name: first non-empty line
     const lines = pdfText.split(String.fromCharCode(10)).map(l => l.trim()).filter(l => l.length > 0);
     const potentialName = lines.length > 0 ? lines[0].substring(0, 100) : file.name.replace('.pdf', '');
 
-    // Technologies
     const techKeywords = ['React','Next.js','Node.js','TypeScript','JavaScript','Python','Django','Flask','SQL','PostgreSQL','MongoDB','AWS','Docker','Kubernetes','Git','Figma','Adobe XD','Photoshop','Illustrator','InDesign','After Effects','Premiere','Blender','Unity','C#','C++','Java','Spring','Kotlin','Swift','Flutter','Dart'];
     const technologies = techKeywords
       .filter(t => matchesTech(t, pdfText))
       .map(t => ({ name: t, years: 1 }));
 
-    // Work History: look for date ranges using character classes only
     const workHistory: any[] = [];
     const months = 'Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec';
     const dateRangeRegex = new RegExp(
@@ -139,11 +147,11 @@ export async function POST(req: NextRequest) {
       work_history:  workHistory.slice(0, 3),
     };
 
-    return NextResponse.json({ 
-      success: true, 
-      candidate: extractedData, 
+    return NextResponse.json({
+      success: true,
+      candidate: extractedData,
       table: 'none',
-      extracted_only: true 
+      extracted_only: true
     });
 
   } catch (err: any) {

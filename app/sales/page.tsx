@@ -18,14 +18,27 @@ import {
 } from '@heroicons/react/24/outline';
 import { format, startOfDay, endOfDay, addDays, isWithinInterval, subDays } from 'date-fns';
 
-// Initialize Supabase
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+function getRequiredEnv(name: string) {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(`${name} is required.`);
+  }
+  return value;
+}
+
+function getSupabaseClient() {
+  const supabaseUrl = getRequiredEnv('NEXT_PUBLIC_SUPABASE_URL');
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!supabaseKey) {
+    throw new Error('SUPABASE_SERVICE_ROLE_KEY or NEXT_PUBLIC_SUPABASE_ANON_KEY is required.');
+  }
+  return createClient(supabaseUrl, supabaseKey);
+}
 
 const BASE_DATE = new Date(2026, 2, 3); // March 3, 2026 (0-indexed month)
 
 export default function SalesDashboard() {
+  const supabase = getSupabaseClient();
   const [stats, setStats] = useState({
     activePortfolio: 0,
     newLeads: 0,
