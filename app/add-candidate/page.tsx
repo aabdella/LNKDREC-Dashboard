@@ -331,6 +331,44 @@ function FormCard({ form, index, onInputChange, onToggleExpand, onRemove, onSave
   const isError = uploadProgress === 'error';
   const isDone = uploadProgress === 'done';
 
+  const [enriching, setEnriching] = useState(false);
+  const [enrichStatus, setEnrichStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  const handleEnrich = async () => {
+    const url = formData.linkedin_url?.trim();
+    if (!url || !url.includes('linkedin.com/in/')) {
+      setEnrichStatus({ type: 'error', message: 'Please enter a valid LinkedIn profile URL first.' });
+      return;
+    }
+    setEnriching(true);
+    setEnrichStatus(null);
+    try {
+      const res = await fetch('/api/enrich-from-linkedin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ linkedin_url: url }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setEnrichStatus({ type: 'error', message: data.error || 'Enrichment failed.' });
+        return;
+      }
+      const p = data.profile;
+      // Only overwrite fields that are currently empty
+      if (p.full_name  && !formData.full_name)  onInputChange(form.id, 'full_name',  p.full_name);
+      if (p.title      && !formData.title)       onInputChange(form.id, 'title',      p.title);
+      if (p.location   && !formData.location)    onInputChange(form.id, 'location',   p.location);
+      if (p.years_experience_total && !formData.years_experience_total)
+        onInputChange(form.id, 'years_experience_total', p.years_experience_total);
+      if (p.summary    && !formData.match_reason) onInputChange(form.id, 'match_reason', p.summary);
+      setEnrichStatus({ type: 'success', message: `Enriched from LinkedIn${p.full_name ? ` · ${p.full_name}` : ''}.` });
+    } catch {
+      setEnrichStatus({ type: 'error', message: 'Network error during enrichment.' });
+    } finally {
+      setEnriching(false);
+    }
+  };
+
   const field = (label: string, fieldKey: string, type = 'text', placeholder = '') => (
     <div>
       <label className="block text-xs font-medium text-slate-700 mb-1">{label}</label>
@@ -409,7 +447,45 @@ function FormCard({ form, index, onInputChange, onToggleExpand, onRemove, onSave
             {field('Phone', 'phone')}
             {field('Location', 'location')}
             {field('Years of Experience', 'years_experience_total', 'number')}
-            {field('LinkedIn URL', 'linkedin_url', 'url', 'https://linkedin.com/in/...')}
+
+            {/* LinkedIn URL + Enrich button */}
+            <div className="col-span-full">
+              <label className="block text-xs font-medium text-slate-700 mb-1">LinkedIn URL</label>
+              <div className="flex gap-2">
+                <input
+                  type="url"
+                  placeholder="https://linkedin.com/in/..."
+                  className="flex-1 border border-slate-300 rounded-md p-2 text-sm focus:ring-2 focus:ring-black outline-none"
+                  value={formData.linkedin_url ?? ''}
+                  onChange={(e) => onInputChange(form.id, 'linkedin_url', e.target.value)}
+                />
+                <button
+                  type="button"
+                  onClick={handleEnrich}
+                  disabled={enriching || !formData.linkedin_url?.includes('linkedin.com/in/')}
+                  className="px-4 py-2 text-sm font-bold bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition disabled:opacity-40 whitespace-nowrap flex items-center gap-1.5"
+                  title="Pull profile data from LinkedIn via Cloudflare"
+                >
+                  {enriching ? (
+                    <>
+                      <svg className="animate-spin h-3.5 w-3.5" viewBox="0 0 24 24" fill="none">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                      </svg>
+                      Enriching...
+                    </>
+                  ) : '✦ Enrich'}
+                </button>
+              </div>
+              {enrichStatus && (
+                <p className={`mt-1.5 text-xs font-medium ${
+                  enrichStatus.type === 'success' ? 'text-emerald-600' : 'text-red-500'
+                }`}>
+                  {enrichStatus.type === 'success' ? '✓' : '✕'} {enrichStatus.message}
+                </p>
+              )}
+            </div>
+
             {field('Portfolio URL', 'portfolio_url', 'url', 'https://...')}
 
             <div className="col-span-full">
