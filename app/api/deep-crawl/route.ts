@@ -23,7 +23,7 @@ const BRAVE_API_KEY = process.env.BRAVE_SEARCH_API_KEY || '';
 const CF_ACCOUNT_ID = process.env.CF_ACCOUNT_ID || '';
 const CF_API_TOKEN = process.env.CF_API_TOKEN || '';
 
-const MAX_TARGETS = 10;
+const MAX_TARGETS = 30;
 // Max parallel CF requests — avoids hammering the API
 const CF_CONCURRENCY = 3;
 

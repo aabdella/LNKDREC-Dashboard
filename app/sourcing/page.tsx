@@ -201,7 +201,7 @@ export default function SourcingPage() {
       const res = await fetch('/api/source-talent', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ jd, limit: 10 }),
+        body: JSON.stringify({ jd, limit: 30 }),
       });
       const data = await res.json();
       if (!res.ok || !data.success) {
