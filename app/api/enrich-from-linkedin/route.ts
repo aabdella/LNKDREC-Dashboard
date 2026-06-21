@@ -128,8 +128,9 @@ export async function POST(req: NextRequest) {
 
     if (!cfRes.ok || !cfData.success) {
       console.error('[enrich-from-linkedin] CF error:', JSON.stringify(cfData));
+      const cfErrorMsg = cfData?.errors?.[0]?.message || cfData?.error || JSON.stringify(cfData);
       return NextResponse.json(
-        { error: 'Cloudflare extraction failed. The profile may be private or rate-limited.' },
+        { error: `Cloudflare extraction failed: ${cfErrorMsg}` },
         { status: 502 }
       );
     }
