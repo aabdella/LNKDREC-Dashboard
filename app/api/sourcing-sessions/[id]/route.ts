@@ -9,10 +9,10 @@ function getSupabaseClient() {
 
 export async function DELETE(
   _req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params;
+    const { id } = await params;
     if (!id) return NextResponse.json({ error: 'Session id required.' }, { status: 400 });
 
     const supabase = getSupabaseClient();
@@ -33,10 +33,10 @@ export async function DELETE(
 // GET candidates for a specific session
 export async function GET(
   _req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params;
+    const { id } = await params;
     if (!id) return NextResponse.json({ error: 'Session id required.' }, { status: 400 });
 
     const supabase = getSupabaseClient();
