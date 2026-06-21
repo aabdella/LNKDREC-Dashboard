@@ -334,10 +334,28 @@ function FormCard({ form, index, onInputChange, onToggleExpand, onRemove, onSave
   const [enriching, setEnriching] = useState(false);
   const [enrichStatus, setEnrichStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
+  const canEnrich = (() => {
+    const li = formData.linkedin_url?.trim() || '';
+    const po = formData.portfolio_url?.trim() || '';
+    return (
+      li.includes('linkedin.com/in/') ||
+      po.includes('github.com/') ||
+      po.includes('behance.net/')
+    );
+  })();
+
+  const enrichSource = (() => {
+    if (formData.linkedin_url?.includes('linkedin.com/in/')) return 'LinkedIn';
+    if (formData.portfolio_url?.includes('github.com/'))     return 'GitHub';
+    if (formData.portfolio_url?.includes('behance.net/'))    return 'Behance';
+    return null;
+  })();
+
   const handleEnrich = async () => {
-    const url = formData.linkedin_url?.trim();
-    if (!url || !url.includes('linkedin.com/in/')) {
-      setEnrichStatus({ type: 'error', message: 'Please enter a valid LinkedIn profile URL first.' });
+    const li = formData.linkedin_url?.trim() || '';
+    const po = formData.portfolio_url?.trim() || '';
+    if (!canEnrich) {
+      setEnrichStatus({ type: 'error', message: 'Add a LinkedIn, GitHub, or Behance URL first.' });
       return;
     }
     setEnriching(true);
@@ -346,7 +364,10 @@ function FormCard({ form, index, onInputChange, onToggleExpand, onRemove, onSave
       const res = await fetch('/api/enrich-from-linkedin', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ linkedin_url: url }),
+        body: JSON.stringify({
+          linkedin_url:  li.includes('linkedin.com/in/') ? li : undefined,
+          portfolio_url: !li.includes('linkedin.com/in/') ? po : undefined,
+        }),
       });
       const data = await res.json();
       if (!res.ok || !data.success) {
@@ -354,14 +375,14 @@ function FormCard({ form, index, onInputChange, onToggleExpand, onRemove, onSave
         return;
       }
       const p = data.profile;
-      // Only overwrite fields that are currently empty
-      if (p.full_name  && !formData.full_name)  onInputChange(form.id, 'full_name',  p.full_name);
-      if (p.title      && !formData.title)       onInputChange(form.id, 'title',      p.title);
-      if (p.location   && !formData.location)    onInputChange(form.id, 'location',   p.location);
+      if (p.full_name  && !formData.full_name)              onInputChange(form.id, 'full_name',              p.full_name);
+      if (p.title      && !formData.title)                  onInputChange(form.id, 'title',                  p.title);
+      if (p.location   && !formData.location)               onInputChange(form.id, 'location',               p.location);
       if (p.years_experience_total && !formData.years_experience_total)
         onInputChange(form.id, 'years_experience_total', p.years_experience_total);
-      if (p.summary    && !formData.match_reason) onInputChange(form.id, 'match_reason', p.summary);
-      setEnrichStatus({ type: 'success', message: `Enriched from LinkedIn${p.full_name ? ` · ${p.full_name}` : ''}.` });
+      if (p.summary    && !formData.match_reason)           onInputChange(form.id, 'match_reason',           p.summary);
+      const src = data.platform === 'linkedin' ? 'LinkedIn' : data.platform === 'github' ? 'GitHub' : 'Behance';
+      setEnrichStatus({ type: 'success', message: `Enriched from ${src}${p.full_name ? ` · ${p.full_name}` : ''}.` });
     } catch {
       setEnrichStatus({ type: 'error', message: 'Network error during enrichment.' });
     } finally {
@@ -448,45 +469,19 @@ function FormCard({ form, index, onInputChange, onToggleExpand, onRemove, onSave
             {field('Location', 'location')}
             {field('Years of Experience', 'years_experience_total', 'number')}
 
-            {/* LinkedIn URL + Enrich button */}
+            {/* LinkedIn URL — plain field */}
             <div className="col-span-full">
               <label className="block text-xs font-medium text-slate-700 mb-1">LinkedIn URL</label>
-              <div className="flex gap-2">
-                <input
-                  type="url"
-                  placeholder="https://linkedin.com/in/..."
-                  className="flex-1 border border-slate-300 rounded-md p-2 text-sm focus:ring-2 focus:ring-black outline-none"
-                  value={formData.linkedin_url ?? ''}
-                  onChange={(e) => onInputChange(form.id, 'linkedin_url', e.target.value)}
-                />
-                <button
-                  type="button"
-                  onClick={handleEnrich}
-                  disabled={enriching || !formData.linkedin_url?.includes('linkedin.com/in/')}
-                  className="px-4 py-2 text-sm font-bold bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition disabled:opacity-40 whitespace-nowrap flex items-center gap-1.5"
-                  title="Pull profile data from LinkedIn via Cloudflare"
-                >
-                  {enriching ? (
-                    <>
-                      <svg className="animate-spin h-3.5 w-3.5" viewBox="0 0 24 24" fill="none">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
-                      </svg>
-                      Enriching...
-                    </>
-                  ) : '✦ Enrich'}
-                </button>
-              </div>
-              {enrichStatus && (
-                <p className={`mt-1.5 text-xs font-medium ${
-                  enrichStatus.type === 'success' ? 'text-emerald-600' : 'text-red-500'
-                }`}>
-                  {enrichStatus.type === 'success' ? '✓' : '✕'} {enrichStatus.message}
-                </p>
-              )}
+              <input
+                type="url"
+                placeholder="https://linkedin.com/in/..."
+                className="w-full border border-slate-300 rounded-md p-2 text-sm focus:ring-2 focus:ring-black outline-none"
+                value={formData.linkedin_url ?? ''}
+                onChange={(e) => onInputChange(form.id, 'linkedin_url', e.target.value)}
+              />
             </div>
 
-            {field('Portfolio URL', 'portfolio_url', 'url', 'https://...')}
+            {field('Portfolio URL', 'portfolio_url', 'url', 'https://github.com/... or https://behance.net/...')}
 
             <div className="col-span-full">
               <label className="block text-xs font-medium text-slate-700 mb-1">Summary / Notes</label>
@@ -499,21 +494,50 @@ function FormCard({ form, index, onInputChange, onToggleExpand, onRemove, onSave
             </div>
           </div>
 
-          <div className="flex justify-end gap-3 pt-4 mt-4 border-t border-slate-100">
-            <button
-              onClick={() => onRemove(form.id)}
-              disabled={saving}
-              className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-lg transition disabled:opacity-50"
-            >
-              Remove
-            </button>
-            <button
-              onClick={() => onSave(form.id)}
-              disabled={saving}
-              className="px-4 py-2 text-sm font-bold bg-black text-white rounded-lg hover:bg-zinc-800 transition disabled:opacity-50 flex items-center gap-2"
-            >
-              {saving ? 'Saving...' : 'Save'}
-            </button>
+          {/* Footer: Enrich left — Remove + Save right */}
+          <div className="flex items-center justify-between gap-3 pt-4 mt-4 border-t border-slate-100">
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={handleEnrich}
+                disabled={enriching || !canEnrich}
+                className="px-4 py-2 text-sm font-bold bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition disabled:opacity-40 flex items-center gap-1.5"
+                title={canEnrich ? `Enrich from ${enrichSource}` : 'Add a LinkedIn, GitHub, or Behance URL to enrich'}
+              >
+                {enriching ? (
+                  <>
+                    <svg className="animate-spin h-3.5 w-3.5" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                    </svg>
+                    Enriching...
+                  </>
+                ) : <>✦ {canEnrich ? `Enrich from ${enrichSource}` : 'Enrich'}</>}
+              </button>
+              {enrichStatus && (
+                <span className={`text-xs font-medium ${
+                  enrichStatus.type === 'success' ? 'text-emerald-600' : 'text-red-500'
+                }`}>
+                  {enrichStatus.type === 'success' ? '✓' : '✕'} {enrichStatus.message}
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => onRemove(form.id)}
+                disabled={saving}
+                className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-lg transition disabled:opacity-50"
+              >
+                Remove
+              </button>
+              <button
+                onClick={() => onSave(form.id)}
+                disabled={saving}
+                className="px-4 py-2 text-sm font-bold bg-black text-white rounded-lg hover:bg-zinc-800 transition disabled:opacity-50 flex items-center gap-2"
+              >
+                {saving ? 'Saving...' : 'Save'}
+              </button>
+            </div>
           </div>
         </div>
       )}
