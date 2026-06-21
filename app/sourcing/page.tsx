@@ -496,7 +496,9 @@ export default function SourcingPage() {
 
   async function approveCandidates() {
     if (selectedIds.length === 0) return;
-    const candidatesToApprove = sourcedQueue.filter(c => selectedIds.includes(c.id));
+    const isSession = activeTab === 'sourced' && activeSessionId;
+    const pool = isSession ? sessionCandidates : sourcedQueue;
+    const candidatesToApprove = pool.filter(c => selectedIds.includes(c.id));
     for (const c of candidatesToApprove) {
       const { id, ...candidateData } = c;
       const { error: insertError } = await supabase.from('candidates').insert({
@@ -509,16 +511,31 @@ export default function SourcingPage() {
       }
     }
     setSelectedIds([]);
-    fetchSourcedQueue();
+    if (isSession && activeSessionId) {
+      const remaining = sessionCandidates.filter(c => !selectedIds.includes(c.id));
+      setSessionCandidates(remaining);
+      setSessions(prev => prev.map(s => s.id === activeSessionId ? { ...s, candidate_count: remaining.length } : s));
+      await supabase.from('sourcing_sessions').update({ candidate_count: remaining.length }).eq('id', activeSessionId);
+    } else {
+      fetchSourcedQueue();
+    }
   }
 
   async function rejectCandidates() {
     if (selectedIds.length === 0) return;
-    if (!confirm(`Reject ${selectedIds.length} candidates?`)) return;
+    if (!confirm(`Reject ${selectedIds.length} candidate(s)?`)) return;
     const { error } = await supabase.from('unvetted').delete().in('id', selectedIds);
     if (!error) {
+      const isSession = activeTab === 'sourced' && activeSessionId;
       setSelectedIds([]);
-      fetchSourcedQueue();
+      if (isSession && activeSessionId) {
+        const remaining = sessionCandidates.filter(c => !selectedIds.includes(c.id));
+        setSessionCandidates(remaining);
+        setSessions(prev => prev.map(s => s.id === activeSessionId ? { ...s, candidate_count: remaining.length } : s));
+        await supabase.from('sourcing_sessions').update({ candidate_count: remaining.length }).eq('id', activeSessionId);
+      } else {
+        fetchSourcedQueue();
+      }
     }
   }
 
@@ -1122,6 +1139,7 @@ export default function SourcingPage() {
                                 <th className="px-4 py-4">Candidate</th>
                                 <th className="px-4 py-4">Match Analysis</th>
                                 <th className="px-4 py-4">Source</th>
+                                <th className="px-4 py-4 w-10"></th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
@@ -1147,6 +1165,23 @@ export default function SourcingPage() {
                                       : c.source === 'Cloudflare' ? 'bg-amber-50 text-amber-700 border-amber-200'
                                       : 'bg-slate-100 text-slate-500 border-slate-200'
                                     }`}>{c.source}</span>
+                                  </td>
+                                  <td className="px-4 py-4">
+                                    <button
+                                      onClick={async () => {
+                                        if (!confirm(`Remove ${c.full_name} from this session?`)) return;
+                                        await supabase.from('unvetted').delete().eq('id', c.id);
+                                        const remaining = sessionCandidates.filter(s => s.id !== c.id);
+                                        setSessionCandidates(remaining);
+                                        setSelectedIds(prev => prev.filter(i => i !== c.id));
+                                        setSessions(prev => prev.map(s => s.id === activeSessionId ? { ...s, candidate_count: remaining.length } : s));
+                                        if (activeSessionId) await supabase.from('sourcing_sessions').update({ candidate_count: remaining.length }).eq('id', activeSessionId);
+                                      }}
+                                      className="text-slate-300 hover:text-red-500 transition text-lg leading-none"
+                                      title="Remove candidate"
+                                    >
+                                      <TrashIcon className="h-4 w-4" />
+                                    </button>
                                   </td>
                                 </tr>
                               ))}
