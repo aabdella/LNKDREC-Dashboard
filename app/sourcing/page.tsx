@@ -33,6 +33,14 @@ type SourcingCandidate = {
 };
 
 type SourcingAlert = { type: 'success' | 'error'; message: string } | null;
+type SourcingSession = {
+  id: string;
+  label: string;
+  run_type: 'quick_source' | 'deep_search';
+  parsed_title: string | null;
+  candidate_count: number;
+  created_at: string;
+};
 type MatchDebug = {
   extractedTitle: string;
   titleKeywords: string[];
@@ -88,6 +96,11 @@ export default function SourcingPage() {
   const [quickSourceDebug, setQuickSourceDebug] = useState<QuickSourceDebug>(null);
   const [deepSearchDebug, setDeepSearchDebug] = useState<DeepSearchDebug>(null);
   const [openCardId, setOpenCardId] = useState<string | null>(null);
+  const [sessions, setSessions] = useState<SourcingSession[]>([]);
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const [sessionCandidates, setSessionCandidates] = useState<SourcingCandidate[]>([]);
+  const [isLoadingSession, setIsLoadingSession] = useState(false);
+  const [closingSessionId, setClosingSessionId] = useState<string | null>(null);
 
   useEffect(() => {
     // Read session from server-side cookies (reliable after server-action login)
@@ -99,6 +112,7 @@ export default function SourcingPage() {
     });
     fetchSourcedQueue();
     fetchJobs();
+    fetchSessions();
     return () => subscription.unsubscribe();
   }, []);
 
@@ -130,6 +144,38 @@ export default function SourcingPage() {
     if (!jobId) return;
     const job = jobs.find(j => j.id === jobId);
     if (job?.description) setJd(job.description);
+  }
+
+  async function fetchSessions() {
+    const res = await fetch('/api/sourcing-sessions');
+    const data = await res.json();
+    if (data.sessions) setSessions(data.sessions);
+  }
+
+  async function loadSessionCandidates(sessionId: string) {
+    setIsLoadingSession(true);
+    setSelectedIds([]);
+    const res = await fetch(`/api/sourcing-sessions/${sessionId}`);
+    const data = await res.json();
+    if (data.candidates) setSessionCandidates(data.candidates);
+    setIsLoadingSession(false);
+  }
+
+  async function closeSession(sessionId: string) {
+    const session = sessions.find(s => s.id === sessionId);
+    const count = session?.candidate_count ?? 0;
+    const confirmed = window.confirm(
+      `Close "${session?.label}" and permanently delete its ${count} candidate(s) from the queue?`
+    );
+    if (!confirmed) return;
+    setClosingSessionId(sessionId);
+    await fetch(`/api/sourcing-sessions/${sessionId}`, { method: 'DELETE' });
+    setSessions(prev => prev.filter(s => s.id !== sessionId));
+    if (activeSessionId === sessionId) {
+      setActiveSessionId(null);
+      setSessionCandidates([]);
+    }
+    setClosingSessionId(null);
   }
 
   async function fetchSourcedQueue() {
@@ -168,7 +214,21 @@ export default function SourcingPage() {
         });
         await logActivity('sourcing_triggered', 'Sourcing Run', { candidates_found: data.sourced }, 'sourcing', undefined, userEmailRef.current);
         setActiveTab('sourced');
-        await fetchSourcedQueue();
+        if (data.session) {
+          const newSession: SourcingSession = {
+            id: data.session.id,
+            label: data.session.label,
+            run_type: 'quick_source',
+            parsed_title: data.debug?.parsedTitle || null,
+            candidate_count: data.sourced,
+            created_at: new Date().toISOString(),
+          };
+          setSessions(prev => [newSession, ...prev]);
+          setActiveSessionId(data.session.id);
+          await loadSessionCandidates(data.session.id);
+        } else {
+          await fetchSourcedQueue();
+        }
       }
     } catch {
       setSourcingAlert({ type: 'error', message: 'Network error.' });
@@ -204,7 +264,21 @@ export default function SourcingPage() {
         });
         await logActivity('sourcing_triggered', 'Deep Search Run', { candidates_found: data.sourced }, 'sourcing', undefined, userEmailRef.current);
         setActiveTab('sourced');
-        await fetchSourcedQueue();
+        if (data.session) {
+          const newSession: SourcingSession = {
+            id: data.session.id,
+            label: data.session.label,
+            run_type: 'deep_search',
+            parsed_title: data.debug?.parsedTitle || null,
+            candidate_count: data.sourced,
+            created_at: new Date().toISOString(),
+          };
+          setSessions(prev => [newSession, ...prev]);
+          setActiveSessionId(data.session.id);
+          await loadSessionCandidates(data.session.id);
+        } else {
+          await fetchSourcedQueue();
+        }
       }
     } catch {
       setSourcingAlert({ type: 'error', message: 'Network error during deep search.' });
@@ -840,13 +914,14 @@ export default function SourcingPage() {
         </div>
 
         <div className="lg:col-span-2 space-y-8">
+          {/* ── Top-level tab bar: Internal Matches / Sourced Queue ── */}
           <div className="flex border-b border-slate-200">
             <button onClick={() => setActiveTab('internal')} className={`px-6 py-3 font-bold text-sm relative ${activeTab === 'internal' ? 'text-black' : 'text-slate-400'}`}>
               Internal Matches ({internalMatches.length})
               {activeTab === 'internal' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-black" />}
             </button>
             <button onClick={() => setActiveTab('sourced')} className={`px-6 py-3 font-bold text-sm relative ${activeTab === 'sourced' ? 'text-black' : 'text-slate-400'}`}>
-              Sourced Queue ({sourcedQueue.length})
+              Sourced Queue ({sessions.length} session{sessions.length !== 1 ? 's' : ''})
               {activeTab === 'sourced' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-black" />}
             </button>
           </div>
@@ -959,58 +1034,130 @@ export default function SourcingPage() {
 
           {activeTab === 'sourced' && (
             <div className="space-y-4">
-              {selectedIds.length > 0 && (
-                <div className="bg-indigo-50 border border-indigo-100 p-4 rounded-lg flex items-center justify-between">
-                  <span className="text-sm font-bold text-indigo-900">{selectedIds.length} Selected</span>
-                  <div className="flex gap-2">
-                    <button onClick={rejectCandidates} className="px-4 py-2 bg-white border text-red-600 text-xs font-bold rounded-md">Reject</button>
-                    <button onClick={approveCandidates} className="px-4 py-2 bg-indigo-600 text-white text-xs font-bold rounded-md">Approve to Pipeline</button>
-                  </div>
+              {/* ── Session tab strip ── */}
+              {sessions.length === 0 ? (
+                <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-12 text-center">
+                  <p className="text-slate-400 text-sm">No sourcing sessions yet. Run a Quick Source or Deep Search to get started.</p>
                 </div>
-              )}
-
-              <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                <table className="w-full text-left">
-                  <thead className="bg-slate-50 border-b">
-                    <tr className="text-xs font-bold text-slate-500 uppercase">
-                      <th className="px-4 py-4 w-10">
-                        <input
-                          type="checkbox"
-                          className="rounded border-slate-300"
-                          checked={sourcedQueue.length > 0 && selectedIds.length === sourcedQueue.length}
-                          onChange={toggleSelectAll}
-                          title={selectedIds.length === sourcedQueue.length ? 'Deselect all' : 'Select all'}
-                        />
-                      </th>
-                      <th className="px-4 py-4">Candidate</th>
-                      <th className="px-4 py-4">Match Analysis</th>
-                      <th className="px-4 py-4">Source</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {sourcedQueue.map(c => (
-                      <tr key={c.id} className={`hover:bg-slate-50 transition ${selectedIds.includes(c.id) ? 'bg-indigo-50/30' : ''}`}>
-                        <td className="px-4 py-4"><input type="checkbox" checked={selectedIds.includes(c.id)} onChange={() => toggleSelect(c.id)} /></td>
-                        <td className="px-4 py-4">
-                          <div className="font-bold text-slate-900">{c.full_name}</div>
-                          <div className="text-[11px] text-slate-500">{c.title}</div>
-                          <div className="flex gap-2 mt-1">
-                            {c.linkedin_url && <a href={c.linkedin_url} target="_blank" className="text-[10px] text-indigo-600 font-bold">LinkedIn</a>}
-                            {c.portfolio_url && <a href={c.portfolio_url} target="_blank" className="text-[10px] text-pink-600 font-bold">Portfolio</a>}
-                          </div>
-                        </td>
-                        <td className="px-4 py-4">
-                           <div className="text-xs font-bold text-slate-700">{c.match_score}% Match</div>
-                           <div className="text-[11px] text-slate-400 mt-1 max-w-xs line-clamp-2">{c.match_reason}</div>
-                        </td>
-                        <td className="px-4 py-4">
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${c.source === 'Cloudflare' ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-slate-100 text-slate-500'}`}>{c.source}</span>
-                        </td>
-                      </tr>
+              ) : (
+                <>
+                  {/* Tab strip */}
+                  <div className="flex gap-2 flex-wrap">
+                    {sessions.map(s => (
+                      <div
+                        key={s.id}
+                        className={`group flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-semibold cursor-pointer transition-all ${
+                          activeSessionId === s.id
+                            ? 'bg-slate-900 text-white border-slate-900 shadow-sm'
+                            : 'bg-white text-slate-600 border-slate-200 hover:border-slate-400'
+                        }`}
+                        onClick={() => {
+                          setActiveSessionId(s.id);
+                          loadSessionCandidates(s.id);
+                          setSelectedIds([]);
+                        }}
+                      >
+                        <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                          s.run_type === 'deep_search' ? 'bg-indigo-400' : 'bg-emerald-400'
+                        }`} />
+                        <span className="max-w-[160px] truncate">{s.label}</span>
+                        <span className={`${
+                          activeSessionId === s.id ? 'text-slate-400' : 'text-slate-400'
+                        }`}>·{s.candidate_count}</span>
+                        <button
+                          onClick={e => { e.stopPropagation(); closeSession(s.id); }}
+                          disabled={closingSessionId === s.id}
+                          className={`ml-1 rounded hover:text-red-400 transition ${
+                            activeSessionId === s.id ? 'text-slate-400 hover:text-red-300' : 'text-slate-400'
+                          } ${closingSessionId === s.id ? 'opacity-40' : ''}`}
+                          title="Close tab and delete candidates"
+                        >
+                          ×
+                        </button>
+                      </div>
                     ))}
-                  </tbody>
-                </table>
-              </div>
+                  </div>
+
+                  {/* Session content */}
+                  {!activeSessionId ? (
+                    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-10 text-center">
+                      <p className="text-slate-400 text-sm">Select a session tab above to view its candidates.</p>
+                    </div>
+                  ) : isLoadingSession ? (
+                    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-10 text-center">
+                      <p className="text-slate-400 text-sm">Loading candidates...</p>
+                    </div>
+                  ) : (
+                    <>
+                      {selectedIds.length > 0 && (
+                        <div className="bg-indigo-50 border border-indigo-100 p-4 rounded-lg flex items-center justify-between">
+                          <span className="text-sm font-bold text-indigo-900">{selectedIds.length} Selected</span>
+                          <div className="flex gap-2">
+                            <button onClick={rejectCandidates} className="px-4 py-2 bg-white border text-red-600 text-xs font-bold rounded-md">Reject</button>
+                            <button onClick={approveCandidates} className="px-4 py-2 bg-indigo-600 text-white text-xs font-bold rounded-md">Approve to Pipeline</button>
+                          </div>
+                        </div>
+                      )}
+
+                      {sessionCandidates.length === 0 ? (
+                        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-10 text-center">
+                          <p className="text-slate-400 text-sm">No candidates in this session.</p>
+                        </div>
+                      ) : (
+                        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                          <table className="w-full text-left">
+                            <thead className="bg-slate-50 border-b">
+                              <tr className="text-xs font-bold text-slate-500 uppercase">
+                                <th className="px-4 py-4 w-10">
+                                  <input
+                                    type="checkbox"
+                                    className="rounded border-slate-300"
+                                    checked={sessionCandidates.length > 0 && selectedIds.length === sessionCandidates.length}
+                                    onChange={() => {
+                                      if (selectedIds.length === sessionCandidates.length) setSelectedIds([]);
+                                      else setSelectedIds(sessionCandidates.map(c => c.id));
+                                    }}
+                                  />
+                                </th>
+                                <th className="px-4 py-4">Candidate</th>
+                                <th className="px-4 py-4">Match Analysis</th>
+                                <th className="px-4 py-4">Source</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                              {sessionCandidates.map(c => (
+                                <tr key={c.id} className={`hover:bg-slate-50 transition ${selectedIds.includes(c.id) ? 'bg-indigo-50/30' : ''}`}>
+                                  <td className="px-4 py-4"><input type="checkbox" checked={selectedIds.includes(c.id)} onChange={() => toggleSelect(c.id)} /></td>
+                                  <td className="px-4 py-4">
+                                    <div className="font-bold text-slate-900">{c.full_name}</div>
+                                    <div className="text-[11px] text-slate-500">{c.title}</div>
+                                    <div className="text-[11px] text-slate-400">{c.location}</div>
+                                    <div className="flex gap-2 mt-1">
+                                      {c.linkedin_url && <a href={c.linkedin_url} target="_blank" rel="noopener noreferrer" className="text-[10px] text-indigo-600 font-bold">LinkedIn</a>}
+                                      {c.portfolio_url && <a href={c.portfolio_url} target="_blank" rel="noopener noreferrer" className="text-[10px] text-pink-600 font-bold">Portfolio</a>}
+                                    </div>
+                                  </td>
+                                  <td className="px-4 py-4">
+                                    <div className="text-xs font-bold text-slate-700">{c.match_score}% Match</div>
+                                    <div className="text-[11px] text-slate-400 mt-1 max-w-xs line-clamp-2">{c.match_reason}</div>
+                                  </td>
+                                  <td className="px-4 py-4">
+                                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                                      c.source === 'Deep Sourced' ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                                      : c.source === 'Cloudflare' ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                      : 'bg-slate-100 text-slate-500 border-slate-200'
+                                    }`}>{c.source}</span>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </>
+              )}
             </div>
           )}
         </div>

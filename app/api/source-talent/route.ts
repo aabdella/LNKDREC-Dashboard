@@ -328,11 +328,24 @@ export async function POST(req: NextRequest) {
 
     console.log(`🦞 [Quick Source] role="${parsedTitle}" | industry=${industry} | location=${parsedLocation} | sets=${kwSets.length}`);
 
-    // ── Clear previous sourced candidates ────────────────────────────────
-    await supabase
-      .from('unvetted')
-      .delete()
-      .in('source', ['LinkedIn', 'Wuzzuf', 'Bayt', 'Behance', 'Sourced']);
+    // ── Create sourcing session ─────────────────────────────────────────
+    const sessionLabel = `Quick Source · ${parsedTitle}`;
+    const { data: sessionRow, error: sessionErr } = await supabase
+      .from('sourcing_sessions')
+      .insert({
+        label: sessionLabel,
+        run_type: 'quick_source',
+        jd_snippet: jd.substring(0, 300),
+        parsed_title: parsedTitle,
+        created_by: 'system',
+      })
+      .select('id')
+      .single();
+    if (sessionErr || !sessionRow) {
+      console.error('Failed to create sourcing session:', sessionErr);
+      return NextResponse.json({ error: 'Failed to create sourcing session.' }, { status: 500 });
+    }
+    const sourcingSessionId = sessionRow.id;
 
     // ── Platform config ───────────────────────────────────────────────────
     const platforms: PlatformConfig[] = [
@@ -407,6 +420,7 @@ export async function POST(req: NextRequest) {
         phone:                  null,
         resume_url:             null,
         resume_text:            null,
+        sourcing_session_id:    sourcingSessionId,
       };
       const { error: insertErr } = await supabase.from('unvetted').insert(row);
       if (!insertErr) {
@@ -417,10 +431,17 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // ── Update session candidate count ─────────────────────────────────
+    await supabase
+      .from('sourcing_sessions')
+      .update({ candidate_count: insertedCount })
+      .eq('id', sourcingSessionId);
+
     return NextResponse.json({
       success: true,
       sourced: insertedCount,
       candidates: insertedCandidates,
+      session: { id: sourcingSessionId, label: sessionLabel },
       debug: {
         parsedTitle,
         industry,

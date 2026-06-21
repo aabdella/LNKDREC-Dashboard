@@ -260,6 +260,25 @@ export async function POST(req: NextRequest) {
 
     console.log(`🦞 [Deep Search] title="${titleLine}" | industry=${parsed.industry} | market=${targetMarket || 'none'} | variants=${parsed.title_variants.join(', ')}`);
 
+    // ── Create sourcing session ────────────────────────────────────────────
+    const sessionLabel = `Deep Search · ${titleLine}`;
+    const { data: sessionRow, error: sessionErr } = await supabase
+      .from('sourcing_sessions')
+      .insert({
+        label: sessionLabel,
+        run_type: 'deep_search',
+        jd_snippet: jd.substring(0, 300),
+        parsed_title: parsedTitle,
+        created_by: 'system',
+      })
+      .select('id')
+      .single();
+    if (sessionErr || !sessionRow) {
+      console.error('Failed to create sourcing session:', sessionErr);
+      return NextResponse.json({ error: 'Failed to create sourcing session.' }, { status: 500 });
+    }
+    const sourcingSessionId = sessionRow.id;
+
     // ── Discovery ──────────────────────────────────────────────────────────
     const uniqueQueries = buildDeepQueries(parsed, isCreative);
     const discoveryRuns = await Promise.all(uniqueQueries.map(searchProfiles));
@@ -379,6 +398,7 @@ export async function POST(req: NextRequest) {
         resume_url: null,
         resume_text: null,
         uploaded_at: new Date().toISOString(),
+        sourcing_session_id: sourcingSessionId,
       });
     }
 
@@ -388,9 +408,16 @@ export async function POST(req: NextRequest) {
       insertResult = await supabase.from('unvetted').insert(toInsert).select();
     }
 
+    // ── Update session candidate count ────────────────────────────────────
+    await supabase
+      .from('sourcing_sessions')
+      .update({ candidate_count: toInsert.length })
+      .eq('id', sourcingSessionId);
+
     return NextResponse.json({
       success: true,
       sourced: toInsert.length,
+      session: { id: sourcingSessionId, label: sessionLabel },
       debug: {
         mode: 'production',
         parsedTitle,
