@@ -1076,33 +1076,44 @@ function CVExportModal({
   });
   const [generating, setGenerating] = useState(false);
   const [vetting, setVetting] = useState<Record<string, any> | null>(null);
-  const [egpRate, setEgpRate] = useState<number>(53.22); // CBE USD buy rate fallback
+  const [egpRate, setEgpRate] = useState<number>(0);
+  const [rateSource, setRateSource] = useState<string>('');
+  const [rateDate, setRateDate] = useState<string>('');
+  const [rateRefreshing, setRateRefreshing] = useState(false);
   const [editableMatchReason, setEditableMatchReason] = useState<string>(candidate.match_reason || '');
 
-  useEffect(() => {
-    async function fetchRate() {
-      try {
+  async function loadRate(forceRefresh = false) {
+    try {
+      if (!forceRefresh) {
         const cached = localStorage.getItem('lnkd_egp_rate_cbe');
         const now = Date.now();
         if (cached) {
-          const { rate, ts } = JSON.parse(cached);
+          const { rate, source, date, ts } = JSON.parse(cached);
           if (now - ts < 24 * 60 * 60 * 1000) {
             setEgpRate(rate);
+            setRateSource(source || 'CBE');
+            setRateDate(date || '');
             return;
           }
         }
-        const res = await fetch('/api/egp-rate');
-        const data = await res.json();
-        // data.rate is the CBE USD sell rate
-        const rate = data.rate;
-        if (rate && typeof rate === 'number') {
-          setEgpRate(rate);
-          localStorage.setItem('lnkd_egp_rate_cbe', JSON.stringify({ rate, ts: now }));
-        }
-      } catch { }
-    }
-    fetchRate();
-  }, []);
+      }
+      const res = await fetch('/api/egp-rate');
+      const data = await res.json();
+      if (data.rate && typeof data.rate === 'number') {
+        setEgpRate(data.rate);
+        setRateSource(data.source || 'CBE');
+        setRateDate(data.date || '');
+        localStorage.setItem('lnkd_egp_rate_cbe', JSON.stringify({
+          rate: data.rate,
+          source: data.source || 'CBE',
+          date: data.date || '',
+          ts: Date.now(),
+        }));
+      }
+    } catch { }
+  }
+
+  useEffect(() => { loadRate(); }, []);
 
   useEffect(() => {
     async function fetchVetting() {
@@ -1281,11 +1292,34 @@ function CVExportModal({
             <textarea value={editableMatchReason} onChange={e => setEditableMatchReason(e.target.value)} rows={4} className="w-full p-4 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none" />
           </div>
         </div>
-        <div className="sticky bottom-0 bg-white border-t px-6 py-4 flex items-center justify-between rounded-b-2xl">
-          <p className="text-xs text-slate-400">Privacy settings saved per session.</p>
-          <button onClick={handleDownload} disabled={generating} className="bg-indigo-600 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-indigo-700 transition disabled:opacity-60 flex items-center gap-2">
-            <DocumentArrowDownIcon className="h-5 w-5" /> {generating ? 'Generating...' : 'Download PDF'}
-          </button>
+        <div className="sticky bottom-0 bg-white border-t px-6 py-4 space-y-3 rounded-b-2xl">
+          <div className="flex items-center gap-3">
+            <div className="flex-1 flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
+              <span className="text-sm font-mono font-semibold text-slate-800">
+                {egpRate ? `1 USD = EGP ${egpRate.toFixed(4)}` : 'Loading…'}
+              </span>
+              {rateSource && (
+                <span className="text-xs text-slate-400">
+                  {rateSource}{rateDate ? ` · ${rateDate}` : ''}
+                </span>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={async () => { setRateRefreshing(true); await loadRate(true); setRateRefreshing(false); }}
+              disabled={rateRefreshing}
+              className="text-xs px-3 py-2 rounded-xl border border-slate-200 text-slate-500 hover:border-indigo-300 hover:text-indigo-600 transition disabled:opacity-40"
+            >
+              {rateRefreshing ? '…' : 'Refresh'}
+            </button>
+          </div>
+          <p className="text-xs text-slate-400">CBE sell rate · updates every 24 h</p>
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-slate-400">Privacy settings saved per session.</p>
+            <button onClick={handleDownload} disabled={generating} className="bg-indigo-600 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-indigo-700 transition disabled:opacity-60 flex items-center gap-2">
+              <DocumentArrowDownIcon className="h-5 w-5" /> {generating ? 'Generating...' : 'Download PDF'}
+            </button>
+          </div>
         </div>
       </div>
     </div>

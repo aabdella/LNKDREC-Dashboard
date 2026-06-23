@@ -48,33 +48,44 @@ function CVExportModal({
   });
   const [generating, setGenerating] = useState(false);
   const [vetting, setVetting] = useState<Record<string, any> | null>(null);
-  const [egpRate, setEgpRate] = useState<number>(53.22); // CBE USD buy rate fallback
+  const [egpRate, setEgpRate] = useState<number>(0);
+  const [rateSource, setRateSource] = useState<string>('');
+  const [rateDate, setRateDate] = useState<string>('');
+  const [rateRefreshing, setRateRefreshing] = useState(false);
   const [editableMatchReason, setEditableMatchReason] = useState<string>(candidate.match_reason || '');
 
-  useEffect(() => {
-    async function fetchRate() {
-      try {
+  async function loadRate(forceRefresh = false) {
+    try {
+      if (!forceRefresh) {
         const cached = localStorage.getItem('lnkd_egp_rate_cbe');
         const now = Date.now();
         if (cached) {
-          const { rate, ts } = JSON.parse(cached);
+          const { rate, source, date, ts } = JSON.parse(cached);
           if (now - ts < 24 * 60 * 60 * 1000) {
             setEgpRate(rate);
+            setRateSource(source || 'CBE');
+            setRateDate(date || '');
             return;
           }
         }
-        const res = await fetch('/api/egp-rate');
-        const data = await res.json();
-        // data.rate is the CBE USD sell rate
-        const rate = data.rate;
-        if (rate && typeof rate === 'number') {
-          setEgpRate(rate);
-          localStorage.setItem('lnkd_egp_rate_cbe', JSON.stringify({ rate, ts: now }));
-        }
-      } catch { }
-    }
-    fetchRate();
-  }, []);
+      }
+      const res = await fetch('/api/egp-rate');
+      const data = await res.json();
+      if (data.rate && typeof data.rate === 'number') {
+        setEgpRate(data.rate);
+        setRateSource(data.source || 'CBE');
+        setRateDate(data.date || '');
+        localStorage.setItem('lnkd_egp_rate_cbe', JSON.stringify({
+          rate: data.rate,
+          source: data.source || 'CBE',
+          date: data.date || '',
+          ts: Date.now(),
+        }));
+      }
+    } catch { }
+  }
+
+  useEffect(() => { loadRate(); }, []);
 
   useEffect(() => {
     async function fetchVetting() {
@@ -162,9 +173,28 @@ function CVExportModal({
             </div>
           </div>
           <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-1">USD to EGP Rate</label>
-            <input type="number" value={egpRate} onChange={e => setEgpRate(Number(e.target.value))}
-              className="w-32 text-sm border border-slate-200 rounded-xl p-2 focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-300 transition" />
+            <label className="block text-sm font-semibold text-slate-700 mb-1">EGP → USD Rate</label>
+            <div className="flex items-center gap-3">
+              <div className="flex-1 flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
+                <span className="text-sm font-mono font-semibold text-slate-800">
+                  {egpRate ? `1 USD = EGP ${egpRate.toFixed(4)}` : 'Loading…'}
+                </span>
+                {rateSource && (
+                  <span className="text-xs text-slate-400">
+                    {rateSource}{rateDate ? ` · ${rateDate}` : ''}
+                  </span>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={async () => { setRateRefreshing(true); await loadRate(true); setRateRefreshing(false); }}
+                disabled={rateRefreshing}
+                className="text-xs px-3 py-2 rounded-xl border border-slate-200 text-slate-500 hover:border-indigo-300 hover:text-indigo-600 transition disabled:opacity-40"
+              >
+                {rateRefreshing ? '…' : 'Refresh'}
+              </button>
+            </div>
+            <p className="text-xs text-slate-400 mt-1">CBE sell rate · updates every 24 h</p>
           </div>
           <button onClick={handleDownload} disabled={generating}
             className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 text-white font-bold rounded-xl transition flex items-center justify-center gap-2">
@@ -274,13 +304,24 @@ export default function JobDetailPage() {
         .single();
       if (vettingData) vetting = vettingData;
     } catch {}
-    // Fetch CBE buy rate for CV generation
-    let cvEgpRate = 53.22;
+    // Fetch rate for CV generation — check localStorage cache first, then API
+    let cvEgpRate: number | undefined;
     try {
-      const rateRes = await fetch('/api/egp-rate');
-      const rateData = await rateRes.json();
-      if (rateData.rate && typeof rateData.rate === 'number') cvEgpRate = rateData.rate;
+      const cached = localStorage.getItem('lnkd_egp_rate_cbe');
+      if (cached) {
+        const { rate, ts } = JSON.parse(cached);
+        if (Date.now() - ts < 24 * 60 * 60 * 1000 && typeof rate === 'number') {
+          cvEgpRate = rate;
+        }
+      }
     } catch {}
+    if (!cvEgpRate) {
+      try {
+        const rateRes = await fetch('/api/egp-rate');
+        const rateData = await rateRes.json();
+        if (rateData.rate && typeof rateData.rate === 'number') cvEgpRate = rateData.rate;
+      } catch {}
+    }
     const doc = <CVTemplateA candidate={candidate} privacy={privacy} logoBase64={logoBase64} vetting={vetting} egpRate={cvEgpRate} />;
     const blob = await pdf(doc).toBlob();
     const url = URL.createObjectURL(blob);
