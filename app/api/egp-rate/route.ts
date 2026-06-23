@@ -6,10 +6,6 @@ const ER_API_URL = 'https://open.er-api.com/v6/latest/USD';
 // Fallback 1: Central Bank of Egypt — official sell rate, updates Sun–Thu
 const CBE_URL = 'https://www.cbe.org.eg/en/economic-research/statistics/cbe-exchange-rates';
 
-// Fallback 2: fawazahmed0 currency-api via jsDelivr CDN — free, no key
-const FAWAZ_API_URL =
-  'https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/usd.min.json';
-
 // Simple in-process cache: revalidate at most once per hour server-side
 let serverCache: { rate: number; date: string; fetchedAt: number; source: string } | null = null;
 const SERVER_TTL_MS = 60 * 60 * 1000; // 1 hour
@@ -60,22 +56,6 @@ async function fetchCBE(
   return { rate, date, fetchedAt: now, source: 'CBE (Central Bank of Egypt)' };
 }
 
-async function fetchFawaz(
-  now: number
-): Promise<{ rate: number; date: string; fetchedAt: number; source: string }> {
-  const res = await fetch(FAWAZ_API_URL);
-  if (!res.ok) throw new Error(`fawazahmed0 fetch failed: ${res.status}`);
-
-  const data = await res.json();
-  const rate = data?.usd?.egp;
-  if (!rate || typeof rate !== 'number' || rate < 10)
-    throw new Error('fawazahmed0: invalid EGP rate');
-
-  const date: string = data.date ?? new Date().toISOString().split('T')[0];
-
-  return { rate, date, fetchedAt: now, source: 'ExchangeRate-API (CDN)' };
-}
-
 export async function GET() {
   const now = Date.now();
 
@@ -103,16 +83,7 @@ export async function GET() {
     }
   }
 
-  // Try fawazahmed0 as second fallback
-  if (!result) {
-    try {
-      result = await fetchFawaz(now);
-    } catch (err) {
-      sourceErrors.push(`fallback-fawaz: ${err instanceof Error ? err.message : String(err)}`);
-    }
-  }
-
-  // Both failed — serve stale cache rather than erroring
+  // Both sources failed — serve stale cache rather than erroring
   if (!result) {
     if (serverCache) {
       console.warn('[egp-rate] All sources failed, serving stale cache:', sourceErrors);
