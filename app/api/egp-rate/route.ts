@@ -3,7 +3,10 @@ import { NextResponse } from 'next/server';
 // Primary: open.er-api.com — free, no key, daily updates
 const ER_API_URL = 'https://open.er-api.com/v6/latest/USD';
 
-// Fallback: fawazahmed0 currency-api via jsDelivr CDN — free, no key
+// Fallback 1: Central Bank of Egypt — official sell rate, updates Sun–Thu
+const CBE_URL = 'https://www.cbe.org.eg/en/economic-research/statistics/cbe-exchange-rates';
+
+// Fallback 2: fawazahmed0 currency-api via jsDelivr CDN — free, no key
 const FAWAZ_API_URL =
   'https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/usd.min.json';
 
@@ -28,6 +31,33 @@ async function fetchErApi(
       : new Date().toISOString().split('T')[0];
 
   return { rate, date, fetchedAt: now, source: 'ExchangeRate-API' };
+}
+
+async function fetchCBE(
+  now: number
+): Promise<{ rate: number; date: string; fetchedAt: number; source: string }> {
+  const res = await fetch(CBE_URL, { next: { revalidate: 3600 } });
+  if (!res.ok) throw new Error(`CBE fetch failed: ${res.status}`);
+
+  const text = await res.text();
+
+  // Extract USD sell rate — CBE page lists "US Dollar\n\n<buy>\n\n<sell>"
+  const match = text.match(/US Dollar[\s\S]*?([\d.]+)[\s\S]*?([\d.]+)/);
+  if (!match) throw new Error('CBE: could not find USD row');
+
+  // match[1] = buy, match[2] = sell — we use sell rate (what users pay)
+  const rate = parseFloat(match[2]);
+  if (!rate || isNaN(rate) || rate < 10) throw new Error(`CBE: invalid sell rate: ${match[2]}`);
+
+  // Extract date — "Rates for Date: DD/MM/YYYY"
+  const dateMatch = text.match(/Rates for Date:\s*(\d{2}\/\d{2}\/\d{4})/);
+  let date = new Date().toISOString().split('T')[0];
+  if (dateMatch) {
+    const [day, month, year] = dateMatch[1].split('/');
+    date = `${year}-${month}-${day}`;
+  }
+
+  return { rate, date, fetchedAt: now, source: 'CBE (Central Bank of Egypt)' };
 }
 
 async function fetchFawaz(
@@ -64,12 +94,21 @@ export async function GET() {
     sourceErrors.push(`primary: ${err instanceof Error ? err.message : String(err)}`);
   }
 
-  // Try fallback if primary failed
+  // Try CBE as first fallback
+  if (!result) {
+    try {
+      result = await fetchCBE(now);
+    } catch (err) {
+      sourceErrors.push(`fallback-cbe: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  // Try fawazahmed0 as second fallback
   if (!result) {
     try {
       result = await fetchFawaz(now);
     } catch (err) {
-      sourceErrors.push(`fallback: ${err instanceof Error ? err.message : String(err)}`);
+      sourceErrors.push(`fallback-fawaz: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 
