@@ -1089,23 +1089,24 @@ function CVExportModal({
         const now = Date.now();
         if (cached) {
           const { rate, source, date, ts } = JSON.parse(cached);
-          if (now - ts < 24 * 60 * 60 * 1000) {
+          // Bust cache if missing new fields (old format) or rate invalid
+          if (source && date && rate > 10 && now - ts < 24 * 60 * 60 * 1000) {
             setEgpRate(rate);
-            setRateSource(source || 'CBE');
-            setRateDate(date || '');
+            setRateSource(source);
+            setRateDate(date);
             return;
           }
         }
       }
       const res = await fetch('/api/egp-rate');
       const data = await res.json();
-      if (data.rate && typeof data.rate === 'number') {
+      if (data.rate && typeof data.rate === 'number' && data.rate > 10) {
         setEgpRate(data.rate);
-        setRateSource(data.source || 'CBE');
+        setRateSource(data.source || 'ExchangeRate-API');
         setRateDate(data.date || '');
         localStorage.setItem('lnkd_egp_rate_cbe', JSON.stringify({
           rate: data.rate,
-          source: data.source || 'CBE',
+          source: data.source || 'ExchangeRate-API',
           date: data.date || '',
           ts: Date.now(),
         }));
