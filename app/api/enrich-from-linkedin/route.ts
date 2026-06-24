@@ -74,8 +74,13 @@ async function enrichLinkedIn(url: string) {
       prompt: LINKEDIN_PROMPT,
       response_format: {
         type: 'json_schema',
-        schema: CF_SCHEMA,          // ← correct key per CF docs (not json_schema)
+        schema: CF_SCHEMA,
       },
+      gotoOptions: {
+        waitUntil: 'domcontentloaded',
+        timeout: 30000,
+      },
+      waitForTimeout: 2500,
     }),
   });
 
