@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import Link from 'next/link';
 import Image from 'next/image';
-import { MagnifyingGlassIcon, ViewColumnsIcon, BookOpenIcon } from '@heroicons/react/24/outline';
+import { MagnifyingGlassIcon, ViewColumnsIcon, BookOpenIcon, UserGroupIcon } from '@heroicons/react/24/outline';
 import { cookies } from 'next/headers';
 import { createServerClient } from '@supabase/ssr';
 import LogoutButton from './components/LogoutButton';
@@ -70,6 +70,9 @@ export default async function RootLayout({
                           <Link href="/pipeline" className="hover:text-white transition py-2 border-b-2 border-transparent hover:border-white flex items-center gap-1.5">
                             <ViewColumnsIcon className="h-4 w-4" />Pipeline
                           </Link>
+                          <Link href="/staffing" className="hover:text-white transition py-2 border-b-2 border-transparent hover:border-white flex items-center gap-1.5">
+                            <UserGroupIcon className="h-4 w-4" />Staffing
+                          </Link>
                           <Link href="/leads" className="hover:text-white transition py-2 border-b-2 border-transparent hover:border-white flex items-center gap-1.5">
                             <MagnifyingGlassIcon className="h-4 w-4" />Leads
                           </Link>
@@ -108,6 +111,9 @@ export default async function RootLayout({
                   <Link href="/add-candidate" className="hover:text-white transition whitespace-nowrap">Add Candidate</Link>
                   <Link href="/pipeline" className="hover:text-white transition whitespace-nowrap flex items-center gap-1">
                     <ViewColumnsIcon className="h-4 w-4" />Pipeline
+                  </Link>
+                  <Link href="/staffing" className="hover:text-white transition whitespace-nowrap flex items-center gap-1">
+                    <UserGroupIcon className="h-4 w-4" />Staffing
                   </Link>
                   <Link href="/leads" className="hover:text-white transition whitespace-nowrap flex items-center gap-1">
                     <MagnifyingGlassIcon className="h-4 w-4" />Leads
