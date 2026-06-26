@@ -61,7 +61,7 @@ export default async function RootLayout({
                           <h1 className="text-xl font-semibold tracking-wide hidden sm:block group-hover:text-zinc-200 transition">Platform</h1>
                       </Link>
 
-                      <nav className="hidden md:flex gap-6 ml-4 text-sm font-medium text-zinc-400">
+                      <nav className="hidden md:flex gap-6 ml-4 text-xs font-medium text-zinc-400">
                           <Link href="/" className="hover:text-white transition py-2 border-b-2 border-transparent hover:border-white">Candidates</Link>
                           <Link href="/sourcing" className="hover:text-white transition py-2 border-b-2 border-transparent hover:border-white">Sourcing</Link>
                           <Link href="/sales" className="hover:text-white transition py-2 border-b-2 border-transparent hover:border-white">Sales</Link>
@@ -103,7 +103,7 @@ export default async function RootLayout({
                   </div>
                 </div>
 
-                <nav className="md:hidden mt-3 pt-3 border-t border-zinc-800 flex gap-4 text-sm font-medium text-zinc-400 overflow-x-auto">
+                <nav className="md:hidden mt-3 pt-3 border-t border-zinc-800 flex gap-4 text-xs font-medium text-zinc-400 overflow-x-auto">
                   <Link href="/" className="hover:text-white transition whitespace-nowrap">Candidates</Link>
                   <Link href="/sourcing" className="hover:text-white transition whitespace-nowrap">Sourcing</Link>
                   <Link href="/sales" className="hover:text-white transition whitespace-nowrap">Sales</Link>
