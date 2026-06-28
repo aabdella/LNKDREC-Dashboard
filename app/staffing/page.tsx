@@ -19,8 +19,8 @@ function getSupabaseClient() {
 interface Client { id: string; name: string; contact_name?: string; contact_email?: string; notes?: string; created_at: string; }
 interface Project { id: string; client_id: string | null; title: string; description?: string; project_type: ProjectType; offering_key: string; status: string; start_date?: string; end_date?: string; created_at: string; client?: Client; }
 interface ProjectTeam { id: string; project_id: string; name: string; overhead_multiplier: number; blended_sell_rate: number | null; hours_per_month: number; notes?: string; }
-interface TeamMember { id: string; team_id: string; candidate_id: string; role_on_project: string; allocation_pct: number; outsourcing_salary_usd: number; hours_per_month: number | null; candidate?: { id: string; name: string; title?: string; current_salary?: number; }; }
-interface Candidate { id: string; name: string; title?: string; current_salary?: number; }
+interface TeamMember { id: string; team_id: string; candidate_id: string; role_on_project: string; allocation_pct: number; outsourcing_salary_usd: number; hours_per_month: number | null; candidate?: { id: string; full_name: string; title?: string; current_salary?: number; }; }
+interface Candidate { id: string; full_name: string; title?: string; current_salary?: number; }
 
 const STATUS_COLORS: Record<string, string> = {
   draft: 'bg-slate-100 text-slate-600 border-slate-200',
@@ -106,7 +106,7 @@ export default function StaffingPage() {
       setOverhead(team.overhead_multiplier);
       setBlendedRate(team.blended_sell_rate || 0);
       setTeamHours(team.hours_per_month);
-      const { data: members } = await supabase.from('team_members').select('*, candidate:candidates(id, name, title, current_salary)').eq('team_id', team.id);
+      const { data: members } = await supabase.from('team_members').select('*, candidate:candidates(id, full_name, title)').eq('team_id', team.id);
       setTeamMembers(members || []);
     } else {
       setTeamMembers([]);
@@ -146,8 +146,30 @@ export default function StaffingPage() {
   const searchCandidates = async (q: string) => {
     setCandidateSearch(q);
     if (q.length < 2) { setCandidateResults([]); return; }
-    const { data } = await supabase.from('candidates').select('id, name, title, current_salary').ilike('name', `%${q}%`).limit(10);
-    setCandidateResults(data || []);
+    // Search by full_name, then fetch latest vetting salary for matched candidates
+    const { data: cands } = await supabase
+      .from('candidates')
+      .select('id, full_name, title')
+      .ilike('full_name', `%${q}%`)
+      .order('full_name', { ascending: true })
+      .limit(10);
+    if (!cands || cands.length === 0) { setCandidateResults([]); return; }
+    // Fetch latest vetting salary for these candidates
+    const ids = cands.map((c) => c.id);
+    const { data: vettings } = await supabase
+      .from('vettings')
+      .select('candidate_id, current_salary')
+      .in('candidate_id', ids)
+      .order('vetted_at', { ascending: false });
+    // Map latest salary per candidate
+    const salaryMap: Record<string, number> = {};
+    (vettings || []).forEach((v) => {
+      if (!(v.candidate_id in salaryMap) && v.current_salary) {
+        salaryMap[v.candidate_id] = v.current_salary;
+      }
+    });
+    const results = cands.map((c) => ({ ...c, current_salary: salaryMap[c.id] }));
+    setCandidateResults(results);
   };
 
   // Add member
@@ -189,7 +211,7 @@ export default function StaffingPage() {
     return teamMembers.map((m) => {
       const calc = calculateMemberCost(m.outsourcing_salary_usd, m.allocation_pct, overhead, m.hours_per_month);
       return {
-        candidateId: m.candidate_id, candidateName: m.candidate?.name || 'Unknown',
+        candidateId: m.candidate_id, candidateName: m.candidate?.full_name || 'Unknown',
         role: m.role_on_project, allocationPct: m.allocation_pct,
         outsourcingSalaryUsd: m.outsourcing_salary_usd, hoursPerMonth: m.hours_per_month,
         costPerHour: calc.costPerHour, loadedCostPerHour: calc.loadedCostPerHour,
@@ -384,15 +406,15 @@ export default function StaffingPage() {
                 {candidateResults.length > 0 && !selectedCandidate && (
                   <div className="mt-1 border border-zinc-200 rounded-lg max-h-40 overflow-y-auto">
                     {candidateResults.map((c) => (
-                      <button key={c.id} onClick={() => { setSelectedCandidate(c); setCandidateResults([]); setCandidateSearch(c.name); if (c.current_salary) setNewMember((prev) => ({ ...prev, outsourcingSalaryUsd: c.current_salary! })); }} className="w-full text-left px-3 py-2 text-sm hover:bg-indigo-50 transition flex justify-between">
-                        <span className="font-medium text-zinc-800">{c.name}</span>
+                      <button key={c.id} onClick={() => { setSelectedCandidate(c); setCandidateResults([]); setCandidateSearch(c.full_name); if (c.current_salary) setNewMember((prev) => ({ ...prev, outsourcingSalaryUsd: c.current_salary! })); }} className="w-full text-left px-3 py-2 text-sm hover:bg-indigo-50 transition flex justify-between">
+                        <span className="font-medium text-zinc-800">{c.full_name}</span>
                         <span className="text-zinc-400 text-xs">{c.title || ''}</span>
                       </button>
                     ))}
                   </div>
                 )}
                 {selectedCandidate && (
-                  <p className="mt-1 text-xs text-emerald-600">Selected: {selectedCandidate.name} {selectedCandidate.current_salary ? `(vetting salary: $${selectedCandidate.current_salary.toLocaleString()})` : ''}</p>
+                  <p className="mt-1 text-xs text-emerald-600">Selected: {selectedCandidate.full_name} {selectedCandidate.current_salary ? `(vetting salary: $${selectedCandidate.current_salary.toLocaleString()})` : ''}</p>
                 )}
               </div>
               {/* Role + fields */}

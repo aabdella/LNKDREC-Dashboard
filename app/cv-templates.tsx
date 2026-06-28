@@ -77,16 +77,19 @@ function getAllSkills(candidate: Candidate): string[] {
   ];
 }
 
-// Convert EGP salary to USD. If value looks like it's already USD (< 5000), return as-is.
-function formatSalary(raw: any, egpRate: number): string {
+// Display salary. Main currency is EGP. If a rate is provided, append USD in brackets.
+function formatSalary(raw: any, egpRate?: number): string {
   const val = Number(raw);
   if (!val) return '—';
   // Heuristic: if value < 5000 it's likely already in USD
   if (val < 5000) {
     return `$${val.toLocaleString()}`;
   }
-  const usd = Math.round(val / egpRate);
-  return `$${usd.toLocaleString()} (~EGP ${val.toLocaleString()})`;
+  if (egpRate && egpRate > 0) {
+    const usd = Math.round(val / egpRate);
+    return `EGP ${val.toLocaleString()} (~$${usd.toLocaleString()})`;
+  }
+  return `EGP ${val.toLocaleString()}`;
 }
 
 // ── TEMPLATE A: Clean Minimal ───────────────────────────────────────────────
@@ -283,7 +286,7 @@ const stylesA = StyleSheet.create({
   },
 });
 
-export function CVTemplateA({ candidate, privacy, logoBase64, vetting, egpRate = 47 }: TemplateProps) {
+export function CVTemplateA({ candidate, privacy, logoBase64, vetting, egpRate }: TemplateProps) {
   const skills = getAllSkills(candidate);
   const yrs = candidate.years_experience_total || candidate.years_experience || 0;
 
@@ -642,7 +645,7 @@ const stylesB = StyleSheet.create({
   },
 });
 
-export function CVTemplateB({ candidate, privacy, logoBase64, vetting, egpRate = 47 }: TemplateProps) {
+export function CVTemplateB({ candidate, privacy, logoBase64, vetting, egpRate }: TemplateProps) {
   const skills = getAllSkills(candidate);
   const yrs = candidate.years_experience_total || candidate.years_experience || 0;
   const initials = getInitials(candidate.full_name);
