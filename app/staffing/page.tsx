@@ -154,18 +154,18 @@ export default function StaffingPage() {
       .order('full_name', { ascending: true })
       .limit(10);
     if (!cands || cands.length === 0) { setCandidateResults([]); return; }
-    // Fetch latest vetting salary for these candidates
+    // Fetch latest vetting expected_salary for these candidates
     const ids = cands.map((c) => c.id);
     const { data: vettings } = await supabase
       .from('vettings')
-      .select('candidate_id, current_salary')
+      .select('candidate_id, expected_salary')
       .in('candidate_id', ids)
       .order('vetted_at', { ascending: false });
-    // Map latest salary per candidate
+    // Map latest expected salary per candidate
     const salaryMap: Record<string, number> = {};
     (vettings || []).forEach((v) => {
-      if (!(v.candidate_id in salaryMap) && v.current_salary) {
-        salaryMap[v.candidate_id] = v.current_salary;
+      if (!(v.candidate_id in salaryMap) && v.expected_salary) {
+        salaryMap[v.candidate_id] = v.expected_salary;
       }
     });
     const results = cands.map((c) => ({ ...c, current_salary: salaryMap[c.id] }));
