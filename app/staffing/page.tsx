@@ -82,6 +82,15 @@ export default function StaffingPage() {
   const [overhead, setOverhead] = useState(1.3);
   const [blendedRate, setBlendedRate] = useState(0);
   const [teamHours, setTeamHours] = useState(160);
+  const [egpRate, setEgpRate] = useState(0); // USD→EGP exchange rate
+
+  // Fetch EGP exchange rate
+  useEffect(() => {
+    fetch('/api/egp-rate')
+      .then((r) => r.json())
+      .then((d) => { if (d?.rate) setEgpRate(d.rate); })
+      .catch(() => {});
+  }, []);
 
   // Fetch projects + clients
   const fetchProjects = useCallback(async () => {
@@ -182,7 +191,8 @@ export default function StaffingPage() {
     (vettings || []).forEach((v) => {
       vettedIds.add(v.candidate_id);
       if (!(v.candidate_id in salaryMap) && v.expected_salary) {
-        salaryMap[v.candidate_id] = v.expected_salary * 12; // monthly → annual
+        // monthly EGP → annual USD
+        salaryMap[v.candidate_id] = egpRate > 0 ? (v.expected_salary * 12) / egpRate : v.expected_salary * 12;
       }
     });
     // Sort: vetted candidates first, then alphabetical
@@ -225,7 +235,8 @@ export default function StaffingPage() {
     (vettings || []).forEach((v) => {
       vettedIds.add(v.candidate_id);
       if (!(v.candidate_id in salaryMap) && v.expected_salary) {
-        salaryMap[v.candidate_id] = v.expected_salary * 12; // monthly → annual
+        // monthly EGP → annual USD
+        salaryMap[v.candidate_id] = egpRate > 0 ? (v.expected_salary * 12) / egpRate : v.expected_salary * 12;
       }
     });
     
