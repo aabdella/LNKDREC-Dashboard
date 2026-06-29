@@ -145,14 +145,29 @@ export default function StaffingPage() {
   // Search candidates
   const searchCandidates = async (q: string) => {
     setCandidateSearch(q);
-    if (q.length < 2) { setCandidateResults([]); return; }
+    if (q.length < 2) { 
+      // If search is cleared, reload initial list
+      if (q.length === 0) {
+        loadInitialCandidates();
+      } else {
+        setCandidateResults([]); 
+      }
+      return; 
+    }
     // Search by full_name, then fetch latest vetting salary for matched candidates
-    const { data: cands } = await supabase
+    const { data: cands, error } = await supabase
       .from('candidates')
       .select('id, full_name, title, status')
       .ilike('full_name', `%${q}%`)
       .order('full_name', { ascending: true })
       .limit(20);
+    
+    if (error) {
+      console.error('Candidate search error:', error);
+      setCandidateResults([]);
+      return;
+    }
+    
     if (!cands || cands.length === 0) { setCandidateResults([]); return; }
     // Fetch latest vetting expected_salary for these candidates
     const ids = cands.map((c) => c.id);
@@ -181,6 +196,59 @@ export default function StaffingPage() {
       .slice(0, 10);
     setCandidateResults(results);
   };
+
+  // Load initial candidates when modal opens
+  const loadInitialCandidates = async () => {
+    const { data: cands, error } = await supabase
+      .from('candidates')
+      .select('id, full_name, title, status')
+      .order('full_name', { ascending: true })
+      .limit(10);
+    
+    if (error) {
+      console.error('Load candidates error:', error);
+      return;
+    }
+    
+    if (!cands || cands.length === 0) { return; }
+    
+    // Fetch latest vetting expected_salary for these candidates
+    const ids = cands.map((c) => c.id);
+    const { data: vettings } = await supabase
+      .from('vettings')
+      .select('candidate_id, expected_salary')
+      .in('candidate_id', ids)
+      .order('vetted_at', { ascending: false });
+    
+    const salaryMap: Record<string, number> = {};
+    const vettedIds = new Set<string>();
+    (vettings || []).forEach((v) => {
+      vettedIds.add(v.candidate_id);
+      if (!(v.candidate_id in salaryMap) && v.expected_salary) {
+        salaryMap[v.candidate_id] = v.expected_salary;
+      }
+    });
+    
+    const results = cands
+      .map((c) => ({ ...c, current_salary: salaryMap[c.id], is_vetted: vettedIds.has(c.id) }))
+      .sort((a, b) => {
+        if (a.is_vetted && !b.is_vetted) return -1;
+        if (!a.is_vetted && b.is_vetted) return 1;
+        return a.full_name.localeCompare(b.full_name);
+      });
+    setCandidateResults(results);
+  };
+
+  // Load candidates when modal opens
+  useEffect(() => {
+    if (showAddMember) {
+      loadInitialCandidates();
+    } else {
+      setCandidateResults([]);
+      setCandidateSearch('');
+      setSelectedCandidate(null);
+    }
+  }, [showAddMember]);
 
   // Add member
   const handleAddMember = async () => {
