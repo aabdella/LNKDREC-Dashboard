@@ -182,7 +182,7 @@ export default function StaffingPage() {
     (vettings || []).forEach((v) => {
       vettedIds.add(v.candidate_id);
       if (!(v.candidate_id in salaryMap) && v.expected_salary) {
-        salaryMap[v.candidate_id] = v.expected_salary;
+        salaryMap[v.candidate_id] = v.expected_salary * 12; // monthly → annual
       }
     });
     // Sort: vetted candidates first, then alphabetical
@@ -225,7 +225,7 @@ export default function StaffingPage() {
     (vettings || []).forEach((v) => {
       vettedIds.add(v.candidate_id);
       if (!(v.candidate_id in salaryMap) && v.expected_salary) {
-        salaryMap[v.candidate_id] = v.expected_salary;
+        salaryMap[v.candidate_id] = v.expected_salary * 12; // monthly → annual
       }
     });
     
