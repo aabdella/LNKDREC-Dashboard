@@ -14,6 +14,7 @@ export const knowledgeBasePages: KnowledgeBasePage[] = [
   { slug: 'client-portal', title: 'Client Portal', summary: 'Client-facing review layer and controlled candidate visibility' },
   { slug: 'settings', title: 'Settings', summary: 'Configuration, preferences, and administrative control surfaces' },
   { slug: 'analytics', title: 'Analytics', summary: 'Performance visibility, funnel analysis, and reporting' },
+  { slug: 'team-staffing', title: 'Team Staffing', summary: 'Project-based team building, cost/margin calculation, and client quoting' },
 ];
 
 export function getKnowledgeBasePageBySlug(slug: string) {

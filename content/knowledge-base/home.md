@@ -32,6 +32,7 @@ Each dashboard section page is intended to describe:
 - Client Portal
 - Settings
 - Analytics
+- Team Staffing
 
 ## Documentation model
 
