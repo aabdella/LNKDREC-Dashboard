@@ -131,6 +131,11 @@ export default function SharedCandidateCard({
                   {candidate.assigned_company_name}
                 </span>
               )}
+              {candidate.assigned_job_title && (
+                <span className="text-[8px] text-slate-400 mt-0.5 text-right leading-tight max-w-[100px] truncate">
+                  {candidate.assigned_job_title}
+                </span>
+              )}
             </div>
           ) : isAssigned ? (
             <div className="flex flex-col items-end">
@@ -140,6 +145,11 @@ export default function SharedCandidateCard({
               {candidate.assigned_company_name && (
                 <span className="text-[9px] font-bold text-slate-500 mt-0.5 text-right leading-tight max-w-[100px] truncate">
                   {candidate.assigned_company_name}
+                </span>
+              )}
+              {candidate.assigned_job_title && (
+                <span className="text-[8px] text-slate-400 mt-0.5 text-right leading-tight max-w-[100px] truncate">
+                  {candidate.assigned_job_title}
                 </span>
               )}
             </div>
