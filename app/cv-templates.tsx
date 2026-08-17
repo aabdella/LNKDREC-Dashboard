@@ -14,18 +14,30 @@ import {
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
-/** Calculate years between two date strings. Returns null if neither date is parseable. */
-function calcYears(start?: string, end?: string): number | null {
+/** Calculate years + months between two date strings. Returns null if start is unparseable. */
+function calcDuration(start?: string, end?: string): { years: number; months: number } | null {
   const s = parseDate(start);
   const e = parseDate(end) ?? new Date(); // default to "now" if end is missing
   if (!s) return null;
 
-  const diffMs = e.getTime() - s.getTime();
-  const years = diffMs / (1000 * 60 * 60 * 24 * 365.25);
+  let totalMonths = (e.getFullYear() - s.getFullYear()) * 12 + (e.getMonth() - s.getMonth());
+  // Adjust for partial final month (day-level precision)
+  if (e.getDate() < s.getDate()) totalMonths = Math.max(0, totalMonths - 1);
+  // Clamp: minimum 1 month, maximum 50 years
+  totalMonths = Math.max(1, Math.min(600, totalMonths));
 
-  // Clamp: minimum 0.1 years, maximum 50 years, round to 1 decimal
-  const clamped = Math.max(0.1, Math.min(50, years));
-  return Math.round(clamped * 10) / 10;
+  const years = Math.floor(totalMonths / 12);
+  const months = totalMonths % 12;
+  return { years, months };
+}
+
+/** Format a duration as a human-readable string. */
+function formatDuration(dur: { years: number; months: number } | null): string | null {
+  if (!dur) return null;
+  const parts: string[] = [];
+  if (dur.years > 0) parts.push(`${dur.years} yr${dur.years !== 1 ? 's' : ''}`);
+  if (dur.months > 0) parts.push(`${dur.months} mo${dur.months !== 1 ? 's' : ''}`);
+  return parts.join(' ') || '0 mos';
 }
 
 function parseDate(d?: string): Date | null {
@@ -410,7 +422,7 @@ export function CVTemplateA({ candidate, privacy, logoBase64, vetting, egpRate }
                     <Text style={stylesA.workDates}>
                       {job.start_date || ''} – {job.end_date || ''}
                     </Text>
-                    {(() => { const y = calcYears(job.start_date, job.end_date); return y !== null ? <Text style={stylesA.workDates}>{y} yrs</Text> : job.years ? <Text style={stylesA.workDates}>{job.years} yrs</Text> : null; })()}
+                    {(() => { const y = calcDuration(job.start_date, job.end_date); const label = formatDuration(y); return label !== null ? <Text style={stylesA.workDates}>{label}</Text> : job.years ? <Text style={stylesA.workDates}>{job.years} yrs</Text> : null; })()}
                   </View>
                 </View>
                 {job.brief ? (
@@ -778,7 +790,7 @@ export function CVTemplateB({ candidate, privacy, logoBase64, vetting, egpRate }
                       <Text style={stylesB.workDates}>
                         {job.start_date || ''} – {job.end_date || ''}
                       </Text>
-                      {(() => { const y = calcYears(job.start_date, job.end_date); return y !== null ? <Text style={stylesB.workDates}>{y} yrs</Text> : job.years ? <Text style={stylesB.workDates}>{job.years} yrs</Text> : null; })()}
+                      {(() => { const y = calcDuration(job.start_date, job.end_date); const label = formatDuration(y); return label !== null ? <Text style={stylesB.workDates}>{label}</Text> : job.years ? <Text style={stylesB.workDates}>{job.years} yrs</Text> : null; })()}
                     </View>
                   </View>
                   {job.brief ? (
