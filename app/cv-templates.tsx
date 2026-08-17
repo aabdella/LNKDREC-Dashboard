@@ -30,10 +30,19 @@ function calcYears(start?: string, end?: string): number | null {
 
 function parseDate(d?: string): Date | null {
   if (!d || d === "Present" || d === "Now" || d === "Current") return null;
-  // Try YYYY-MM, YYYY, or full date
-  const m = d.match(/^(\d{4})(?:-(\d{2}))?/);
-  if (!m) return null;
-  return new Date(parseInt(m[1]), m[2] ? parseInt(m[2]) - 1 : 0, 1);
+  // Try YYYY-MM or YYYY first
+  const isoMatch = d.match(/^(\d{4})(?:-(\d{2}))?/);
+  if (isoMatch) return new Date(parseInt(isoMatch[1]), isoMatch[2] ? parseInt(isoMatch[2]) - 1 : 0, 1);
+  // Try human-readable: "April 2023", "Apr 2023", "2023 April"
+  const months: Record<string, number> = { january:0,february:1,march:2,april:3,may:4,june:5,july:6,august:7,september:8,october:9,november:10,december:11,jan:0,feb:1,mar:2,apr:3,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11 };
+  const hMatch = d.match(/([a-zA-Z]+)\s+(\d{4})|(\d{4})\s+([a-zA-Z]+)/);
+  if (hMatch) {
+    const monthStr = (hMatch[1] || hMatch[4] || "").toLowerCase();
+    const year = parseInt(hMatch[2] || hMatch[3] || "0");
+    const month = months[monthStr];
+    if (month !== undefined && year > 1970) return new Date(year, month, 1);
+  }
+  return null;
 }
 
 // ── Types ──────────────────────────────────────────────────────────────────
