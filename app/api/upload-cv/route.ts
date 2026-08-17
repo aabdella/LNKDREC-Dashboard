@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { inspectPdf, type PdfInspectionResult } from "@/lib/pdfInspector";
+import { inspectPdf, emptyResult, type PdfInspectionResult } from "@/lib/pdfInspector";
 
 function getRequiredEnv(name: string) {
   const value = process.env[name];
@@ -115,22 +115,9 @@ export async function POST(req: NextRequest) {
     // ── pdf-inspector: classify + extract ──────────────────────────────────
     let inspection: PdfInspectionResult;
     try {
-      inspection = inspectPdf(buffer);
+      inspection = await inspectPdf(buffer);
     } catch {
-      // Graceful degradation — fall back to empty inspection
-      inspection = {
-        pdfType: "unknown",
-        confidence: 0,
-        pageCount: 1,
-        pagesNeedingOcr: [],
-        ocrReasonsByPage: [],
-        markdown: null,
-        text: "",
-        pagesWithTables: [],
-        pagesWithColumns: [],
-        hasScannedPages: false,
-        isFullyScanned: false,
-      };
+      inspection = emptyResult();
     }
 
     // Use markdown when available; fall back to plain text

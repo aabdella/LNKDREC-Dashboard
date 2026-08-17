@@ -1,80 +1,102 @@
 /**
- * pdfInspector.ts — wrapper around @firecrawl/pdf-inspector for CV processing.
+ * pdfInspector.ts — CV PDF processing with graceful fallback.
  *
- * Provides classification (text-based vs scanned vs mixed) and structured
- * markdown extraction, replacing the legacy pdf2json-based pipeline.
+ * Primary: @firecrawl/pdf-inspector (classification + structured markdown).
+ * Fallback: pdf2json (raw text extraction) when native binding is unavailable
+ * (e.g. Vercel serverless).
+ *
+ * The expanded taxonomies and LLM enrichment work regardless of backend.
  */
 
-import {
-  classifyPdf,
-  extractPagesMarkdown,
-  extractText,
-  type PdfClassification,
-  type PagesExtractionResult,
-} from "@firecrawl/pdf-inspector";
-
-// ── Re-export for consumers ──────────────────────────────────────────────────
-export type { PdfClassification, PagesExtractionResult };
-
-// ── Consolidated result ──────────────────────────────────────────────────────
+// ── Result shape (same regardless of backend) ────────────────────────────────
 
 export interface PdfInspectionResult {
-  /** Classification: "text_based" | "scanned" | "image_based" | "mixed" */
   pdfType: string;
-  /** Confidence score 0.0–1.0 */
   confidence: number;
-  /** Total page count */
   pageCount: number;
-  /** 1-indexed pages that need OCR */
   pagesNeedingOcr: number[];
-  /** Per-page OCR reasons when available */
   ocrReasonsByPage: Array<{ page: number; reasons: string[] }>;
-  /** Structured markdown (full document) */
   markdown: string | null;
-  /** Plain text fallback (always available) */
   text: string;
-  /** 1-indexed pages with detected tables */
   pagesWithTables: number[];
-  /** 1-indexed pages with multi-column layout */
   pagesWithColumns: number[];
-  /** True when at least one page needs OCR (scanned/mixed) */
   hasScannedPages: boolean;
-  /** True when the PDF is entirely scanned/image-based */
   isFullyScanned: boolean;
+  /** Which backend produced this result */
+  backend: "pdf-inspector" | "pdf2json";
 }
 
-// ── Process a PDF buffer ─────────────────────────────────────────────────────
+export function emptyResult(text = ""): PdfInspectionResult {
+  return {
+    pdfType: "Unknown",
+    confidence: 0,
+    pageCount: 1,
+    pagesNeedingOcr: [],
+    ocrReasonsByPage: [],
+    markdown: null,
+    text,
+    pagesWithTables: [],
+    pagesWithColumns: [],
+    hasScannedPages: false,
+    isFullyScanned: false,
+    backend: "pdf2json",
+  };
+}
 
-export function inspectPdf(buffer: Buffer): PdfInspectionResult {
-  // Step 1: Classify (lightweight, ~10-50ms)
-  const classification: PdfClassification = classifyPdf(buffer);
+// ── Try pdf-inspector, fall back to pdf2json ─────────────────────────────────
 
+let _backend: "pdf-inspector" | "pdf2json" | null = null;
+
+async function getBackend(): Promise<"pdf-inspector" | "pdf2json"> {
+  if (_backend !== null) return _backend;
+  try {
+    // Dynamic import — native module may not exist on this platform
+    await import("@firecrawl/pdf-inspector");
+    _backend = "pdf-inspector";
+  } catch {
+    _backend = "pdf2json";
+  }
+  return _backend;
+}
+
+// ── Public API ───────────────────────────────────────────────────────────────
+
+export async function inspectPdf(buffer: Buffer): Promise<PdfInspectionResult> {
+  const backend = await getBackend();
+
+  if (backend === "pdf-inspector") {
+    return inspectWithPdfInspector(buffer);
+  }
+  return inspectWithPdf2Json(buffer);
+}
+
+// ── pdf-inspector path ───────────────────────────────────────────────────────
+
+async function inspectWithPdfInspector(buffer: Buffer): Promise<PdfInspectionResult> {
+  const { classifyPdf, extractPagesMarkdown, extractText } =
+    await import("@firecrawl/pdf-inspector");
+
+  const classification = classifyPdf(buffer);
   const pdfType = String(classification.pdfType || "Unknown");
   const confidence = classification.confidence ?? 0;
   const pageCount = classification.pageCount ?? 0;
   const pagesNeedingOcr: number[] = classification.pagesNeedingOcr ?? [];
 
-  const isFullyScanned =
-    pdfType === "Scanned" || pdfType === "ImageBased";
-  const hasScannedPages = pagesNeedingOcr.length > 0;
-
-  // Step 2: Extract structured markdown
   let markdown: string | null = null;
   let pagesWithTables: number[] = [];
   let pagesWithColumns: number[] = [];
   let ocrReasonsByPage: Array<{ page: number; reasons: string[] }> = [];
 
   try {
-    const extraction: PagesExtractionResult = extractPagesMarkdown(buffer);
+    const extraction = extractPagesMarkdown(buffer);
     markdown = extraction.pages.map((p) => p.markdown).join("\n\n");
     pagesWithTables = extraction.pagesWithTables ?? [];
     pagesWithColumns = extraction.pagesWithColumns ?? [];
     ocrReasonsByPage = extraction.ocrReasonsByPage ?? [];
   } catch {
-    // Fall back to plain text if markdown extraction fails
+    // markdown extraction failed — text fallback below
   }
 
-  // Step 3: Plain text (always available as fallback)
   let text = "";
   try {
     text = extractText(buffer);
@@ -92,7 +114,47 @@ export function inspectPdf(buffer: Buffer): PdfInspectionResult {
     text,
     pagesWithTables,
     pagesWithColumns,
-    hasScannedPages,
-    isFullyScanned,
+    hasScannedPages: pagesNeedingOcr.length > 0,
+    isFullyScanned: pdfType === "Scanned" || pdfType === "ImageBased",
+    backend: "pdf-inspector",
   };
+}
+
+// ── pdf2json fallback path ───────────────────────────────────────────────────
+
+async function inspectWithPdf2Json(buffer: Buffer): Promise<PdfInspectionResult> {
+  // pdf2json is already in package.json — no new dependency
+  const PDFParser = (await import("pdf2json")).default;
+
+  return new Promise((resolve) => {
+    const parser = new PDFParser();
+
+    parser.on("pdfParser_dataReady", (data: any) => {
+      const lines: string[] = [];
+      const pages = data?.Pages ?? [];
+      for (const page of pages) {
+        for (const text of page?.Texts ?? []) {
+          const decoded = decodeURIComponent(text.R?.[0]?.T ?? "");
+          if (decoded.trim()) lines.push(decoded);
+        }
+      }
+      const text = lines.join(" ").replace(/\s+/g, " ").trim();
+
+      // pdf2json can't classify — best-effort: if text is < 50 chars, likely scanned
+      const isScanned = text.length < 50;
+      resolve({
+        ...emptyResult(text),
+        pageCount: pages.length || 1,
+        pdfType: isScanned ? "ImageBased" : "TextBased",
+        hasScannedPages: isScanned,
+        isFullyScanned: isScanned,
+      });
+    });
+
+    parser.on("pdfParser_dataError", () => {
+      resolve(emptyResult());
+    });
+
+    parser.parseBuffer(buffer);
+  });
 }
