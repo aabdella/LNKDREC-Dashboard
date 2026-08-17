@@ -53,3 +53,40 @@
 - [ ] Add tooltips for Match Score details.
 - [ ] WhatsApp Integration (High Priority).
 - [ ] Client Portal (High Priority).
+
+## Aug 17, 2026 - pdf-inspector Migration (CV Parsing Overhaul)
+
+### ✅ Accomplishments
+- **Replaced `pdf2json` with `@firecrawl/pdf-inspector`** in the CV upload pipeline (`app/api/upload-cv/route.ts`).
+  - Adds PDF classification (TextBased / Scanned / ImageBased / Mixed) in ~15ms
+  - Structured markdown extraction with heading detection, table detection, multi-column layout
+  - Classification metadata exposed in API response (`_pdf_meta`) for UI triage
+- **Created `lib/pdfInspector.ts`** — wrapper with `inspectPdf()` that returns classification, structured markdown, plain text fallback, and layout analysis.
+- **Rewrote `app/api/enrich-candidate/route.ts`**:
+  - Expanded LLM prompt to extract 11 fields (up from 3): technologies, tools, work_history (with dates + company), education, certifications, languages, soft_skills, industry_experience, seniority_level, summary, years_experience.
+  - Input limit raised from 3,000 to 8,000 chars (markdown is more compact than raw text).
+  - Section-aware prompting — LLM told to use markdown headings to locate Education, Certifications, etc.
+  - Regex fallback expanded from 18 → 52 tech keywords, 25 → 41 tools.
+- **Expanded taxonomies**: role titles (9 → 42), location detection (7 → 27 cities), tech keywords (32 → 70).
+- **Added `serverExternalPackages` to `next.config.ts`** — pdf-inspector is a native NAPI module, must not be bundled by Turbopack.
+
+### 🧠 Decision Log
+- **Why pdf-inspector over pdf2json?** pdf2json (last updated 2018) produces raw text with no structure. pdf-inspector gives us classification (so we know if a CV needs OCR), structured markdown (headings, lists, tables, reading order), and is 100x faster (0.47s for 200 PDFs vs ~17s for PyMuPDF).
+- **Why keep regex extraction alongside LLM?** Regex is the first-pass fast path in `upload-cv`. The LLM enrichment (`enrich-candidate`) runs async in the background after save. This gives users immediate feedback while richer extraction happens in the background.
+- **Why expose `_pdf_meta` in the API response?** Allows the frontend to show warnings for scanned CVs, confidence scores, and page count. The UI can guide users to review scanned CVs more carefully.
+
+### 📊 Expected Impact
+| Field | Before | After |
+|---|---|---|
+| Work history (company names) | 0% (always "Unknown Company") | ~75% |
+| Education | Not extracted | New field |
+| Certifications | Not extracted | New field |
+| Languages | Not extracted | New field |
+| Title/role coverage | 9 hardcoded titles | 42 titles + LLM |
+| LLM input size | 3,000 chars (truncated) | 8,000 chars (structured) |
+
+### 🏗️ Backlog
+- [ ] Frontend: Show `_pdf_meta` warning badge when `has_scanned_pages: true`
+- [ ] Frontend: Display extracted `education`, `certifications`, `languages` in candidate detail view
+- [ ] Consider adding `education`, `certifications`, `languages` columns to `candidates` table if they don't exist
+- [ ] Test with real Arabic/bilingual CVs to verify classification + extraction quality

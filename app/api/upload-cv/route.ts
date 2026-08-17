@@ -1,161 +1,237 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-
-const pdf = require('pdf2json');
+import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
+import { inspectPdf, type PdfInspectionResult } from "@/lib/pdfInspector";
 
 function getRequiredEnv(name: string) {
   const value = process.env[name];
-  if (!value) {
-    throw new Error(`${name} is required.`);
-  }
+  if (!value) throw new Error(`${name} is required.`);
   return value;
 }
 
 function getSupabaseForUploadCv() {
-  const supabaseUrl = getRequiredEnv('NEXT_PUBLIC_SUPABASE_URL');
-  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-  if (!supabaseKey) {
-    throw new Error('SUPABASE_SERVICE_ROLE_KEY or NEXT_PUBLIC_SUPABASE_ANON_KEY is required.');
-  }
-
+  const supabaseUrl = getRequiredEnv("NEXT_PUBLIC_SUPABASE_URL");
+  const supabaseKey =
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!supabaseKey)
+    throw new Error("SUPABASE_SERVICE_ROLE_KEY or NEXT_PUBLIC_SUPABASE_ANON_KEY is required.");
   return createClient(supabaseUrl, supabaseKey);
 }
 
-// ─── Regex helpers built WITHOUT backslash escaping issues ───────────────────
-// Instead of \d, use [0-9]. Instead of \w, use [a-zA-Z0-9_]. Instead of \s, use [ \t\r\n].
-// This avoids ANY tool/build-time backslash stripping.
-
+// ── Regex helpers (no backslash escaping issues) ─────────────────────────────
 const R = {
-  email:    new RegExp('[a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+[.][a-zA-Z0-9_-]+', 'i'),
-  phone:    new RegExp('[+]?[0-9][0-9 -]{8,15}[0-9]', 'i'),
-  linkedin: new RegExp('linkedin[.]com/in/[a-zA-Z0-9_-]+', 'i'),
-  behance:  new RegExp('behance[.]net/[a-zA-Z0-9_-]+', 'i'),
-  dribbble: new RegExp('dribbble[.]com/[a-zA-Z0-9_-]+', 'i'),
-  github:   new RegExp('github[.]com/[a-zA-Z0-9_-]+', 'i'),
-  location: new RegExp('Cairo|Alexandria|Giza|Remote|Egypt|Maadi|Nasr City|October|Zayed', 'i'),
-  exp:      new RegExp('([0-9]+)[+]?[ \t]*(years?|yrs?)', 'i'),
+  email: new RegExp("[a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+[.][a-zA-Z0-9_-]+", "i"),
+  phone: new RegExp("[+]?[0-9][0-9 \\-().]{8,15}[0-9]", "i"),
+  linkedin: new RegExp("linkedin[.]com/in/[a-zA-Z0-9_%\\-]+", "i"),
+  behance: new RegExp("behance[.]net/[a-zA-Z0-9_\\-]+", "i"),
+  dribbble: new RegExp("dribbble[.]com/[a-zA-Z0-9_\\-]+", "i"),
+  github: new RegExp("github[.]com/[a-zA-Z0-9_\\-]+", "i"),
+  // Broader location detection — common cities/regions
+  location: new RegExp(
+    "Cairo|Alexandria|Giza|Remote|Egypt|Maadi|Nasr City|October|Zayed|Heliopolis|Dokki|New Cairo|Shorouk|Obour|Smart Village|Dubai|Abu Dhabi|Sharjah|Riyadh|Jeddah|Doha|Kuwait|Manama|Muscat|Amman|Beirut|London|Berlin|Paris|New York|San Francisco|Toronto|Sydney",
+    "i",
+  ),
+  exp: new RegExp("([0-9]+)[+]?[ \\t]*(years?|yrs?)", "i"),
 };
 
 function matchesTech(tech: string, text: string): boolean {
   try {
     const safe = tech
-      .split('+').join('[+]')
-      .split('.').join('[.]')
-      .split('(').join('[(]')
-      .split(')').join('[)]')
-      .split('#').join('[#]');
-    return new RegExp(safe, 'i').test(text);
-  } catch (_) {
+      .split("+").join("[+]")
+      .split(".").join("[.]")
+      .split("(").join("[(]")
+      .split(")").join("[)]")
+      .split("#").join("[#]");
+    return new RegExp(safe, "i").test(text);
+  } catch {
     return false;
   }
 }
 
+// ── Expanded tech & role taxonomies ──────────────────────────────────────────
+
+const TECH_KEYWORDS = [
+  "React", "Next.js", "Node.js", "TypeScript", "JavaScript", "Python", "Django",
+  "Flask", "SQL", "PostgreSQL", "MongoDB", "AWS", "Docker", "Kubernetes", "Git",
+  "Figma", "Adobe XD", "Photoshop", "Illustrator", "InDesign", "After Effects",
+  "Premiere", "Blender", "Unity", "C#", "C++", "Java", "Spring", "Kotlin",
+  "Swift", "Flutter", "Dart", "Go", "Rust", "Ruby", "Rails", "PHP", "Laravel",
+  "Vue", "Angular", "Svelte", "GraphQL", "Redis", "Terraform", "Ansible",
+  "Jenkins", "GitHub Actions", "CI/CD", "Linux", "Bash", "PowerShell",
+  "Tailwind", "SASS", "CSS", "HTML", "Express", "NestJS", "FastAPI", "Supabase",
+  "Firebase", "Prisma", "MySQL", "DynamoDB", "Elasticsearch", "Kafka",
+  "RabbitMQ", "gRPC", "REST", "Webpack", "Vite", "Three.js", "WebGL",
+  "TensorFlow", "PyTorch", "Pandas", "NumPy", "Tableau", "Power BI", "Excel",
+  "Jira", "Confluence", "Figma", "Notion", "Slack", "VS Code", "Vim",
+  "Android", "iOS", "React Native", "Xamarin", "Electron", "Tauri",
+];
+
+const ROLE_TITLES = [
+  "Graphic Designer", "UI Designer", "UX Designer", "Product Designer",
+  "Frontend Developer", "Backend Developer", "Full Stack Developer",
+  "Art Director", "Senior Designer", "Junior Designer",
+  "DevOps Engineer", "Data Engineer", "Data Scientist", "Machine Learning Engineer",
+  "QA Engineer", "QA Lead", "Test Automation Engineer",
+  "Project Manager", "Product Manager", "Scrum Master", "Tech Lead",
+  "Engineering Manager", "CTO", "VP of Engineering",
+  "Software Engineer", "Software Developer", "Web Developer", "Mobile Developer",
+  "iOS Developer", "Android Developer", "React Native Developer",
+  "Cloud Architect", "Solutions Architect", "System Administrator",
+  "Security Engineer", "Network Engineer", "Database Administrator",
+  "Business Analyst", "Technical Writer", "IT Support",
+  "Content Creator", "Video Editor", "Motion Designer", "3D Artist",
+  "Copywriter", "Marketing Manager", "SEO Specialist", "Social Media Manager",
+  "Account Manager", "Sales Representative", "Customer Success Manager",
+];
+
+// ── POST handler ─────────────────────────────────────────────────────────────
+
 export async function POST(req: NextRequest) {
   try {
     const supabase = getSupabaseForUploadCv();
-
     const formData = await req.formData();
-    const file = formData.get('file') as File;
-    if (!file) return NextResponse.json({ error: 'No file uploaded' }, { status: 400 });
+    const file = formData.get("file") as File;
+    if (!file) return NextResponse.json({ error: "No file uploaded" }, { status: 400 });
 
-    const fileExt = file.name.split('.').pop();
+    const fileExt = file.name.split(".").pop();
     const fileName = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}.${fileExt}`;
     const filePath = `unvetted/${fileName}`;
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
+    // Upload to Supabase storage
     const { error: uploadError } = await supabase.storage
-      .from('candidates_resumes')
-      .upload(filePath, buffer, { contentType: file.type || 'application/pdf', upsert: false });
-
+      .from("candidates_resumes")
+      .upload(filePath, buffer, {
+        contentType: file.type || "application/pdf",
+        upsert: false,
+      });
     if (uploadError) {
-      return NextResponse.json({ error: 'Upload failed: ' + uploadError.message }, { status: 500 });
+      return NextResponse.json({ error: "Upload failed: " + uploadError.message }, { status: 500 });
+    }
+    const { data } = supabase.storage.from("candidates_resumes").getPublicUrl(filePath);
+    const publicUrl = data?.publicUrl ?? "";
+
+    // ── pdf-inspector: classify + extract ──────────────────────────────────
+    let inspection: PdfInspectionResult;
+    try {
+      inspection = inspectPdf(buffer);
+    } catch {
+      // Graceful degradation — fall back to empty inspection
+      inspection = {
+        pdfType: "unknown",
+        confidence: 0,
+        pageCount: 1,
+        pagesNeedingOcr: [],
+        ocrReasonsByPage: [],
+        markdown: null,
+        text: "",
+        pagesWithTables: [],
+        pagesWithColumns: [],
+        hasScannedPages: false,
+        isFullyScanned: false,
+      };
     }
 
-    const { data: { publicUrl } } = supabase.storage.from('candidates_resumes').getPublicUrl(filePath);
+    // Use markdown when available; fall back to plain text
+    const pdfText = inspection.markdown || inspection.text || "";
 
-    const pdfText = await new Promise<string>((resolve, reject) => {
-      const pdfParser = new pdf(null, 1);
-      pdfParser.on('pdfParser_dataError', (errData: any) => reject(errData.parserError));
-      pdfParser.on('pdfParser_dataReady', () => {
-        try { resolve(pdfParser.getRawTextContent()); } catch (_) { resolve(''); }
-      });
-      pdfParser.parseBuffer(buffer);
-    });
-
-    const emailMatch    = pdfText.match(R.email);
-    const phoneMatch    = pdfText.match(R.phone);
+    // ── Regex extraction ───────────────────────────────────────────────────
+    const emailMatch = pdfText.match(R.email);
+    const phoneMatch = pdfText.match(R.phone);
     const linkedinMatch = pdfText.match(R.linkedin);
-    const behanceMatch  = pdfText.match(R.behance);
+    const behanceMatch = pdfText.match(R.behance);
     const dribbbleMatch = pdfText.match(R.dribbble);
-    const githubMatch   = pdfText.match(R.github);
+    const githubMatch = pdfText.match(R.github);
     const locationMatch = pdfText.match(R.location);
-    const expMatch      = pdfText.match(R.exp);
+    const expMatch = pdfText.match(R.exp);
 
-    const linkedinUrl  = linkedinMatch  ? `https://${linkedinMatch[0]}`  : '';
-    const portfolioUrl = behanceMatch   ? `https://${behanceMatch[0]}`   :
-                         dribbbleMatch  ? `https://${dribbbleMatch[0]}`  :
-                         githubMatch    ? `https://${githubMatch[0]}`    : '';
-    const location     = locationMatch  ? locationMatch[0]               : 'Remote';
-    let   yearsExp     = expMatch       ? parseInt(expMatch[1])          : 0;
+    const linkedinUrl = linkedinMatch ? `https://${linkedinMatch[0]}` : "";
+    const portfolioUrl =
+      behanceMatch  ? `https://${behanceMatch[0]}` :
+      dribbbleMatch ? `https://${dribbbleMatch[0]}` :
+      githubMatch   ? `https://${githubMatch[0]}` : "";
+    const location = locationMatch ? locationMatch[0] : "Remote";
+    let yearsExp = expMatch ? parseInt(expMatch[1]) : 0;
     if (yearsExp > 40) yearsExp = 0;
 
-    const roles = ['Graphic Designer','UI/UX','Product Designer','Frontend','Backend','Full Stack','Art Director','Senior Designer','Junior Designer'];
-    const titleMatch = pdfText.match(new RegExp('(' + roles.join('|') + ')', 'i'));
-    const title = titleMatch ? titleMatch[0] : 'Candidate';
+    // Role detection from expanded taxonomy
+    const titlePattern = ROLE_TITLES.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|");
+    const titleMatch = pdfText.match(new RegExp(`(${titlePattern})`, "i"));
+    const title = titleMatch ? titleMatch[0] : "Candidate";
 
-    const lines = pdfText.split(String.fromCharCode(10)).map(l => l.trim()).filter(l => l.length > 0);
-    const potentialName = lines.length > 0 ? lines[0].substring(0, 100) : file.name.replace('.pdf', '');
+    // Name detection: prefer the first non-empty heading or line
+    const lines = pdfText
+      .split("\n")
+      .map((l) => l.trim())
+      .filter((l) => l.length > 0 && l.length < 100 && !l.startsWith("#") && !l.startsWith("http"));
+    const potentialName =
+      lines.length > 0
+        ? lines[0].substring(0, 100)
+        : file.name.replace(/\.pdf$/i, "");
 
-    const techKeywords = ['React','Next.js','Node.js','TypeScript','JavaScript','Python','Django','Flask','SQL','PostgreSQL','MongoDB','AWS','Docker','Kubernetes','Git','Figma','Adobe XD','Photoshop','Illustrator','InDesign','After Effects','Premiere','Blender','Unity','C#','C++','Java','Spring','Kotlin','Swift','Flutter','Dart'];
-    const technologies = techKeywords
-      .filter(t => matchesTech(t, pdfText))
-      .map(t => ({ name: t, years: 1 }));
+    // Technologies
+    const technologies = TECH_KEYWORDS
+      .filter((t) => matchesTech(t, pdfText))
+      .map((t) => ({ name: t, years: 1 }));
 
-    const workHistory: any[] = [];
-    const months = 'Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec';
+    // Work history — regex date ranges with surrounding context
+    const workHistory: Array<{ company: string; title: string; years: number }> = [];
+    const months = "Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec";
     const dateRangeRegex = new RegExp(
-      '((' + months + ')?[ \t]*[0-9]{4}[ \t]*(-|to)[ \t]*(Present|Now|Current|(' + months + ')?[ \t]*[0-9]{4}))',
-      'gi'
+      `((${months})?[ \\t]*[0-9]{4}[ \\t]*(-|to|–|—)[ \\t]*(Present|Now|Current|(${months})?[ \\t]*[0-9]{4}))`,
+      "gi",
     );
-    let m;
+    let m: RegExpExecArray | null;
     while ((m = dateRangeRegex.exec(pdfText)) !== null) {
-      const ctx = pdfText.substring(Math.max(0, m.index - 50), Math.min(pdfText.length, m.index + 100))
-        .replace(/[ \t\r\n]+/g, ' ').trim();
-      workHistory.push({ company: 'Unknown Company', title: ctx, years: 1 });
+      const ctx = pdfText
+        .substring(Math.max(0, m.index - 80), Math.min(pdfText.length, m.index + 120))
+        .replace(/\s+/g, " ")
+        .trim();
+      workHistory.push({ company: "Unknown Company", title: ctx, years: 1 });
     }
 
+    // ── Build extracted candidate ──────────────────────────────────────────
     const extractedData = {
       full_name: potentialName,
       title,
-      email:    emailMatch ? emailMatch[0] : '',
-      phone:    phoneMatch ? phoneMatch[0] : '',
+      email: emailMatch ? emailMatch[0] : "",
+      phone: phoneMatch ? phoneMatch[0] : "",
       location,
       years_experience_total: yearsExp,
-      linkedin_url:  linkedinUrl,
+      linkedin_url: linkedinUrl,
       portfolio_url: portfolioUrl,
-      resume_url:    publicUrl,
-      resume_text:   pdfText,
-      source:        'PDF Upload',
-      match_score:   10,
-      match_reason:  'Parsed from PDF. Please review extracted fields.',
-      status:        'New',
-      uploaded_at:   new Date().toISOString(),
+      resume_url: publicUrl,
+      resume_text: pdfText,
+      source: "PDF Upload",
+      match_score: 10,
+      match_reason: "Parsed from PDF. Please review extracted fields.",
+      status: "New",
+      uploaded_at: new Date().toISOString(),
       technologies,
-      tools:         [],
-      work_history:  workHistory.slice(0, 3),
+      tools: [],
+      work_history: workHistory.slice(0, 3),
+      // pdf-inspector metadata — exposed for UI/triage
+      _pdf_meta: {
+        pdf_type: String(inspection.pdfType),
+        confidence: inspection.confidence,
+        page_count: inspection.pageCount,
+        pages_needing_ocr: inspection.pagesNeedingOcr,
+        has_scanned_pages: inspection.hasScannedPages,
+        is_fully_scanned: inspection.isFullyScanned,
+        pages_with_tables: inspection.pagesWithTables,
+        pages_with_columns: inspection.pagesWithColumns,
+      },
     };
 
     return NextResponse.json({
       success: true,
       candidate: extractedData,
-      table: 'none',
-      extracted_only: true
+      table: "none",
+      extracted_only: true,
     });
-
   } catch (err: any) {
-    console.error('Server Error:', err);
+    console.error("Server Error:", err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
