@@ -9,7 +9,6 @@
     "lint": "eslint"
   },
   "dependencies": {
-    "@firecrawl/pdf-inspector": "^1.14.2",
     "@hello-pangea/dnd": "^18.0.1",
     "@heroicons/react": "^2.2.0",
     "@react-pdf/renderer": "^4.3.2",
@@ -37,6 +36,6 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
-    "typescript": "5.9.3"
+    "typescript": "^5"
   }
 }
