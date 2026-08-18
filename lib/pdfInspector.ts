@@ -127,25 +127,28 @@ async function inspectWithPdf2Json(buffer: Buffer): Promise<PdfInspectionResult>
   const PDFParser = (await import("pdf2json")).default;
 
   return new Promise((resolve) => {
-    const parser = new PDFParser();
+    const parser = new PDFParser(null, true);
 
-    parser.on("pdfParser_dataReady", (data: any) => {
-      const lines: string[] = [];
-      const pages = data?.Pages ?? [];
-      for (const page of pages) {
-        for (const text of page?.Texts ?? []) {
-          const decoded = decodeURIComponent(text.R?.[0]?.T ?? "");
-          if (decoded.trim()) lines.push(decoded);
-        }
+    parser.on("pdfParser_dataReady", () => {
+      // Use getRawTextContent() — pdf2json's built-in method that handles
+      // reading order, line breaks, and spacing correctly. Manual element
+      // iteration (Texts array) is unreliable across PDF versions.
+      let text = "";
+      try {
+        text = parser.getRawTextContent();
+      } catch {
+        // fall through — empty text
       }
-      // Preserve line breaks — regex extraction (name, email, dates) depends on them
-      const text = lines.join("\n").replace(/[ \t]{2,}/g, " ").trim();
 
-      // pdf2json can't classify — best-effort: if text is < 50 chars, likely scanned
+      const pageCount =
+        (parser as any).getPageCount?.() ||
+        ((parser as any).data?.Pages?.length ?? 1);
+
+      // If text is < 50 chars, the PDF is likely a scanned image
       const isScanned = text.length < 50;
       resolve({
         ...emptyResult(text),
-        pageCount: pages.length || 1,
+        pageCount,
         pdfType: isScanned ? "ImageBased" : "TextBased",
         hasScannedPages: isScanned,
         isFullyScanned: isScanned,
