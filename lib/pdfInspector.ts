@@ -138,7 +138,8 @@ async function inspectWithPdf2Json(buffer: Buffer): Promise<PdfInspectionResult>
           if (decoded.trim()) lines.push(decoded);
         }
       }
-      const text = lines.join(" ").replace(/\s+/g, " ").trim();
+      // Preserve line breaks — regex extraction (name, email, dates) depends on them
+      const text = lines.join("\n").replace(/[ \t]{2,}/g, " ").trim();
 
       // pdf2json can't classify — best-effort: if text is < 50 chars, likely scanned
       const isScanned = text.length < 50;

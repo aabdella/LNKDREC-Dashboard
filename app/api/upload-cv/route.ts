@@ -120,18 +120,20 @@ export async function POST(req: NextRequest) {
       inspection = emptyResult();
     }
 
-    // Use markdown when available; fall back to plain text
-    const pdfText = inspection.markdown || inspection.text || "";
+    // Use raw text for regex extraction (more content, better pattern matches).
+    // Structured markdown is richer for LLM enrichment — store that in resume_text.
+    const rawText = inspection.text || "";
+    const pdfText = inspection.markdown || rawText;
 
-    // ── Regex extraction ───────────────────────────────────────────────────
-    const emailMatch = pdfText.match(R.email);
-    const phoneMatch = pdfText.match(R.phone);
-    const linkedinMatch = pdfText.match(R.linkedin);
-    const behanceMatch = pdfText.match(R.behance);
-    const dribbbleMatch = pdfText.match(R.dribbble);
-    const githubMatch = pdfText.match(R.github);
-    const locationMatch = pdfText.match(R.location);
-    const expMatch = pdfText.match(R.exp);
+    // ── Regex extraction (use rawText for more content, better matches) ────
+    const emailMatch = rawText.match(R.email);
+    const phoneMatch = rawText.match(R.phone);
+    const linkedinMatch = rawText.match(R.linkedin);
+    const behanceMatch = rawText.match(R.behance);
+    const dribbbleMatch = rawText.match(R.dribbble);
+    const githubMatch = rawText.match(R.github);
+    const locationMatch = rawText.match(R.location);
+    const expMatch = rawText.match(R.exp);
 
     const linkedinUrl = linkedinMatch ? `https://${linkedinMatch[0]}` : "";
     const portfolioUrl =
@@ -142,24 +144,26 @@ export async function POST(req: NextRequest) {
     let yearsExp = expMatch ? parseInt(expMatch[1]) : 0;
     if (yearsExp > 40) yearsExp = 0;
 
-    // Role detection from expanded taxonomy
+    // Role detection from expanded taxonomy (use rawText for broader matching)
     const titlePattern = ROLE_TITLES.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|");
-    const titleMatch = pdfText.match(new RegExp(`(${titlePattern})`, "i"));
+    const titleMatch = rawText.match(new RegExp(`(${titlePattern})`, "i"));
     const title = titleMatch ? titleMatch[0] : "Candidate";
 
     // Name detection: prefer the first non-empty heading or line
+    // Strip markdown heading markers (#, ##, etc.) instead of skipping those lines entirely
     const lines = pdfText
       .split("\n")
       .map((l) => l.trim())
-      .filter((l) => l.length > 0 && l.length < 100 && !l.startsWith("#") && !l.startsWith("http"));
+      .map((l) => l.replace(/^#{1,6}\s+/, ""))
+      .filter((l) => l.length > 0 && l.length < 100 && !l.startsWith("http"));
     const potentialName =
       lines.length > 0
         ? lines[0].substring(0, 100)
         : file.name.replace(/\.pdf$/i, "");
 
-    // Technologies
+    // Technologies (use rawText for broader matching)
     const technologies = TECH_KEYWORDS
-      .filter((t) => matchesTech(t, pdfText))
+      .filter((t) => matchesTech(t, rawText))
       .map((t) => ({ name: t, years: 1 }));
 
     // Work history — regex date ranges with surrounding context
@@ -170,9 +174,9 @@ export async function POST(req: NextRequest) {
       "gi",
     );
     let m: RegExpExecArray | null;
-    while ((m = dateRangeRegex.exec(pdfText)) !== null) {
-      const ctx = pdfText
-        .substring(Math.max(0, m.index - 80), Math.min(pdfText.length, m.index + 120))
+    while ((m = dateRangeRegex.exec(rawText)) !== null) {
+      const ctx = rawText
+        .substring(Math.max(0, m.index - 80), Math.min(rawText.length, m.index + 120))
         .replace(/\s+/g, " ")
         .trim();
       workHistory.push({ company: "Unknown Company", title: ctx, years: 1 });
