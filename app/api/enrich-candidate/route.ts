@@ -43,7 +43,7 @@ Schema:
   "brief": "string (2-3 sentence professional summary)",
   "education": "string (highest degree, university, field of study — e.g. 'BSc Computer Science, Cairo University')",
   "courses_certificates": "string (ALL courses, certifications, awards, and publications with full details — each on a SEPARATE LINE with dates, institutions, descriptions. Use newline between entries)",
-  "skills": "array of strings (EVERY single hard and soft skill mentioned — do not skip or prioritize. List them ALL)",
+  "skills": "array of strings (EVERY word/phrase under Skills/Expertise/Competencies sections — verbatim. Do NOT filter or judge. Include everything)",,
   "technologies": "array of { name: string, years: number } (EVERY single technology mentioned — languages, frameworks, platforms. NOT specific tools. List ALL)",
   "tools": "array of { name: string, years: number } (EVERY single software application mentioned — Figma, Jira, etc. List ALL)",
   "work_history": "array of { company: string, title: string, start_date: string, end_date: string, brief: string } (ALL roles. brief: every sentence/bullet on its own separate line using \\n. Do NOT summarize)",
