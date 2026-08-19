@@ -58,11 +58,11 @@ Schema:
   "years_experience_total": "number (total years of professional experience, 0 if unclear)",
   "brief": "string (2-3 sentence professional summary of their background and key strengths)",
   "education": "string (highest degree, university, field of study — e.g. 'BSc Computer Science, Cairo University'. Empty if not found)",
-  "courses_certificates": "string (include courses, certifications, awards, and publications — comma separated. Empty if not found)",
-  "skills": "array of strings (hard and soft skills mentioned — e.g. ['Team Leadership', 'Agile', 'Data Analysis']. Max 15)",
-  "technologies": "array of { name: string, years: number } (general skills and technologies — programming languages, frameworks, platforms, methodologies. NOT specific software tools. Max 15. Default years=1 if unclear)",
-  "tools": "array of { name: string, years: number } (specific software applications, design tools, project management tools, CRMs, analytics platforms — Figma, Jira, Salesforce, Google Analytics, etc. Max 10. Default years=1 if unclear)",
-  "work_history": "array of { company: string, title: string, start_date: string, end_date: string, brief: string } (most recent roles, max 5. Use actual company names and titles from the CV. dates as 'Mar 2020' or '2020' format. brief should describe what they did in that role — key responsibilities and achievements)",
+  "courses_certificates": "string (ALL courses, certifications, awards, and publications with full details — not just first line. Include dates, institutions, descriptions. Comma or newline separated. Empty if not found)",
+  "skills": "array of strings (ALL hard and soft skills mentioned — not just first few. Max 25)",
+  "technologies": "array of { name: string, years: number } (ALL general skills and technologies — programming languages, frameworks, platforms, methodologies. NOT specific software tools. Max 20. Default years=1 if unclear)",
+  "tools": "array of { name: string, years: number } (ALL specific software applications — Figma, Jira, Salesforce, Google Analytics, Photoshop, etc. Max 15. Default years=1 if unclear)",
+  "work_history": "array of { company: string, title: string, start_date: string, end_date: string, brief: string } (ALL roles listed, max 8. Use actual company names and titles. dates as 'Mar 2020' or '2020' format. brief must include ALL responsibilities and achievements mentioned for that role — not just the first sentence)",
   "lnkd_notes": "string (any notable details — languages spoken, freelance status, notice period, salary expectations. Empty if not found)"
 }
 
@@ -72,8 +72,9 @@ Rules:
 - For "location": if they mention multiple, use the most recent.
 - For "years_experience_total": look for explicit statements like "5+ years" or calculate from earliest role. Default 0.
 - **Skill routing**: Distinguish general skills/technologies (e.g. React, Python, SQL, Docker) from specific tools (e.g. Figma, Jira, Photoshop, Google Analytics). Put each in the correct array.
-- **work_history.brief**: For each role, include a short description of responsibilities and achievements from the CV.
-- **courses_certificates**: Include courses, certifications, awards AND publications if mentioned.
+- **work_history.brief**: Include ALL responsibilities and achievements mentioned for each role — not just the first sentence or bullet point.
+- **courses_certificates**: Include ALL courses, certifications, awards AND publications with their full details (dates, institutions, descriptions).
+- **skills/technologies/tools**: Extract ALL of them. Do not truncate to just the first few.
 - If the text is empty or unreadable, return the schema with empty strings and empty arrays.`;
 
 export async function POST(req: NextRequest) {
@@ -133,11 +134,11 @@ export async function POST(req: NextRequest) {
           model: LLM_MODEL,
           messages: [
             { role: 'system', content: EXTRACTION_PROMPT },
-            { role: 'user', content: pdfText.substring(0, 8000) }
+            { role: 'user', content: pdfText.substring(0, 15000) }
           ],
           response_format: { type: 'json_object' },
           temperature: 0.1,
-          max_tokens: 2000,
+          max_tokens: 3000,
         });
 
         const raw = completion.choices[0]?.message?.content;

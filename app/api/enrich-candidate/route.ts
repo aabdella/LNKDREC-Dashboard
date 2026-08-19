@@ -42,11 +42,11 @@ Schema:
   "years_experience_total": "number (total years of professional experience, 0 if unclear)",
   "brief": "string (2-3 sentence professional summary)",
   "education": "string (highest degree, university, field of study — e.g. 'BSc Computer Science, Cairo University')",
-  "courses_certificates": "string (include courses, certifications, awards, and publications — comma separated)",
-  "skills": "array of strings (hard and soft skills. Max 15)",
-  "technologies": "array of { name: string, years: number } (general skills and technologies — programming languages, frameworks, platforms, methodologies. NOT specific tools. Max 15)",
-  "tools": "array of { name: string, years: number } (specific software applications — Figma, Jira, Salesforce, Photoshop, etc. Max 10)",
-  "work_history": "array of { company: string, title: string, start_date: string, end_date: string, brief: string } (max 5 most recent roles. brief describes responsibilities and achievements in each role)",
+  "courses_certificates": "string (ALL courses, certifications, awards, and publications with full details — dates, institutions, descriptions)",
+  "skills": "array of strings (ALL hard and soft skills. Max 25)",
+  "technologies": "array of { name: string, years: number } (ALL general skills/technologies — programming languages, frameworks, platforms. NOT specific tools. Max 20)",
+  "tools": "array of { name: string, years: number } (ALL specific software applications — Figma, Jira, Salesforce, etc. Max 15)",
+  "work_history": "array of { company: string, title: string, start_date: string, end_date: string, brief: string } (ALL roles, max 8. brief includes ALL responsibilities and achievements — not just first line)",
   "lnkd_notes": "string (notable details — languages, freelance status, notice period, salary)"
 }
 
@@ -74,11 +74,11 @@ export async function POST(req: NextRequest) {
           model: LLM_MODEL,
           messages: [
             { role: 'system', content: ENRICHMENT_PROMPT },
-            { role: 'user', content: resume_text.substring(0, 8000) }
+            { role: 'user', content: resume_text.substring(0, 15000) }
           ],
           response_format: { type: 'json_object' },
           temperature: 0.1,
-          max_tokens: 2000,
+          max_tokens: 3000,
         });
 
         const raw = completion.choices[0]?.message?.content;
