@@ -138,7 +138,7 @@ export async function POST(req: NextRequest) {
           ],
           response_format: { type: 'json_object' },
           temperature: 0.3,
-          max_tokens: 8000,
+          max_tokens: 16000,
         });
 
         const raw = completion.choices[0]?.message?.content;
