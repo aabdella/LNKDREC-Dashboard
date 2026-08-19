@@ -21,7 +21,7 @@ function getSupabaseForUploadCv() {
   return createClient(supabaseUrl, supabaseKey);
 }
 
-// Regex only for universal patterns (contact info, URLs) — not for roles, tech, locations, etc.
+// Regex only for universal patterns (contact info, URLs)
 const CONTACT_PATTERNS = {
   email:    /[a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+/i,
   phone:    /[+]?[0-9][0-9 -]{8,15}[0-9]/,
@@ -31,39 +31,35 @@ const CONTACT_PATTERNS = {
   github:   /github\.com\/[a-zA-Z0-9_-]+/i,
 };
 
-// Try OpenAI key first, fall back to OpenRouter key
 const openaiKey = process.env.OPENAI_API_KEY || process.env.OPENROUTER_API_KEY;
 const openai = openaiKey
   ? new OpenAI({
       apiKey: openaiKey,
-      baseURL: process.env.OPENAI_API_KEY
-        ? undefined
-        : 'https://openrouter.ai/api/v1',
+      baseURL: process.env.OPENAI_API_KEY ? undefined : 'https://openrouter.ai/api/v1',
     })
   : null;
 const LLM_MODEL = process.env.OPENAI_API_KEY ? 'gpt-4o-mini' : 'openai/gpt-4o-mini';
 
-const EXTRACTION_PROMPT = `You are a recruitment CV parser. Extract structured data from the resume text below.
-Return ONLY valid JSON with no markdown or explanation.
+const EXTRACTION_PROMPT = `You are a recruitment CV parser. Extract structured data from the resume text below. Return ONLY valid JSON with no markdown or explanation.
 
 Schema:
 {
   "full_name": "string (candidate's full name, or empty if unclear)",
-  "title": "string (current/most recent job title — NOT 'Candidate'. Be specific, e.g. 'Senior Frontend Engineer', 'Motion Designer')",
+  "title": "string (current/most recent job title — be specific, e.g. 'Senior Frontend Engineer')",
   "email": "string",
   "phone": "string",
-  "location": "string (city, country, or 'Remote' if specified. Be specific)",
+  "location": "string (city, country, or 'Remote'. Be specific)",
   "linkedin_url": "string (full URL)",
-  "portfolio_url": "string (Behance, Dribbble, GitHub, personal website, or empty)",
+  "portfolio_url": "string (Behance, Dribbble, GitHub, or empty)",
   "years_experience_total": "number (total years of professional experience, 0 if unclear)",
   "brief": "string (2-3 sentence professional summary of their background and key strengths)",
-  "education": "string (highest degree, university, field of study — e.g. 'BSc Computer Science, Cairo University'. Empty if not found)",
-  "courses_certificates": "string (ALL courses, certifications, awards, and publications with full details — each on a SEPARATE LINE. Include dates, institutions, descriptions. Use newline \\n between entries)",
-  "skills": "array of strings (EVERY word/phrase found under the Skills, Expertise, or Competencies sections of the CV. Extract them VERBATIM — do not filter, do not judge whether something is a skill or not. If it appears under a skills section, include it. Include soft skills, hard skills, everything. Do NOT skip any)",
-  "technologies": "array of { name: string, years: number } (EVERY single general skill and technology mentioned — programming languages, frameworks, platforms, methodologies. NOT specific software tools. List them ALL without skipping any)",
-  "tools": "array of { name: string, years: number } (EVERY single software application mentioned — Figma, Jira, Salesforce, Google Analytics, Photoshop, etc. List them ALL)",
-  "work_history": "array of { company: string, title: string, start_date: string, end_date: string, brief: string } (ALL roles listed. brief must contain the COMPLETE description of responsibilities and achievements for that role — every bullet point, every sentence, every paragraph. Each sentence or bullet point must be on its own separate line within the brief string. Use newline \\n between each item. Do not summarize or truncate)",
-  "lnkd_notes": "string (any notable details — languages spoken, freelance status, notice period, salary expectations. Empty if not found)"
+  "education": "string (highest degree, university, field of study)",
+  "courses_certificates": "string (ALL courses, certifications, awards, and publications with full details. Each entry starts with '- ' and is on its own separate line via \\n)",
+  "skills": "array of strings (List EVERY single individual skill mentioned anywhere in the CV. Read through the entire text carefully. Extract each and every skill — programming languages, design skills, soft skills, project management, methodologies, everything. Do NOT skip any, do NOT select only important ones. If the CV mentions 50 skills, include all 50)",
+  "technologies": "array of { name: string, years: number } (EVERY technology mentioned — programming languages, frameworks, platforms. List ALL without skipping any)",
+  "tools": "array of { name: string, years: number } (EVERY specific software tool mentioned — Figma, Jira, Photoshop, After Effects, etc. List ALL)",
+  "work_history": "array of { company: string, title: string, start_date: string, end_date: string, brief: string } (ALL roles. brief: each bullet/sentence starts with '- ' and every sentence is on its own line via \\n. Include COMPLETE description — every bullet point from the CV. Do NOT summarize or truncate)",
+  "lnkd_notes": "string (notable details — languages, freelance status, notice period, salary expectations. Empty if not found)"
 }
 
 Rules:
@@ -71,10 +67,10 @@ Rules:
 - For "title": if they list a current role, use that exact title. Do NOT default to 'Candidate'.
 - For "location": if they mention multiple, use the most recent.
 - For "years_experience_total": look for explicit statements like "5+ years" or calculate from earliest role. Default 0.
-- **Skill routing**: Distinguish general skills/technologies (e.g. React, Python, SQL, Docker) from specific tools (e.g. Figma, Jira, Photoshop, Google Analytics). Put each in the correct array.
-- **work_history.brief**: Include ALL responsibilities and achievements mentioned for each role — not just the first sentence or bullet point.
-- **courses_certificates**: Include ALL courses, certifications, awards AND publications with their full details (dates, institutions, descriptions).
-- **skills/technologies/tools**: Extract ALL of them. Do not truncate to just the first few.
+- Skill routing: Distinguish general skills/technologies (React, Python, SQL, Docker) from specific tools (Figma, Jira, Photoshop). Put each in the correct array.
+- Formatting: work_history brief lines and courses_certificates entries must each start with '- ' and be on separate lines via \\n.
+- skills: Extract EVERY individual skill mentioned in the CV. Read the entire document. Do not skip any.
+- technologies/tools: Extract ALL technologies and ALL tools mentioned. Every single one.
 - If the text is empty or unreadable, return the schema with empty strings and empty arrays.`;
 
 export async function POST(req: NextRequest) {
@@ -101,7 +97,6 @@ export async function POST(req: NextRequest) {
 
     const { data: { publicUrl } } = supabase.storage.from('candidates_resumes').getPublicUrl(filePath);
 
-    // ── Extract raw text via pdf2json ──────────────────────────
     const pdfText = await new Promise<string>((resolve, reject) => {
       const pdfParser = new pdf(null, 1);
       pdfParser.on('pdfParser_dataError', (errData: any) => reject(errData.parserError));
@@ -111,7 +106,6 @@ export async function POST(req: NextRequest) {
       pdfParser.parseBuffer(buffer);
     });
 
-    // ── Regex extraction for universal patterns only ────────────
     const emailMatch    = pdfText.match(CONTACT_PATTERNS.email);
     const phoneMatch    = pdfText.match(CONTACT_PATTERNS.phone);
     const linkedinMatch = pdfText.match(CONTACT_PATTERNS.linkedin);
@@ -124,7 +118,6 @@ export async function POST(req: NextRequest) {
                                   dribbbleMatch ? `https://${dribbbleMatch[0]}` :
                                   githubMatch   ? `https://${githubMatch[0]}` : '';
 
-    // ── LLM extraction for everything else ──────────────────────
     let llmData: Record<string, any> = {};
     let llmSucceeded = false;
 
@@ -151,7 +144,6 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // ── Merge: LLM wins, regex fills gaps ───────────────────────
     const extractedData = {
       full_name:             llmData.full_name             || pdfText.split('\n').map(l => l.trim()).filter(l => l.length > 0)[0]?.substring(0, 100) || file.name.replace('.pdf', '') || '',
       title:                 llmData.title                 || 'Candidate',
@@ -167,7 +159,7 @@ export async function POST(req: NextRequest) {
       skills:                Array.isArray(llmData.skills)                ? llmData.skills                : [],
       technologies:          Array.isArray(llmData.technologies)          ? llmData.technologies          : [],
       tools:                 Array.isArray(llmData.tools)                 ? llmData.tools                 : [],
-      work_history:          Array.isArray(llmData.work_history)          ? llmData.work_history.slice(0, 5) : [],
+      work_history:          Array.isArray(llmData.work_history)          ? llmData.work_history          : [],
       lnkd_notes:            llmData.lnkd_notes            || '',
       resume_url:            publicUrl,
       resume_text:           pdfText,

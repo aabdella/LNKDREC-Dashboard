@@ -19,20 +19,16 @@ function getSupabaseClient() {
   return createClient(supabaseUrl, supabaseKey);
 }
 
-// Try OpenAI key first, fall back to OpenRouter key
 const openaiKey = process.env.OPENAI_API_KEY || process.env.OPENROUTER_API_KEY;
 const openai = openaiKey
   ? new OpenAI({
       apiKey: openaiKey,
-      baseURL: process.env.OPENAI_API_KEY
-        ? undefined
-        : 'https://openrouter.ai/api/v1',
+      baseURL: process.env.OPENAI_API_KEY ? undefined : 'https://openrouter.ai/api/v1',
     })
   : null;
 const LLM_MODEL = process.env.OPENAI_API_KEY ? 'gpt-4o-mini' : 'openai/gpt-4o-mini';
 
-const ENRICHMENT_PROMPT = `You are a recruitment CV parser. Extract structured data from the resume text below.
-Return ONLY valid JSON with no markdown or explanation.
+const ENRICHMENT_PROMPT = `You are a recruitment CV parser. Extract structured data from the resume text below. Return ONLY valid JSON with no markdown or explanation.
 
 Schema:
 {
@@ -41,20 +37,21 @@ Schema:
   "location": "string (city, country, or 'Remote')",
   "years_experience_total": "number (total years of professional experience, 0 if unclear)",
   "brief": "string (2-3 sentence professional summary)",
-  "education": "string (highest degree, university, field of study — e.g. 'BSc Computer Science, Cairo University')",
-  "courses_certificates": "string (ALL courses, certifications, awards, and publications with full details — each on a SEPARATE LINE with dates, institutions, descriptions. Use newline between entries)",
-  "skills": "array of strings (EVERY word/phrase under Skills/Expertise/Competencies sections — verbatim. Do NOT filter or judge. Include everything)",,
-  "technologies": "array of { name: string, years: number } (EVERY single technology mentioned — languages, frameworks, platforms. NOT specific tools. List ALL)",
-  "tools": "array of { name: string, years: number } (EVERY single software application mentioned — Figma, Jira, etc. List ALL)",
-  "work_history": "array of { company: string, title: string, start_date: string, end_date: string, brief: string } (ALL roles. brief: every sentence/bullet on its own separate line using \\n. Do NOT summarize)",
+  "education": "string (highest degree, university, field of study)",
+  "courses_certificates": "string (ALL courses, certifications, awards, and publications with full details. Each entry starts with '- ' and is on its own separate line via \\n)",
+  "skills": "array of strings (List EVERY single individual skill mentioned anywhere in the CV. Read through the entire text carefully. Extract each and every skill — do NOT skip any, do NOT select only important ones)",
+  "technologies": "array of { name: string, years: number } (EVERY technology mentioned — programming languages, frameworks, platforms. List ALL)",
+  "tools": "array of { name: string, years: number } (EVERY specific software tool mentioned — Figma, Jira, etc. List ALL)",
+  "work_history": "array of { company: string, title: string, start_date: string, end_date: string, brief: string } (ALL roles. brief: each bullet/sentence starts with '- ' on its own line via \\n. Include COMPLETE description)",
   "lnkd_notes": "string (notable details — languages, freelance status, notice period, salary)"
 }
 
 Rules:
 - Extract ONLY what's in the text. Never invent.
-- **Skill routing**: General skills/tech (React, Python, SQL, AWS) → technologies. Specific tools (Figma, Jira, Photoshop) → tools.
-- **work_history.brief**: Include a short description of what they did in each role.
-- **courses_certificates**: Include courses, certifications, awards AND publications.
+- Skill routing: General skills/tech (React, Python, SQL) → technologies. Specific tools (Figma, Jira, Photoshop) → tools.
+- Formatting: work_history brief lines and courses_certificates entries must each start with '- ' and be on separate lines via \\n.
+- skills: Extract EVERY individual skill. Do not skip any.
+- technologies/tools: Extract ALL technologies and ALL tools. Every single one.
 - If text is empty, return schema with empty strings/arrays.`;
 
 export async function POST(req: NextRequest) {
@@ -90,7 +87,6 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Build the update payload — only what the LLM extracted
     const updatePayload: Record<string, any> = {};
     const fields: Array<keyof typeof extractedData> = [
       'full_name', 'title', 'location', 'years_experience_total',
