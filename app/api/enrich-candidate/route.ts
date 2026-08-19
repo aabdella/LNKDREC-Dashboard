@@ -21,6 +21,29 @@ function getSupabaseClient() {
 
 const openai = process.env.OPENAI_API_KEY ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null;
 
+const ENRICHMENT_PROMPT = `You are a recruitment CV parser. Extract structured data from the resume text below.
+Return ONLY valid JSON with no markdown or explanation.
+
+Schema:
+{
+  "full_name": "string (candidate's full name, or empty if unclear)",
+  "title": "string (current/most recent job title — be specific, e.g. 'Senior Frontend Engineer')",
+  "location": "string (city, country, or 'Remote')",
+  "years_experience_total": "number (total years of professional experience, 0 if unclear)",
+  "brief": "string (2-3 sentence professional summary)",
+  "education": "string (highest degree, university, field of study — e.g. 'BSc Computer Science, Cairo University')",
+  "courses_certificates": "string (certifications, courses — comma separated)",
+  "skills": "array of strings (hard and soft skills. Max 15)",
+  "technologies": "array of { name: string, years: number } (tech/tools. Max 15)",
+  "tools": "array of { name: string, years: number } (software/tools. Max 10)",
+  "work_history": "array of { company: string, title: string, start_date: string, end_date: string, brief: string } (max 5 most recent roles)",
+  "lnkd_notes": "string (notable details — languages, freelance status, notice period, salary)"
+}
+
+Rules:
+- Extract ONLY what's in the text. Never invent.
+- If text is empty, return schema with empty strings/arrays.`;
+
 export async function POST(req: NextRequest) {
   try {
     const supabase = getSupabaseClient();
@@ -30,55 +53,51 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing candidate_id or resume_text' }, { status: 400 });
     }
 
-    let extractedData: any = {};
+    let extractedData: Record<string, any> = {};
 
-    if (openai) {
+    if (openai && resume_text.trim().length > 50) {
       try {
         const completion = await openai.chat.completions.create({
-          model: 'gpt-3.5-turbo',
+          model: 'gpt-4o-mini',
           messages: [
-            { role: 'system', content: 'You are a recruitment parser. Extract structured data from the resume text provided. Return ONLY valid JSON.' },
-            { role: 'user', content: `Resume Text:\n${resume_text.substring(0, 3000)}\n\nExtract the following JSON structure:\n{\n  "technologies": [{ "name": "React", "years": 2 }],\n  "tools": [{ "name": "Figma", "years": 3 }],\n  "work_history": [{ "company": "Google", "title": "Senior Engineer", "years": 2 }],\n  "years_experience": 5\n}` }
+            { role: 'system', content: ENRICHMENT_PROMPT },
+            { role: 'user', content: resume_text.substring(0, 8000) }
           ],
-          response_format: { type: 'json_object' }
+          response_format: { type: 'json_object' },
+          temperature: 0.1,
+          max_tokens: 2000,
         });
 
-        extractedData = JSON.parse(completion.choices[0].message.content || '{}');
+        const raw = completion.choices[0]?.message?.content;
+        if (raw) {
+          extractedData = JSON.parse(raw);
+        }
       } catch (e) {
-        console.error('OpenAI Parsing Failed:', e);
+        console.error('LLM enrichment failed:', e);
       }
     }
 
-    if (Object.keys(extractedData).length === 0) {
-      const commonTech = ['React', 'Angular', 'Vue', 'Node.js', 'Python', 'Java', 'C#', 'PHP', 'SQL', 'NoSQL', 'AWS', 'Azure', 'Docker', 'Kubernetes'];
-      const commonTools = ['Figma', 'Sketch', 'Adobe XD', 'Photoshop', 'Illustrator', 'Jira', 'Trello', 'Slack', 'Git'];
-
-      const foundTech = commonTech.filter(t => new RegExp(`\\b${t}\\b`, 'i').test(resume_text)).map(t => ({ name: t, years: 1 }));
-      const foundTools = commonTools.filter(t => new RegExp(`\\b${t}\\b`, 'i').test(resume_text)).map(t => ({ name: t, years: 1 }));
-
-      const historyRegex = /((Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)?\s*\d{4}\s*[-–to]\s*(Present|Now|\d{4}))/gi;
-      const work_history = [];
-      let match;
-      while ((match = historyRegex.exec(resume_text)) !== null) {
-        const start = Math.max(0, match.index - 50);
-        const end = Math.min(resume_text.length, match.index + 100);
-        const context = resume_text.substring(start, end).replace(/\s+/g, ' ').trim();
-        work_history.push({ company: 'Unknown', title: context, years: 1 });
+    // Build the update payload — only what the LLM extracted
+    const updatePayload: Record<string, any> = {};
+    const fields: Array<keyof typeof extractedData> = [
+      'full_name', 'title', 'location', 'years_experience_total',
+      'brief', 'education', 'courses_certificates', 'skills',
+      'technologies', 'tools', 'work_history', 'lnkd_notes',
+    ];
+    for (const field of fields) {
+      if (extractedData[field] !== undefined) {
+        updatePayload[field] = extractedData[field];
       }
-
-      extractedData = {
-        technologies: foundTech,
-        tools: foundTools,
-        work_history: work_history.slice(0, 3)
-      };
     }
 
-    const { error } = await supabase
-      .from('candidates')
-      .update(extractedData)
-      .eq('id', candidate_id);
+    if (Object.keys(updatePayload).length > 0) {
+      const { error } = await supabase
+        .from('candidates')
+        .update(updatePayload)
+        .eq('id', candidate_id);
 
-    if (error) throw error;
+      if (error) throw error;
+    }
 
     return NextResponse.json({ success: true, data: extractedData });
   } catch (err: any) {
