@@ -50,8 +50,8 @@ Rules:
 - Extract ONLY what's in the text. Never invent.
 - Skill routing: General skills/tech (React, Python, SQL) → technologies. Specific tools (Figma, Jira, Photoshop) → tools.
 - Formatting: work_history brief lines and courses_certificates entries must each start with '- ' and be on separate lines via \\n.
-- skills: Extract EVERY individual skill. Do not skip any.
-- technologies/tools: Extract ALL technologies and ALL tools. Every single one.
+- skills: Extract EVERY item from the Skills/Expertise section. Copy everything. Do not skip.
+- technologies/tools: Extract ALL from their sections. If in skills section, include them.
 - If text is empty, return schema with empty strings/arrays.`;
 
 export async function POST(req: NextRequest) {
