@@ -59,10 +59,10 @@ Schema:
   "brief": "string (2-3 sentence professional summary of their background and key strengths)",
   "education": "string (highest degree, university, field of study — e.g. 'BSc Computer Science, Cairo University'. Empty if not found)",
   "courses_certificates": "string (ALL courses, certifications, awards, and publications with full details — each on a SEPARATE LINE. Include dates, institutions, descriptions. Use newline \\n between entries)",
-  "skills": "array of strings (ALL hard and soft skills mentioned — not just first few. Max 25)",
-  "technologies": "array of { name: string, years: number } (ALL general skills and technologies — programming languages, frameworks, platforms, methodologies. NOT specific software tools. Max 20. Default years=1 if unclear)",
-  "tools": "array of { name: string, years: number } (ALL specific software applications — Figma, Jira, Salesforce, Google Analytics, Photoshop, etc. Max 15. Default years=1 if unclear)",
-  "work_history": "array of { company: string, title: string, start_date: string, end_date: string, brief: string } (ALL roles listed, max 8. Use actual company names and titles. dates as 'Mar 2020' or '2020' format. brief must include ALL responsibilities and achievements mentioned for that role — not just the first sentence)",
+  "skills": "array of strings (ALL hard and soft skills mentioned. Extract every single one — do not limit)",
+  "technologies": "array of { name: string, years: number } (ALL general skills and technologies — programming languages, frameworks, platforms, methodologies. NOT specific software tools. Extract every single one)",
+  "tools": "array of { name: string, years: number } (ALL specific software applications — Figma, Jira, Salesforce, Google Analytics, Photoshop, etc. Extract every single one)",
+  "work_history": "array of { company: string, title: string, start_date: string, end_date: string, brief: string } (ALL roles listed. Use actual company names and titles. dates as 'Mar 2020' or '2020' format. brief must contain the COMPLETE description of responsibilities and achievements for that role — every bullet point, every sentence, every paragraph. Do not summarize or truncate)",
   "lnkd_notes": "string (any notable details — languages spoken, freelance status, notice period, salary expectations. Empty if not found)"
 }
 
