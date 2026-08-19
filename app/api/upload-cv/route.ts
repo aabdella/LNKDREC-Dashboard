@@ -58,7 +58,7 @@ Schema:
   "years_experience_total": "number (total years of professional experience, 0 if unclear)",
   "brief": "string (2-3 sentence professional summary of their background and key strengths)",
   "education": "string (highest degree, university, field of study — e.g. 'BSc Computer Science, Cairo University'. Empty if not found)",
-  "courses_certificates": "string (ALL courses, certifications, awards, and publications with full details — not just first line. Include dates, institutions, descriptions. Comma or newline separated. Empty if not found)",
+  "courses_certificates": "string (ALL courses, certifications, awards, and publications with full details — each on a SEPARATE LINE. Include dates, institutions, descriptions. Use newline \\n between entries)",
   "skills": "array of strings (ALL hard and soft skills mentioned — not just first few. Max 25)",
   "technologies": "array of { name: string, years: number } (ALL general skills and technologies — programming languages, frameworks, platforms, methodologies. NOT specific software tools. Max 20. Default years=1 if unclear)",
   "tools": "array of { name: string, years: number } (ALL specific software applications — Figma, Jira, Salesforce, Google Analytics, Photoshop, etc. Max 15. Default years=1 if unclear)",
@@ -138,7 +138,7 @@ export async function POST(req: NextRequest) {
           ],
           response_format: { type: 'json_object' },
           temperature: 0.1,
-          max_tokens: 3000,
+          max_tokens: 6000,
         });
 
         const raw = completion.choices[0]?.message?.content;
