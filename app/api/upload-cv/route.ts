@@ -31,7 +31,17 @@ const CONTACT_PATTERNS = {
   github:   /github\.com\/[a-zA-Z0-9_-]+/i,
 };
 
-const openai = process.env.OPENAI_API_KEY ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null;
+// Try OpenAI key first, fall back to OpenRouter key
+const openaiKey = process.env.OPENAI_API_KEY || process.env.OPENROUTER_API_KEY;
+const openai = openaiKey
+  ? new OpenAI({
+      apiKey: openaiKey,
+      baseURL: process.env.OPENAI_API_KEY
+        ? undefined
+        : 'https://openrouter.ai/api/v1',
+    })
+  : null;
+const LLM_MODEL = process.env.OPENAI_API_KEY ? 'gpt-4o-mini' : 'openai/gpt-4o-mini';
 
 const EXTRACTION_PROMPT = `You are a recruitment CV parser. Extract structured data from the resume text below.
 Return ONLY valid JSON with no markdown or explanation.
@@ -117,7 +127,7 @@ export async function POST(req: NextRequest) {
     if (openai && pdfText.trim().length > 50) {
       try {
         const completion = await openai.chat.completions.create({
-          model: 'gpt-4o-mini',
+          model: LLM_MODEL,
           messages: [
             { role: 'system', content: EXTRACTION_PROMPT },
             { role: 'user', content: pdfText.substring(0, 8000) }
