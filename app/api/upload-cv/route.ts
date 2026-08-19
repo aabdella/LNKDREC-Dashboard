@@ -55,9 +55,9 @@ Schema:
   "brief": "string (2-3 sentence professional summary of their background and key strengths)",
   "education": "string (highest degree, university, field of study)",
   "courses_certificates": "string (ALL courses, certifications, awards, and publications with full details. Each entry starts with '- ' and is on its own separate line via \\n)",
-  "skills": "array of strings (List EVERY single individual skill mentioned anywhere in the CV. Read through the entire text carefully. Extract each and every skill — programming languages, design skills, soft skills, project management, methodologies, everything. Do NOT skip any, do NOT select only important ones. If the CV mentions 50 skills, include all 50)",
-  "technologies": "array of { name: string, years: number } (EVERY technology mentioned — programming languages, frameworks, platforms. List ALL without skipping any)",
-  "tools": "array of { name: string, years: number } (EVERY specific software tool mentioned — Figma, Jira, Photoshop, After Effects, etc. List ALL)",
+  "skills": "array of strings (Extract ONLY from the Skills / Expertise / Competencies / Core Competencies sections of the CV. Do NOT look for skills in the professional summary, work history, education, or any other section. If the CV has a dedicated skills section, copy EVERY item listed there verbatim — every single one. Do not skip any. If there is no dedicated skills section, return an empty array [])",
+  "technologies": "array of { name: string, years: number } (Extract ONLY from the Technologies / Technical Skills / Tools sections of the CV. Do NOT look for technologies in other sections. List EVERY single one. If there is no dedicated section, return empty array [])",
+  "tools": "array of { name: string, years: number } (Extract ONLY from the Tools / Software sections of the CV. List EVERY single one. If there is no dedicated section, return empty array [])",
   "work_history": "array of { company: string, title: string, start_date: string, end_date: string, brief: string } (ALL roles. brief: each bullet/sentence starts with '- ' and every sentence is on its own line via \\n. Include COMPLETE description — every bullet point from the CV. Do NOT summarize or truncate)",
   "lnkd_notes": "string (notable details — languages, freelance status, notice period, salary expectations. Empty if not found)"
 }
