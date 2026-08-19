@@ -58,11 +58,11 @@ Schema:
   "years_experience_total": "number (total years of professional experience, 0 if unclear)",
   "brief": "string (2-3 sentence professional summary of their background and key strengths)",
   "education": "string (highest degree, university, field of study — e.g. 'BSc Computer Science, Cairo University'. Empty if not found)",
-  "courses_certificates": "string (relevant certifications, courses, or training — comma separated. Empty if not found)",
+  "courses_certificates": "string (include courses, certifications, awards, and publications — comma separated. Empty if not found)",
   "skills": "array of strings (hard and soft skills mentioned — e.g. ['Team Leadership', 'Agile', 'Data Analysis']. Max 15)",
-  "technologies": "array of { name: string, years: number } (tech/tools they've used. Max 15. Default years=1 if unclear)",
-  "tools": "array of { name: string, years: number } (software/tools — Figma, Jira, etc. Max 10. Default years=1 if unclear)",
-  "work_history": "array of { company: string, title: string, start_date: string, end_date: string, brief: string } (most recent roles, max 5. Use actual company names and titles from the CV. dates as 'Mar 2020' or '2020' format)",
+  "technologies": "array of { name: string, years: number } (general skills and technologies — programming languages, frameworks, platforms, methodologies. NOT specific software tools. Max 15. Default years=1 if unclear)",
+  "tools": "array of { name: string, years: number } (specific software applications, design tools, project management tools, CRMs, analytics platforms — Figma, Jira, Salesforce, Google Analytics, etc. Max 10. Default years=1 if unclear)",
+  "work_history": "array of { company: string, title: string, start_date: string, end_date: string, brief: string } (most recent roles, max 5. Use actual company names and titles from the CV. dates as 'Mar 2020' or '2020' format. brief should describe what they did in that role — key responsibilities and achievements)",
   "lnkd_notes": "string (any notable details — languages spoken, freelance status, notice period, salary expectations. Empty if not found)"
 }
 
@@ -71,6 +71,9 @@ Rules:
 - For "title": if they list a current role, use that exact title. Do NOT default to 'Candidate'.
 - For "location": if they mention multiple, use the most recent.
 - For "years_experience_total": look for explicit statements like "5+ years" or calculate from earliest role. Default 0.
+- **Skill routing**: Distinguish general skills/technologies (e.g. React, Python, SQL, Docker) from specific tools (e.g. Figma, Jira, Photoshop, Google Analytics). Put each in the correct array.
+- **work_history.brief**: For each role, include a short description of responsibilities and achievements from the CV.
+- **courses_certificates**: Include courses, certifications, awards AND publications if mentioned.
 - If the text is empty or unreadable, return the schema with empty strings and empty arrays.`;
 
 export async function POST(req: NextRequest) {

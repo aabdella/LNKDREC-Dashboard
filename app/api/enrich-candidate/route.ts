@@ -42,16 +42,19 @@ Schema:
   "years_experience_total": "number (total years of professional experience, 0 if unclear)",
   "brief": "string (2-3 sentence professional summary)",
   "education": "string (highest degree, university, field of study — e.g. 'BSc Computer Science, Cairo University')",
-  "courses_certificates": "string (certifications, courses — comma separated)",
+  "courses_certificates": "string (include courses, certifications, awards, and publications — comma separated)",
   "skills": "array of strings (hard and soft skills. Max 15)",
-  "technologies": "array of { name: string, years: number } (tech/tools. Max 15)",
-  "tools": "array of { name: string, years: number } (software/tools. Max 10)",
-  "work_history": "array of { company: string, title: string, start_date: string, end_date: string, brief: string } (max 5 most recent roles)",
+  "technologies": "array of { name: string, years: number } (general skills and technologies — programming languages, frameworks, platforms, methodologies. NOT specific tools. Max 15)",
+  "tools": "array of { name: string, years: number } (specific software applications — Figma, Jira, Salesforce, Photoshop, etc. Max 10)",
+  "work_history": "array of { company: string, title: string, start_date: string, end_date: string, brief: string } (max 5 most recent roles. brief describes responsibilities and achievements in each role)",
   "lnkd_notes": "string (notable details — languages, freelance status, notice period, salary)"
 }
 
 Rules:
 - Extract ONLY what's in the text. Never invent.
+- **Skill routing**: General skills/tech (React, Python, SQL, AWS) → technologies. Specific tools (Figma, Jira, Photoshop) → tools.
+- **work_history.brief**: Include a short description of what they did in each role.
+- **courses_certificates**: Include courses, certifications, awards AND publications.
 - If text is empty, return schema with empty strings/arrays.`;
 
 export async function POST(req: NextRequest) {
