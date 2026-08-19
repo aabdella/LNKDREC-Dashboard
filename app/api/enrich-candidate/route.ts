@@ -43,10 +43,10 @@ Schema:
   "brief": "string (2-3 sentence professional summary)",
   "education": "string (highest degree, university, field of study — e.g. 'BSc Computer Science, Cairo University')",
   "courses_certificates": "string (ALL courses, certifications, awards, and publications with full details — each on a SEPARATE LINE with dates, institutions, descriptions. Use newline between entries)",
-  "skills": "array of strings (ALL hard and soft skills. Extract every single one — no limit)",
-  "technologies": "array of { name: string, years: number } (ALL general skills/technologies — programming languages, frameworks, platforms. NOT specific tools. Extract every single one)",
-  "tools": "array of { name: string, years: number } (ALL specific software applications — Figma, Jira, Salesforce, etc. Extract every single one)",
-  "work_history": "array of { company: string, title: string, start_date: string, end_date: string, brief: string } (ALL roles. brief must contain the COMPLETE description — every bullet point, every sentence. Do NOT summarize or truncate)",
+  "skills": "array of strings (EVERY single hard and soft skill mentioned — do not skip or prioritize. List them ALL)",
+  "technologies": "array of { name: string, years: number } (EVERY single technology mentioned — languages, frameworks, platforms. NOT specific tools. List ALL)",
+  "tools": "array of { name: string, years: number } (EVERY single software application mentioned — Figma, Jira, etc. List ALL)",
+  "work_history": "array of { company: string, title: string, start_date: string, end_date: string, brief: string } (ALL roles. brief: every sentence/bullet on its own separate line using \\n. Do NOT summarize)",
   "lnkd_notes": "string (notable details — languages, freelance status, notice period, salary)"
 }
 
