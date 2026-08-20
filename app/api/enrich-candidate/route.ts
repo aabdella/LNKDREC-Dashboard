@@ -39,9 +39,9 @@ Schema:
   "brief": "string (2-3 sentence professional summary)",
   "education": "string (highest degree, university, field of study)",
   "courses_certificates": "string (ALL courses, certifications, awards, and publications with full details. Each entry starts with '- ' and is on its own separate line via \\n)",
-  "skills": "array of strings (Find the Skills / Expertise / Competencies / Technical Skills section. Copy EVERY item listed there. Only return [] if truly no skills section exists)",
-  "technologies": "array of { name: string, years: number } (Find the Technologies / Languages / Frameworks section. Extract EVERY one listed)",
-  "tools": "array of { name: string, years: number } (Find the Tools / Software section. Extract EVERY tool listed)",
+  "skills": "array of strings (Extract EVERY individual skill mentioned anywhere in the CV — programming, design, soft skills, methodologies. Cast a wide net. Include everything)",
+  "technologies": "array of { name: string, years: number } (EVERY technology, language, framework, platform mentioned anywhere. Include every single one)",
+  "tools": "array of { name: string, years: number } (EVERY specific software tool mentioned anywhere. Include every single one)",
   "work_history": "array of { company: string, title: string, start_date: string, end_date: string, brief: string } (ALL roles. brief: each bullet/sentence starts with '- ' on its own line via \\n. Include COMPLETE description)",
   "lnkd_notes": "string (notable details — languages, freelance status, notice period, salary)"
 }
