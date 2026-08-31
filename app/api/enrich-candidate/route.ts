@@ -51,7 +51,7 @@ Rules:
 - Skill routing: General skills/tech (React, Python, SQL) → technologies. Specific tools (Figma, Jira, Photoshop) → tools.
 - Formatting: work_history brief lines and courses_certificates entries must each start with '- ' and be on separate lines via \\n.
 - skills: Extract EVERY item from the Skills/Expertise section. Copy everything. Do not skip.
-- technologies/tools: Extract ALL from their sections. If in skills section, include them.
+- technologies/tools: Extract ALL from their respective sections. Do NOT duplicate items already in the skills array — each item should appear in only ONE array (whichever is the most specific match).
 - If text is empty, return schema with empty strings/arrays.`;
 
 export async function POST(req: NextRequest) {

@@ -115,11 +115,12 @@ function getInitials(name: string): string {
 }
 
 function getAllSkills(candidate: Candidate): string[] {
-  return [
+  const combined = [
     ...(candidate.technologies?.map((t) => t.name) || []),
     ...(candidate.tools?.map((t) => t.name) || []),
     ...(candidate.skills || []),
   ];
+  return [...new Set(combined.map((s) => s.trim()).filter(Boolean))];
 }
 
 // Display salary. Main currency is EGP. If a rate is provided, append USD in brackets.
