@@ -905,6 +905,18 @@ export default function CandidateDetailsModal({
                                 </span>
                             ))}
                         </div>
+                        {formData.skills && formData.skills.length > 0 && (
+                            <div className="mt-3">
+                                <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Skills</div>
+                                <div className="flex flex-wrap gap-2">
+                                    {formData.skills.map((s, i) => (
+                                        <span key={i} className="bg-indigo-50 px-3 py-1 rounded-full text-sm border border-indigo-100 text-indigo-700">
+                                            {s}
+                                        </span>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     {formData.work_history && formData.work_history.length > 0 && (

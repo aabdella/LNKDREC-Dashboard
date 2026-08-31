@@ -245,7 +245,7 @@ export default function JobDetailPage() {
     setLoading(true);
     const { data, error } = await supabase
       .from('applications')
-      .select('candidate_id, candidates(id, full_name, title, location, years_experience_total, status, pipeline_stage, match_score, match_reason, brief, technologies, tools, email, phone, linkedin_url, portfolio_url, resume_url, resume_text, education, courses_certificates, work_history)')
+      .select('candidate_id, candidates(id, full_name, title, location, years_experience_total, status, pipeline_stage, match_score, match_reason, brief, technologies, tools, skills, email, phone, linkedin_url, portfolio_url, resume_url, resume_text, education, courses_certificates, work_history)')
       .eq('job_id', jobId);
     console.error('[JobDetail] fetchCandidates error:', JSON.stringify(error));
     if (data) setCandidates(data.map((d: any) => ({ ...d.candidates, _pipeline_stage: d.pipeline_stage })).filter((c: any) => c));
@@ -264,6 +264,7 @@ export default function JobDetailPage() {
   });
 
   function getTopTechTools(c: any): string[] { return [...(c.technologies || []), ...(c.tools || [])].map((t: any) => typeof t === 'string' ? t : t?.name).filter(Boolean).slice(0, 4); }
+  function getTopSkills(c: any): string[] { return (Array.isArray(c.skills) ? c.skills : []).filter(Boolean).slice(0, 4); }
   function getClientName(clients?: Job['clients']) { return Array.isArray(clients) ? clients[0]?.name : (clients as any)?.name; }
   function getClientIndustry(clients?: Job['clients']) { return Array.isArray(clients) ? clients[0]?.industry : (clients as any)?.industry; }
 
@@ -474,12 +475,14 @@ export default function JobDetailPage() {
                       Yrs Exp {sortField === 'years_experience_total' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
                     </th>
                     <th className="text-left px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">Tech / Tools</th>
+                    <th className="text-left px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">Skills</th>
                     <th className="text-right px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {sortedCandidates.map((candidate) => {
                     const topTech = getTopTechTools(candidate);
+                    const topSkills = getTopSkills(candidate);
                     const isSelected = selectedIds.has(candidate.id);
                     return (
                       <tr key={candidate.id} className={`border-b border-slate-50 hover:bg-slate-50/50 transition ${isSelected ? 'bg-indigo-50/40' : ''}`}>
@@ -500,6 +503,15 @@ export default function JobDetailPage() {
                           <div className="flex flex-wrap gap-1">
                             {topTech.length > 0 ? topTech.map((tech, i) => (
                               <span key={i} className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-medium">{tech}</span>
+                            )) : (
+                              <span className="text-slate-300 text-xs">—</span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex flex-wrap gap-1">
+                            {topSkills.length > 0 ? topSkills.map((skill, i) => (
+                              <span key={i} className="text-xs bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded font-medium border border-indigo-100">{skill}</span>
                             )) : (
                               <span className="text-slate-300 text-xs">—</span>
                             )}
